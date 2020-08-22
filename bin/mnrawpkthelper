@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+
+import argparse
+import select
+import socket
+import struct
+import sys
+
+import pcap
+
+ETH_P_ALL = 0x0003
+ETH_P_IP = 0x0800
+ETH_P_IPV6 = 0x86DD
+
+class InputFinished( Exception ):
+    pass
+
+class InputError( Exception ):
+    pass
+
+def handleRequest(pc, fh):
+    frame_len_bytes = fh.read(2)
+    if len(frame_len_bytes) == 0:
+        return 0
+    frame_len, = struct.unpack('!H', frame_len_bytes)
+    if frame_len == 0:
+        return 0
+    frame = fh.read(frame_len)
+    pc.sendpacket(frame)
+    return frame_len
+
+def handleResponse(pc, fh):
+    ( ts, frame ) = next( pc )
+    ts_s = int( ts )
+    ts_us = int( ( ts - ts_s ) * 1e6 )
+    frame_len = len( frame )
+    header_bytes = struct.pack( '!IIH', ts_s, ts_us, frame_len )
+    fh.write( header_bytes + frame )
+    fh.flush()
+
+def main():
+    import sys
+    parser = argparse.ArgumentParser()
+    parser.add_argument('interface', action='store')
+    parser.add_argument('filter_arg', nargs='*', action='store')
+    args = parser.parse_args(sys.argv[1:])
+
+    epoll = select.epoll()
+
+    try:
+        epoll.register(sys.stdin.fileno(), select.EPOLLIN)
+    except IOError:
+        # stdin has been closed
+        sys.exit(0)
+
+    intf = args.interface
+
+    pc = pcap.pcap(intf)
+    pc.setfilter(' '.join(args.filter_arg))
+    pc.setnonblock()
+    epoll.register(pc.fileno(), select.EPOLLIN )
+
+    # send empty frame as opening signal 
+    sys.stdout.buffer.write(b'\x00\x00')
+    sys.stdout.buffer.flush()
+
+    try:
+        while True:
+            events = epoll.poll()
+            for fd, event in events:
+                if event & select.EPOLLERR:
+                    raise InputFinished()
+                if fd == sys.stdin.fileno():
+                    frame_len = handleRequest( pc, sys.stdin.buffer )
+                    if not frame_len:
+                        raise InputFinished()
+                else: # fd == pc.fileno()
+                    handleResponse( pc, sys.stdout.buffer )
+
+    except (InputFinished, KeyboardInterrupt):
+        pass
+
+if __name__ == '__main__':
+    main()
