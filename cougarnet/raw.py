@@ -4,11 +4,9 @@ import os
 import select
 import signal
 import struct
-import subprocess
 import time
 
-from mininet.log import debug
-from mininet.node import Host
+from mininet.log import debug, error
 
 from scapy.all import IP, Ether, UDP
 
@@ -28,26 +26,17 @@ class Event( object ):
         return '<Event: %s>' % ( repr( action ) )
 
 class RawPktFramework( object ):
-    nodeClsToHandlerCls = {
-            Host: HostHandler,
-    }
 
     def __init__( self, net ):
         self.net = net
         self.wakeFhRead, self.wakeFhWrite = None, None
         self.epoll = select.epoll( )
-        self.nodeIntfTorawPktPopen = {}
+        self.nodeIntfToRawPktPopen = {}
         self.rawPktInToIntf = {}
-        self.nodeToHandler = {}
         self.events = []
         self._registerRawPacketHelpers( )
         self._registerWakePipe( )
-        self._resetRefTime( )
-
-    @classmethod
-    def _startRawPktHelper( cls, node, intf ):
-        cmd = [ 'mnrawpkthelper', intf.name, 'inbound' ]
-        return node.popen( *cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=None )
+        self._refTime = None
 
     @classmethod
     def _readFrame( cls, fd ):
@@ -57,28 +46,8 @@ class RawPktFramework( object ):
         ts_s, ts_us, frame_len = struct.unpack( '!IIH', header_bytes )
         if frame_len == 0:
             return 0.0, b''
-        ts = ts_s + ( ts_us / 1e6 )
-        return ts_s, os.read( fd, frame_len )
-
-    def installHandler( self, node, layer, proto, handler ):
-        nodeHandler = self.nodeToHandler[ node ]
-        if isinstance( handler, str ):
-            try:
-                handler = getattr( nodeHandler, handler )
-            except AttributeError:
-                raise NoMatchingMethod( 'No matching matching method for protocol "%s"' % \
-                        ( handler ) )
-        nodeHandler.installHandler( layer, proto, handler )
-
-    def installAppHandlerTCP( self, node, localPort, remotePort, handler ):
-        self.installHandler( node, 'TCP', ( localPort, remotePort ), handler )
-        nodeHandler = self.nodeToHandler[ node ]
-        nodeHandler.allowPackets( 'tcp', localPort )
-
-    def installAppHandlerUDP( self, node, localPort, handler ):
-        self.installHandler( node, 'UDP', localPort, handler )
-        nodeHandler = self.nodeToHandler[ node ]
-        nodeHandler.allowPackets( 'udp', localPort )
+        ts = ts_s * 1.0 + ( ts_us * 1.0 / 1e6 )
+        return ts, os.read( fd, frame_len )
 
     def _set_wakeup_fd( self, fd ):
         def _send_sig( sig, stackFrame ):
@@ -117,40 +86,19 @@ class RawPktFramework( object ):
         ethHeader = Ether( src=srcMAC, dst=dstMAC, type=ethType )
         return ethHeader / pkt
 
-    def sendFrame( self, pkt, node, intf ):
-        popen = self.nodeIntfTorawPktPopen[ node ][ intf ]
-        pkt_len = len( bytes( pkt ) )
-        pkt_len_bytes = struct.pack( '!H', pkt_len )
-        popen.stdin.write( pkt_len_bytes + bytes( pkt ) )
-        popen.stdin.flush ( )
-
     def _registerRawPacketHelpers( self ):
         for node in self.net.hosts + self.net.switches:
+            node.setHelper( self )
             for intf in node.ports:
-                nodeCls = type( node )
-                if nodeCls not in self.nodeClsToHandlerCls:
-                    #TODO issue warning
-                    continue
-                if node not in self.nodeToHandler:
-                    self.nodeToHandler[ node ] = HostHandler( node )
-                if node not in self.nodeIntfTorawPktPopen:
-                    self.nodeIntfTorawPktPopen[ node ] = {}
-                popen = self._startRawPktHelper( node, intf )
-                # wait on and consume the ready bytes (empty frame)
-                popen.stdout.read( 2 )
-                self.nodeIntfTorawPktPopen[ node ][ intf ] = popen
+                popen = node.startRawPktHelper( intf )
+                if node not in self.nodeIntfToRawPktPopen:
+                    self.nodeIntfToRawPktPopen[ node ] = {}
+                self.nodeIntfToRawPktPopen[ node ][ intf ] = popen
                 self.rawPktInToIntf[ popen.stdout.fileno( ) ] = intf
                 self.epoll.register( popen.stdout.fileno( ), select.EPOLLIN )
 
-                # disable arp
-                intf.ifconfig( '-arp' )
-                node.cmd( 'sysctl', 'net.ipv6.conf.%s.router_solicitations=0' % intf.name )
-
-        #TODO make it IPv6-compatible by updating Interface.IP() method (e.g., by creating an IP4() method)
-        allRoutesStr = node.cmd( 'ip', 'route' )
-        for routeStr in allRoutesStr.splitlines( ):
-            route = routeStr.split( )
-            node.cmd( 'ip', 'route', 'del', *route )
+            #TODO move this to node code
+            node.clearRoutingTable( )
 
     def _handleWakeEvent( self ):
         while True:
@@ -172,11 +120,9 @@ class RawPktFramework( object ):
                 self._handleWakeEvent( )
                 continue
             intf = self.rawPktInToIntf[ fd ]
-            node = intf.node
-            nodeHandler = self.nodeToHandler[ node ]
             ts, frame = self._readFrame( fd )
             ts = self._relativizeTime( ts )
-            nodeHandler._handleFrame( ts, frame, intf )
+            intf.node._handleFrame( ts, frame, intf )
 
     def _handleScheduledEvents( self ):
         handled = False
@@ -198,11 +144,14 @@ class RawPktFramework( object ):
     def _relativizeTime( self, ts ):
         return ts - self._refTime
 
+    def time( self ):
+        return self._relativizeTime( time.time( ) )
+
     def _relativizeEventTimes( self ):
         newEvents = []
         now = time.time( )
         for ts, event in self.events:
-            ts = now + ( ts - self._refTime )
+            ts = now + ts
             newEvents.append( ( ts, event ) )
         self.events = newEvents
         if self.events:
@@ -214,7 +163,11 @@ class RawPktFramework( object ):
             raise ValueError( 'Relative time cannot be negative: %d' % seconds )
         if args is None:
             args = ( )
-        return self.scheduleEventAbs( time.time( ) + seconds, action, args, force=True )
+        if self._refTime is None:
+            ts = seconds
+        else:
+            ts = time.time( ) + seconds
+        return self.scheduleEventAbs( ts, action, args, force=True )
 
     def scheduleEventAbs( self, ts, action, args, force=False ):
         if ts < time.time( ) and not force:
@@ -231,6 +184,7 @@ class RawPktFramework( object ):
         self.scheduleEvent( maxSeconds, self._endRun )
         while True:
             try:
+                #print( [ '%00.3f' % self._relativizeTime( i[0] ) for i in self.events ])
                 self._handleScheduledEvents( )
                 self._handleEpollEvents( )
             except EndRun as e:

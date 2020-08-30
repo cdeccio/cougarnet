@@ -19,7 +19,7 @@ class InputError( Exception ):
     pass
 
 def handleRequest(pc, fh):
-    frame_len_bytes = fh.read(2)
+    frame_len_bytes = fh.read( 2 )
     if len(frame_len_bytes) == 0:
         return 0
     frame_len, = struct.unpack('!H', frame_len_bytes)
@@ -60,7 +60,10 @@ def main():
     pc.setnonblock()
     epoll.register(pc.fileno(), select.EPOLLIN )
 
-    # send empty frame as opening signal 
+    # receive empty frame as opening signal
+    sys.stdin.buffer.read( 2 )
+
+    # send empty frame as response
     sys.stdout.buffer.write(b'\x00\x00')
     sys.stdout.buffer.flush()
 
