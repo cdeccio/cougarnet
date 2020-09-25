@@ -17,6 +17,11 @@ class NoMatchingMethod(Exception):
     pass
 
 class BaseNodeHandler( Node ):
+    '''
+    Base Node Handler class.  Extends mininet.node.Node to include handling of
+    raw packets, layer by layer.
+    '''
+
     PROTOHANDLERS = {
     }
 
@@ -28,9 +33,17 @@ class BaseNodeHandler( Node ):
         self._installDefaultHandlers( )
 
     def setHelper( self, helper ):
+        '''
+        Set the raw packet helper that is used send raw frames on the wire.
+        '''
+
         self.helper = helper
 
     def _installDefaultHandlers( self ):
+        '''
+        Install the protocol handlers that are defined by the class.
+        '''
+
         self.protocolHandlers = {}
         for layer in self.PROTOHANDLERS:
             self.protocolHandlers[ layer ] = {}
@@ -43,11 +56,63 @@ class BaseNodeHandler( Node ):
                 self.protocolHandlers[ layer ][ proto ] = handler
 
     def installHandler( self, layer, proto, handler ):
+        '''
+        Install a handler for a given layer and protocol.  This tells the node
+        what method or function to call when a packet with certain
+        characteristics (proto) is received at a given layer (layer).  For
+        example, we would call the following:
+
+            n.installHandler( 'ETH', ETH_P_IP, handleIP )
+
+        to have node n call handleIP when it receives an Ethernet frame whose
+        payload is an IP packet.  Similarly, the following:
+
+            n.installHandler( 'IP', IPPROTO_UDP, handleUDP )
+
+        would be used to have n call handleUDP when an IP packet is encountered
+        with a UDP payload.  Note that the type and value of proto can be
+        protocol-specific.  For example, it might be an integer or a tuple or
+        something else.
+
+
+        layer: a string representing which network layer is *currently* being
+                handled, i.e., where we're coming from.  For example, 'ETH',
+                'IP', 'TCP', 'UDP'
+        proto: a value identifying the protocol that will be handled *next*,
+                i.e., where we're going to.  For example, ETH_P_IP (for IP from
+                Ethernet), IPPROTO_UDP (for UDP from IP), the tuple
+                ('192.0.2.1', 5599) for 192.0.2.1:5599 from UDP, etc.
+        handler: the handler (function or method) that will be called.
+        '''
+
         if layer not in self.protocolHandlers:
             self.protocolHandlers[ layer ] = {}
         self.protocolHandlers[ layer ][ proto ] = handler
 
     def _handleNext( self, layer, proto, ts, pkt, intf ):
+        '''
+        Lookup and call the designated handler on a packet, for a given layer
+        and protocol.  If there is no handler installed for the given layer and
+        protocol, then log an error.
+
+        layer: a string representing which network layer is *currently* being
+                handled.  See installHandler().
+        proto: a value identifying the protocol that will be handled *next*.
+                See installHandler().
+        ts: a float representing the timestamp (seconds and microseconds) at
+                which the packet was received by the interface.
+        pkt: the packet being handled.  Note that the packet includes a header
+                and a payload.  Depending on the layer, the payload might
+                itself have another header.  For example, if this is an IP
+                packet, then pkt is an instance of scapy.all.IP (or
+                scapy.all.IPv6, for IPv6), and pkt.payload returns the scapy.all.TCP or
+                scapy.all.UDP instance corresponding to the TCP or UDP header
+                and its segment/payload.  If this is a TCP packet, then pkt is
+                an instance of scapy.all.TCP, and pkt.payload returns the
+                scapy.all.Raw instance corresponding to the raw data
+                representing the TCP segment.
+        '''
+
         try:
             handler = self.protocolHandlers[ layer ][ proto ]
         except KeyError:
@@ -61,6 +126,20 @@ class BaseNodeHandler( Node ):
         raise NotImplemented
 
     def sendFrame( self, frame, intf ):
+        '''
+        Send the frame using the raw packet helper process corresponding to the
+        interface.  The interface maps to the input pipe for this process using
+        self.intfPopen[intf].  The size of the frame is calculated, and the
+        size of the frame and frame itself are sent to the helper, to be placed
+        on the wire.  This placement on the wire is done by the raw packet
+        helper process.
+
+        frame: an instance of scapy.all.Ether representing Ethernet frame to be
+                sent.
+        intf: An instance of mininet.link.Intf that represents the interface
+                out which the Ethernet frame should be sent.
+        '''
+
         popen = self.intfPopen[ intf ]
         frame = bytes( frame )
         frameLen = len( frame )
@@ -69,6 +148,11 @@ class BaseNodeHandler( Node ):
         popen.stdin.flush ( )
 
 class Layer3Handler( BaseNodeHandler, Node ):
+    '''
+    A Node Handler specific to Nodes that operate at Layer3, e.g., hosts and
+    routers.
+    '''
+
     PROTOHANDLERS = {
             'ETH': {
                 ETH_P_IP: '_handleIP',
@@ -91,17 +175,35 @@ class Layer3Handler( BaseNodeHandler, Node ):
         self.intfPopen = {}
 
     def disableArp( self, intf ):
+        '''
+        Disable ARP (i.e., by the kernel) for the specified interface.
+
+        intf: An instance of mininet.link.Intf that represents the interface
+                for which ARP should be disabled.
+        '''
+
         # disable arp and router solicitations
         intf.ifconfig( '-arp' )
         self.cmd( 'sysctl', 'net.ipv6.conf.%s.router_solicitations=0' % intf.name )
 
 
     def addIntf( self, intf, port=None, moveIntfFn=moveIntf ):
+        '''
+        Override mininet.node.Node.addIntf() such that the parent method is
+        called and then ARP is disabled for the interface.
+        '''
+
         super( Layer3Handler, self ).addIntf( intf, port, moveIntfFn )
 
         self.disableArp( intf )
 
     def clearForwardingTable( self ):
+        '''
+        Clear all entries from the kernel's forwarding table for the node.
+        This allows this Layer-3 node to maintain its own forwarding table,
+        rather than the kernel.
+        '''
+
         #TODO do this as we add interfaces
         #TODO make it IPv6-compatible by updating Interface.IP( ) method (e.g., by creating an IP4( ) method)
         allRoutesStr = self.cmd( 'ip', 'route' )
@@ -110,6 +212,17 @@ class Layer3Handler( BaseNodeHandler, Node ):
             self.cmd( 'ip', 'route', 'del', *route )
 
     def startRawPktHelper( self, intf ):
+        '''
+        Start a raw packet helper for a given interface, an process that does
+        only the following:
+            1) listens on stdin for frames to be sent on the interface, and
+                sends them on that interface;
+            2) listens for incoming frames on the interface and sends them to
+                stdout.
+        Map the interface to the process, so we know which process to
+        communicate with when an incoming frame is detected on the interfaces.
+        '''
+
         cmd = [ 'mnrawpkthelper', intf.name ]
         popen = self.popen( *cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=None )
         self.intfPopen[ intf ] = popen
@@ -124,6 +237,18 @@ class Layer3Handler( BaseNodeHandler, Node ):
         return popen
 
     def installAppHandlerUDP( self, localPort, handler, localAddress=None ):
+        '''
+        Install a handler for a UDP application using a local port and local
+        address (optional).  When a UDP packet with destination address and
+        destination port match localPort and localAddress, handler will be
+        called.
+
+        localPort: an integer representing the local port.
+        handler: the handler (function or method) that will be called.
+        localAddress: an IP address (string) representing the local address.
+                If not specified, this is inferred using the IP address with
+                which the interface is configured.
+        '''
 
         if localAddress is None:
             localAddress = self.intf().IP()
@@ -132,6 +257,20 @@ class Layer3Handler( BaseNodeHandler, Node ):
         self.allowPackets( 'udp', localAddress, localPort )
 
     def installListenerTCP( self, localPort, handler, localAddress=None ):
+        '''
+        Install a handler for new (unestablished) TCP communications using a
+        local port and local address (optional).  When a TCP packet with
+        destination address and destination port match localPort and
+        localAddress--and that TCP packet does not match an existing,
+        established connection--this handler will be called.
+
+        localPort: an integer representing the local port.
+        handler: the handler (function or method) that will be called.
+        localAddress: an IP address (string) representing the local address.
+                If not specified, this is inferred using the IP address with
+                which the interface is configured.
+        '''
+
         if localAddress is None:
             localAddress = self.intf().IP()
         key = ( localAddress, localPort )
@@ -140,17 +279,60 @@ class Layer3Handler( BaseNodeHandler, Node ):
 
     def installAppHandlerTCP( self, localAddress, localPort,
             remoteAddress, remotePort, handler ):
+        '''
+        Install a handler for an established TCP connection using a local
+        address, local port, remote address, and remote port. When a TCP packet
+        arrives with matching destination address, destination port, source
+        address, and source port, the handler will be called.
+
+        localPort: an integer representing the local port.
+        localAddress: an IP address (string) representing the local address.
+        remotePort: an integer representing the remote port.
+        remoteAddress: an IP address (string) representing the remote address.
+        handler: the handler (function or method) that will be called.
+        '''
 
         key = ( localAddress, localPort, remoteAddress, remotePort )
         self.installHandler( 'TCP', key, handler )
 
     def allowPackets( self, proto, localAddress, localPort ):
+        '''
+        Create an iptables rule to drop packets arriving for given destination
+        address and port.  This allows us to communicate at the sub-application
+        layers without interference with the kernel.  Without this rule, the
+        packet would be allowed by netfilter to reach the kernel, and the
+        kernel would find no established listener and send a TCP RST (reset) to
+        the sender.
+
+        proto: a string representing the transport-layer protocol, either 'udp'
+                or 'tcp'
+        localPort: an integer representing the local port.
+        localAddress: an IP address (string) representing the local address.
+        '''
+
         self.cmd( 'iptables', '-A', 'INPUT', '-p', proto,
                 '--destination', localAddress, '--dport', str( localPort ),
                 '-j', 'DROP' )
 
 
     def _handleFrame( self, ts, frame, intf ):
+        '''
+        Handle a frame received on the wire.  Check the destination MAC address
+        on the frame.  Only keep it if it's our own MAC address or the
+        broadcast MAC address.  If it's a keeper, call the handler for the
+        next layer up.
+
+        ts: a float representing the timestamp (seconds and microseconds) at
+                which the packet was received by the interface.
+        frame: the frame being handled.  Note that the packet includes a frame
+                header and a payload. The frame is an instance of
+                scapy.all.Ether, and frame.payload returns an instance of the
+                the packet class for the next layer above Ethernet, typically
+                scapy.all.IP or scapy.all.IPv6.
+        intf: An instance of mininet.link.Intf that represents the interface
+                on which the Ethernet frame was received.
+        '''
+
         frame = Ether( frame )
         if frame.dst.lower( ) not in (intf.mac.lower( ), ETH_BROADCAST):
             # drop
@@ -160,6 +342,21 @@ class Layer3Handler( BaseNodeHandler, Node ):
         return self._handleNext( 'ETH', frame.type, ts, frame.payload, intf )
 
     def _handleIP( self, ts, pkt, intf ):
+        '''
+        Handle an incoming IP packet.  Check the destination IP address
+        of the packet.  Only keep it if it's our own IP (or IPv6) address or the
+        broadcast IP address.  If it's a keeper, call the handler for the
+        next layer up.  Otherwise, call self._handleNotMyPacket() on the packet.
+
+        ts: a float representing the timestamp (seconds and microseconds) at
+                which the packet was received by the interface.
+        pkt: the packet being handled, an instance of scapy.all.IP or
+                scapy.all.IPv6.  In either case, frame.payload returns an
+                instance of scapy.all.TCP or scapy.all.UDP.  See _handleNext().
+        intf: An instance of mininet.link.Intf that represents the interface
+                on which the packet was received.
+        '''
+
         ipv4Addrs = [ intf.ip for intf in self.ports if intf.ip is not None ]
         ipv6Addrs = [ intf.ip6 for intf in self.ports if intf.ip6 is not None ]
         ipv6LLAddrs = [ intf.ip6ll for intf in self.ports if intf.ip6ll is not None ]
@@ -173,10 +370,41 @@ class Layer3Handler( BaseNodeHandler, Node ):
             self._handleNotMyPacket( ts, pkt, intf )
 
     def _handleUDP( self, ts, pkt, intf ):
+        '''
+        Handle an incoming UDP/IP packet.  Look up and call the handler
+        corresponding to the destination IP address and destination UDP port.
+
+        ts: a float representing the timestamp (seconds and microseconds) at
+                which the packet was received by the interface.
+        pkt: the packet being handled, an instance of scapy.all.IP or
+                scapy.all.IPv6.  In either case, frame.payload returns an
+                instance of scapy.all.UDP.  See _handleNext().
+        intf: An instance of mininet.link.Intf that represents the interface
+                on which the packet was received.
+        '''
+
         key = ( pkt.dst, pkt.dport )
         return self._handleNext( 'UDP', key, ts, pkt, intf )
 
     def _handleTCP( self, ts, pkt, intf ):
+        '''
+        Handle an incoming TCP/IP packet.  Look up a handler, by looking up the
+        following, in order:
+            1) a handler matching the destination address, destination port, source address,
+                and source port (i.e., an established connection)
+            2) a handler matching the destination address and destination port
+                (i.e., a new, unestablished connection)
+        Call the first handler that is found.
+
+        ts: a float representing the timestamp (seconds and microseconds) at
+                which the packet was received by the interface.
+        pkt: the packet being handled, an instance of scapy.all.IP or
+                scapy.all.IPv6.  In either case, frame.payload returns an
+                instance of scapy.all.TCP.  See _handleNext().
+        intf: An instance of mininet.link.Intf that represents the interface
+                on which the packet was received.
+        '''
+
         key1 = ( pkt.dst, pkt.dport, pkt.src, pkt.sport )
         key2 = ( pkt.dst, pkt.dport )
         # handle existing connections
@@ -188,12 +416,32 @@ class Layer3Handler( BaseNodeHandler, Node ):
             return self._handleNext( 'TCP', key2, ts, pkt, intf )
 
     def _handleNotMyPacket( self, ts, pkt, intf ):
+        '''
+        Warn that a packet received was not destined for this node.
+
+        ts: a float representing the timestamp (seconds and microseconds) at
+                which the packet was received by the interface.
+        pkt: the packet being handled, an instance of scapy.all.IP or
+                scapy.all.IPv6.
+        intf: An instance of mininet.link.Intf that represents the interface
+                on which the packet was received.
+        '''
+
         warning('%0000.3f Host %s: ERROR: received packet from %s not destined for me %s\n' % \
                 (ts, self.name, pkt.src, pkt.dst))
 
 
-
     def sendPacket( self, pkt ):
+        '''
+        Send an IP (or IPv6) packet.  Using this node's forwarding table, look
+        up the interface from which the packet should be sent.  If an entry
+        exists, create an Ethernet frame for the packet, and send it out the
+        outgoing interface.
+
+        pkt: the packet being handled, an instance of scapy.all.IP or
+                scapy.all.IPv6.
+        '''
+
         dst = IPAddress( pkt.dst )
         if dst not in self.Table:
             error('%0000.3f Host %s: ERROR:  entry not found for %s\n' % \
