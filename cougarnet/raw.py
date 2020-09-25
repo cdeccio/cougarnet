@@ -160,11 +160,9 @@ class RawPktFramework( object ):
             ts = self.events[0][0]
             signal.setitimer( signal.ITIMER_REAL, max( ts - time.time( ), 0 ) )
 
-    def scheduleEvent( self, seconds, action, args=None ):
+    def scheduleEvent( self, seconds, action, *args ):
         if seconds < 0:
             raise ValueError( 'Relative time cannot be negative: %d' % seconds )
-        if args is None:
-            args = ( )
         if self._refTime is None:
             ts = seconds
         else:
@@ -196,7 +194,6 @@ class RawPktFramework( object ):
         self.scheduleEvent( maxSeconds, self._endRun )
         while True:
             try:
-                #print( [ '%00.3f' % self._relativizeTime( i[0] ) for i in self.events ])
                 self._handleScheduledEvents( )
                 self._handleEpollEvents( )
             except EndRun as e:
