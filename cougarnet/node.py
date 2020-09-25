@@ -16,12 +16,12 @@ from .ip import IPPROTO_TCP, IPPROTO_UDP, IP_BROADCAST, IPAddress
 class NoMatchingMethod(Exception):
     pass
 
-class BaseHandler( Node ):
+class BaseNodeHandler( Node ):
     PROTOHANDLERS = {
     }
 
     def __init__( self, name, inNamespace=True, **params ):
-        super( BaseHandler, self ).__init__( name, inNamespace, **params )
+        super( BaseNodeHandler, self ).__init__( name, inNamespace, **params )
 
         self.helper = None
         self.protocolHandlers = None
@@ -68,7 +68,7 @@ class BaseHandler( Node ):
         popen.stdin.write( frameLenBytes + frame )
         popen.stdin.flush ( )
 
-class Layer3Handler( BaseHandler, Node ):
+class Layer3Handler( BaseNodeHandler, Node ):
     PROTOHANDLERS = {
             'ETH': {
                 ETH_P_IP: '_handleIP',
@@ -101,7 +101,7 @@ class Layer3Handler( BaseHandler, Node ):
 
         self.disableArp( intf )
 
-    def clearRoutingTable( self ):
+    def clearForwardingTable( self ):
         #TODO do this as we add interfaces
         #TODO make it IPv6-compatible by updating Interface.IP( ) method (e.g., by creating an IP4( ) method)
         allRoutesStr = self.cmd( 'ip', 'route' )
@@ -110,7 +110,6 @@ class Layer3Handler( BaseHandler, Node ):
             self.cmd( 'ip', 'route', 'del', *route )
 
     def startRawPktHelper( self, intf ):
-        #cmd = [ 'mnrawpkthelper', intf.name, 'inbound' ]
         cmd = [ 'mnrawpkthelper', intf.name ]
         popen = self.popen( *cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=None )
         self.intfPopen[ intf ] = popen
@@ -173,6 +172,9 @@ class Layer3Handler( BaseHandler, Node ):
             return
 
         intf, nextHop = self.forwardingTable.getEntry( pkt.dst )
+
+        srcMAC = intf.MAC()
+        dstMAC = self.getMAC( pkt.dst )
 
         frame = Ether( src=intf.MAC(), dst=dstMAC ) / pkt
         self.sendFrame( frame, intf )

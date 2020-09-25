@@ -10,7 +10,7 @@ from mininet.log import debug, error
 
 from scapy.all import IP, Ether, UDP
 
-from .node import BaseHandler, NoMatchingMethod, HostHandler
+from .node import BaseNodeHandler, NoMatchingMethod, HostHandler
 from .ether import ETH_P_IP, ETH_P_IPV6
 
 
@@ -88,7 +88,7 @@ class RawPktFramework( object ):
 
     def _registerRawPacketHelpers( self ):
         for node in self.net.hosts + self.net.switches:
-            if not isinstance( node, BaseHandler ):
+            if not isinstance( node, BaseNodeHandler ):
                 continue
             node.setHelper( self )
             for intf in node.ports:
@@ -100,7 +100,7 @@ class RawPktFramework( object ):
                 self.epoll.register( popen.stdout.fileno( ), select.EPOLLIN )
 
             #TODO move this to node code
-            node.clearRoutingTable( )
+            node.clearForwardingTable( )
 
     def _handleWakeEvent( self ):
         while True:
