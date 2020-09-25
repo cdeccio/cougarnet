@@ -177,6 +177,16 @@ class RawPktFramework( object ):
         self.events.insert( i, event )
         if i == 0:
             signal.setitimer( signal.ITIMER_REAL, max( ts - time.time( ), 0 ) )
+        return event
+
+    def cancelEvent( self, event ):
+        found = False
+        for ts, ev in self.events:
+            if event == event:
+                found = True
+                break
+        if found:
+            self.events.remove( ( ts, event ) )
 
     def run( self, maxSeconds ):
         self._relativizeEventTimes( )
