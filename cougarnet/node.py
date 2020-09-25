@@ -52,7 +52,7 @@ class BaseNodeHandler( Node ):
             handler = self.protocolHandlers[ layer ][ proto ]
         except KeyError:
             # drop - nothing to do
-            debug( '*** %s: No handler for protocol 0x%000x at layer %s: %s\n' % \
+            warn( '*** %s: No handler for protocol %s at layer %s: %s\n' % \
                     ( self.name, proto, layer, repr( pkt ) ) )
             return None
         return handler( ts, pkt, intf )
