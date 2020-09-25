@@ -123,14 +123,32 @@ class Layer3Handler( BaseNodeHandler, Node ):
 
         return popen
 
-    def installAppHandlerUDP( self, localPort, handler ):
-        self.installHandler( 'UDP', localPort, handler )
-        self.allowPackets( 'udp', localPort )
+    def installAppHandlerUDP( self, localPort, handler, localAddress=None ):
 
-    def allowPackets( self, proto, port ):
-        #TODO bind/firewall protocols based on interface, not node; for now, it's okay
-        for intf in self.ports:
-            self.cmd( 'iptables', '-A', 'INPUT', '-i', intf.name, '-p', proto, '--dport', str( port ), '-j', 'DROP' )
+        if localAddress is None:
+            localAddress = self.intf().IP()
+        key = ( localAddress, localPort )
+        self.installHandler( 'UDP', key, handler )
+        self.allowPackets( 'udp', localAddress, localPort )
+
+    def installListenerTCP( self, localPort, handler, localAddress=None ):
+        if localAddress is None:
+            localAddress = self.intf().IP()
+        key = ( localAddress, localPort )
+        self.installHandler( 'TCP', key, handler )
+        self.allowPackets( 'tcp', localAddress, localPort )
+
+    def installAppHandlerTCP( self, localAddress, localPort,
+            remoteAddress, remotePort, handler ):
+
+        key = ( localAddress, localPort, remoteAddress, remotePort )
+        self.installHandler( 'TCP', key, handler )
+
+    def allowPackets( self, proto, localAddress, localPort ):
+        self.cmd( 'iptables', '-A', 'INPUT', '-p', proto,
+                '--destination', localAddress, '--dport', str( localPort ),
+                '-j', 'DROP' )
+
 
     def _handleFrame( self, ts, frame, intf ):
         frame = Ether( frame )
@@ -154,33 +172,50 @@ class Layer3Handler( BaseNodeHandler, Node ):
         else:
             self._handleNotMyPacket( ts, pkt, intf )
 
+    def _handleUDP( self, ts, pkt, intf ):
+        key = ( pkt.dst, pkt.dport )
+        return self._handleNext( 'UDP', key, ts, pkt, intf )
+
+    def _handleTCP( self, ts, pkt, intf ):
+        key1 = ( pkt.dst, pkt.dport, pkt.src, pkt.sport )
+        key2 = ( pkt.dst, pkt.dport )
+        # handle existing connections
+        if 'TCP' in self.protocolHandlers and \
+                key1 in self.protocolHandlers['TCP']:
+            return self._handleNext( 'TCP', key1, ts, pkt, intf )
+        # handle new connections
+        else:
+            return self._handleNext( 'TCP', key2, ts, pkt, intf )
+
     def _handleNotMyPacket( self, ts, pkt, intf ):
         warning('%0000.3f Host %s: ERROR: received packet from %s not destined for me %s\n' % \
                 (ts, self.name, pkt.src, pkt.dst))
 
-    def _handleUDP( self, ts, pkt, intf ):
-        return self._handleNext( 'UDP', pkt.dport, ts, pkt, intf )
 
-    def _handleTCP( self, ts, pkt, intf ):
-        return self._handleNext( 'TCP', ( pkt.dport, pkt.sport ), ts, pkt, intf )
 
-    def sendPacket( self, pkt, dstMAC=None ):
+    def sendPacket( self, pkt ):
         dst = IPAddress( pkt.dst )
-        if dst not in self.forwardingTable:
-            error('%0000.3f Host %s: ERROR: forwarding entry not found for %s\n' % \
+        if dst not in self.Table:
+            error('%0000.3f Host %s: ERROR:  entry not found for %s\n' % \
                     (self.helper.time( ), self.name, pkt.dst))
             return
 
-        intf, nextHop = self.forwardingTable.getEntry( pkt.dst )
+        intf, nextHop = self.Table.getEntry( pkt.dst )
 
         srcMAC = intf.MAC()
         dstMAC = self.getMAC( pkt.dst )
 
-        frame = Ether( src=intf.MAC(), dst=dstMAC ) / pkt
+        frame = Ether( src=srcMAC, dst=dstMAC ) / pkt
         self.sendFrame( frame, intf )
 
+    def getMAC( self, dstIP ):
+        return ETH_BROADCAST
+
     def printDatagramPayload( self, ts, pkt, intf ):
-        print( '*** (%0.3f) %s: received UDP datagram: %s' % ( ts, self.name, bytes( pkt.getlayer( UDP ).payload ).decode( 'utf-8' ) ) ) 
+
+        rawPayload = bytes( pkt.getlayer( UDP ).payload ).decode( 'utf-8' )
+        print( '*** (%0.3f) %s: received UDP datagram: %s' % \
+                ( ts, self.name, rawPayload ) )
 
     def addForwardingEntry( self, prefix, intf, nextHopIP ):
         self.forwardingTable.addEntry( prefix, intf, nextHopIP )
