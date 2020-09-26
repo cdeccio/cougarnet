@@ -443,12 +443,12 @@ class Layer3Handler( BaseNodeHandler, Node ):
         '''
 
         dst = IPAddress( pkt.dst )
-        if dst not in self.Table:
+        if dst not in self.forwardingTable:
             error('%0000.3f Host %s: ERROR:  entry not found for %s\n' % \
                     (self.helper.time( ), self.name, pkt.dst))
             return
 
-        intf, nextHop = self.Table.getEntry( pkt.dst )
+        intf, nextHop = self.forwardingTable.getEntry( pkt.dst )
 
         srcMAC = intf.MAC()
         dstMAC = self.getMAC( pkt.dst )
