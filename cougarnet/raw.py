@@ -204,11 +204,14 @@ class RawPktFramework( object ):
                 ts = self.events[0][0]
                 signal.setitimer( signal.ITIMER_REAL, max( ts - time.time( ), 0 ) )
 
-    def run( self, maxSeconds ):
+    def run( self, maxSeconds=None, minSeconds=2.0 ):
         self._relativizeEventTimes( )
         self._resetRefTime( )
-        self.scheduleEvent( maxSeconds, self._endRun )
+        if maxSeconds is not None:
+            self.scheduleEvent( maxSeconds, self._endRun )
         while True:
+            if not self.events and self.time() > minSeconds:
+                break
             try:
                 self._handleScheduledEvents( )
                 self._handleEpollEvents( )
