@@ -18,12 +18,16 @@ class EndRun( Exception ):
     pass
 
 class Event( object ):
-    def __init__( self, action, args ):
+    def __init__( self, action, args, kwargs ):
         self.action = action
         self.args = args
+        self.kwargs = kwargs
+
+    def __repr__( self ):
+        return str( self )
 
     def __str__( self ):
-        return '<Event: %s>' % ( repr( action ) )
+        return '<Event: %s>' % ( repr( self.action ) )
 
 class RawPktFramework( object ):
 
@@ -160,19 +164,23 @@ class RawPktFramework( object ):
             ts = self.events[0][0]
             signal.setitimer( signal.ITIMER_REAL, max( ts - time.time( ), 0 ) )
 
-    def scheduleEvent( self, seconds, action, *args ):
+    def scheduleEvent( self, seconds, action, args=None, kwargs=None ):
         if seconds < 0:
             raise ValueError( 'Relative time cannot be negative: %d' % seconds )
+        if args is None:
+            args = ()
+        if kwargs is None:
+            kwargs = {}
         if self._refTime is None:
             ts = seconds
         else:
             ts = time.time( ) + seconds
-        return self.scheduleEventAbs( ts, action, args, force=True )
+        return self.scheduleEventAbs( ts, action, args, kwargs, force=True )
 
-    def scheduleEventAbs( self, ts, action, args, force=False ):
+    def scheduleEventAbs( self, ts, action, args, kwargs, force=False ):
         if ts < time.time( ) and not force:
             raise ValueError( 'Event is scheduled in the past: %f' % ts )
-        event = ( ts, Event( action, args ) )
+        event = ( ts, Event( action, args, kwargs ) )
         i = bisect.bisect( self.events, event )
         self.events.insert( i, event )
         if i == 0:
