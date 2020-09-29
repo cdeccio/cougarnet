@@ -183,9 +183,11 @@ class RawPktFramework( object ):
     def scheduleEventAbs( self, ts, action, args, kwargs, force=False ):
         if ts < time.time( ) and not force:
             raise ValueError( 'Event is scheduled in the past: %f' % ts )
-        event = ( ts, Event( action, args, kwargs ) )
-        i = bisect.bisect( self.events, event )
-        self.events.insert( i, event )
+
+        event = Event( action, args, kwargs )
+        eventTuple = ( ts, event )
+        i = bisect.bisect( self.events, eventTuple )
+        self.events.insert( i, eventTuple )
         if i == 0:
             signal.setitimer( signal.ITIMER_REAL, max( ts - time.time( ), 0 ) )
         return event
@@ -193,7 +195,7 @@ class RawPktFramework( object ):
     def cancelEvent( self, event ):
         found = False
         for ts, ev in self.events:
-            if event == event:
+            if ev == event:
                 found = True
                 break
         if found:
