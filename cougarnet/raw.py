@@ -18,6 +18,11 @@ class EndRun( Exception ):
     pass
 
 class Event( object ):
+    '''
+    An Event to be scheduled.  An Event has an action, as well as positional
+    and keyword arguments.
+    '''
+
     def __init__( self, action, args, kwargs ):
         self.action = action
         self.args = args
@@ -33,6 +38,10 @@ class Event( object ):
         return self.action( *( self.args ), **( self.kwargs ) )
 
 class RawPktFramework( object ):
+    '''
+    A framework for monitoring processes that send and receive raw network
+    frames.  These are handled, along with general events, in an event loop.
+    '''
 
     def __init__( self, net ):
         self.net = net
@@ -168,6 +177,20 @@ class RawPktFramework( object ):
             signal.setitimer( signal.ITIMER_REAL, max( ts - time.time( ), 0 ) )
 
     def scheduleEvent( self, seconds, action, args=None, kwargs=None ):
+        '''
+        Schedule an action to happen in the future, based on a time relative to
+        the current time.  Return the Event() instance corresponding to the
+        scheduled action.
+
+        seconds: a float, the amount of time in the future that the action
+                should happen.
+        action: the function or method that should be called.
+        args: a tuple of one or more arguments that should be passed to the
+                function or method when it is called.
+        kwargs: a dictionary of one or more keyword argument pairs that should
+                be passed to the function or method when it is called.
+        '''
+
         if seconds < 0:
             raise ValueError( 'Relative time cannot be negative: %d' % seconds )
         if args is None:
@@ -181,6 +204,19 @@ class RawPktFramework( object ):
         return self.scheduleEventAbs( ts, action, args, kwargs, force=True )
 
     def scheduleEventAbs( self, ts, action, args, kwargs, force=False ):
+        '''
+        Schedule an action to happen at a specific time in the future.  Return
+        the Event() instance corresponding to the scheduled action.
+
+        seconds: a float representing the time in the future that the action
+                should happen.
+        action: the function or method that should be called.
+        args: a tuple of one or more arguments that should be passed to the
+                function or method when it is called.
+        kwargs: a dictionary of one or more keyword argument pairs that should
+                be passed to the function or method when it is called.
+        '''
+
         if ts < time.time( ) and not force:
             raise ValueError( 'Event is scheduled in the past: %f' % ts )
 
@@ -193,6 +229,12 @@ class RawPktFramework( object ):
         return event
 
     def cancelEvent( self, event ):
+        '''
+        Remove a given event from the queue of scheduled events.
+
+        event: the Event instance that is to be removed/canceled.
+        '''
+
         found = False
         for i, ( ts, ev ) in enumerate( self.events ):
             if ev == event:
@@ -205,6 +247,18 @@ class RawPktFramework( object ):
                 signal.setitimer( signal.ITIMER_REAL, max( ts - time.time( ), 0 ) )
 
     def run( self, maxSeconds=None, minSeconds=2.0 ):
+        '''
+        Carry out scheduled events and also handle epoll events, e.g., from raw
+        packet processes.  Terminate when either of the conditions are true:
+
+                1. maxSeconds is None, minSeconds seconds have passed, and
+                    there are no more events scheduled.
+                2. maxSeconds is not None, and maxSeconds seconds have passed.
+
+        maxSeconds: the maximum number of seconds that the scenario should run.
+        minSeconds: the miniumum number of seconds that the scenario should run.
+        '''
+
         self._relativizeEventTimes( )
         self._resetRefTime( )
         if maxSeconds is not None:
