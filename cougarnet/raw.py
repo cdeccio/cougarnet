@@ -29,6 +29,9 @@ class Event( object ):
     def __str__( self ):
         return '<Event: %s>' % ( repr( self.action ) )
 
+    def run( self ):
+        return self.action( *( self.args ), **( self.kwargs ) )
+
 class RawPktFramework( object ):
 
     def __init__( self, net ):
@@ -137,7 +140,7 @@ class RawPktFramework( object ):
             if time.time( ) >= ts:
                 debug( 'handling scheduled event: %s\n' % event.action )
                 self.events.pop( 0 )
-                event.action( *( event.args ) )
+                event.run()
                 handled = True
             else:
                 break
