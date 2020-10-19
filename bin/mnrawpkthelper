@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import logging
 import select
 import socket
 import struct
@@ -12,13 +13,14 @@ ETH_P_ALL = 0x0003
 ETH_P_IP = 0x0800
 ETH_P_IPV6 = 0x86DD
 
+
 class InputFinished( Exception ):
     pass
 
 class InputError( Exception ):
     pass
 
-def handleRequest(pc, fh):
+def handleRequest(pc, fh, verbose):
     frame_len_bytes = fh.read( 2 )
     if len(frame_len_bytes) == 0:
         return 0
@@ -26,7 +28,12 @@ def handleRequest(pc, fh):
     if frame_len == 0:
         return 0
     frame = fh.read(frame_len)
-    pc.sendpacket(frame)
+    try:
+        pc.sendpacket(frame)
+    except OSError:
+        if verbose:
+            sys.stderr.write('No space in queue - Packet dropped!\n')
+            sys.stderr.flush( )
     return frame_len
 
 def handleResponse(pc, fh):
@@ -39,8 +46,9 @@ def handleResponse(pc, fh):
     fh.flush()
 
 def main():
-    import sys
     parser = argparse.ArgumentParser()
+    parser.add_argument('--quiet', '-q', action='store_const', const=True,
+            default=False, help="Quiet mode (don't show error output")
     parser.add_argument('interface', action='store')
     parser.add_argument('filter_arg', nargs='*', action='store')
     args = parser.parse_args(sys.argv[1:])
@@ -74,7 +82,7 @@ def main():
                 if event & select.EPOLLERR:
                     raise InputFinished()
                 if fd == sys.stdin.fileno():
-                    frame_len = handleRequest( pc, sys.stdin.buffer )
+                    frame_len = handleRequest( pc, sys.stdin.buffer, not args.quiet )
                     if not frame_len:
                         raise InputFinished()
                 else: # fd == pc.fileno()

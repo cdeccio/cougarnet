@@ -251,9 +251,9 @@ class RawPktFramework( object ):
         Carry out scheduled events and also handle epoll events, e.g., from raw
         packet processes.  Terminate when either of the conditions are true:
 
-                1. maxSeconds is None, minSeconds seconds have passed, and
-                    there are no more events scheduled.
-                2. maxSeconds is not None, and maxSeconds seconds have passed.
+            1. maxSeconds is None, minSeconds seconds have passed, and there
+                are no more events scheduled.
+            2. maxSeconds is not None, and maxSeconds seconds have passed.
 
         maxSeconds: the maximum number of seconds that the scenario should run.
         minSeconds: the miniumum number of seconds that the scenario should run.

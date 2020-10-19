@@ -1,8 +1,9 @@
+import logging
 import struct
 import subprocess
 
 from mininet.node import Node
-from mininet.log import debug, warn, error
+from mininet.log import lg, debug, warn, error
 from mininet.util import moveIntf
 
 from scapy.all import Ether, UDP
@@ -222,8 +223,11 @@ class Layer3Handler( BaseNodeHandler, Node ):
         Map the interface to the process, so we know which process to
         communicate with when an incoming frame is detected on the interfaces.
         '''
-
-        cmd = [ 'mnrawpkthelper', intf.name ]
+        
+        cmd = [ 'mnrawpkthelper' ]
+        if lg.getEffectiveLevel() > logging.INFO:
+            cmd.append( '-q' )
+        cmd.append( intf.name )
         popen = self.popen( *cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=None )
         self.intfPopen[ intf ] = popen
 
