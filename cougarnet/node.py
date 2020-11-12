@@ -421,8 +421,8 @@ class Layer3Handler( BaseNodeHandler, Node ):
         frame = Ether( frame )
         if frame.dst.lower( ) not in (intf.mac.lower( ), ETH_BROADCAST):
             # drop
-            debug( '*** %s: Not my packet: %s\n' % \
-                    ( self.name, repr( frame ) ) )
+            debug( '%.3f %s Not my packet: %s\n' % \
+                    ( ts, self.name, repr( frame ) ) )
             return None
         return self._handleNext( 'ETH', ( frame.type, ), ts, frame.payload, intf )
 
@@ -509,7 +509,7 @@ class Layer3Handler( BaseNodeHandler, Node ):
                 on which the packet was received.
         '''
 
-        warning('%0000.3f Host %s: ERROR: received packet from %s not destined for me %s\n' % \
+        warning('%.3f %s ERROR: received packet from %s not destined for me %s\n' % \
                 (ts, self.name, pkt.src, pkt.dst))
 
     def sendPacket( self, pkt, intf=None ):
@@ -529,7 +529,7 @@ class Layer3Handler( BaseNodeHandler, Node ):
 
         if intf is None:
             if dst not in self.forwardingTable:
-                error('%0000.3f Host %s: ERROR:  entry not found for %s\n' % \
+                error('%.3f %s ERROR:  entry not found for %s\n' % \
                         (self.helper.time( ), self.name, pkt.dst))
                 return
 
@@ -547,7 +547,7 @@ class Layer3Handler( BaseNodeHandler, Node ):
     def printDatagramPayload( self, ts, pkt, intf ):
 
         rawPayload = bytes( pkt.getlayer( UDP ).payload ).decode( 'utf-8' )
-        print( '*** (%0.3f) %s: received UDP datagram: %s' % \
+        print( '%.3f %s received UDP datagram: %s' % \
                 ( ts, self.name, rawPayload ) )
 
     def _setRoute( self, prefix, intf, nextHopIP ):
@@ -579,7 +579,7 @@ class RouterHandler( Layer3Handler ):
     def _handleNotMyPacket( self, ts, pkt, intf ):
         pkt.ttl -= 1
         if pkt.ttl == 0:
-            warning( '%0000.3f Host %s: WARNING: TTL expired for packet destined for %s\n' % \
+            warning( '%.3f %s WARNING: TTL expired for packet destined for %s\n' % \
                     ( self.helper.time( ), self.name, pkt.dst ) )
         else:
             self.sendPacket( )
