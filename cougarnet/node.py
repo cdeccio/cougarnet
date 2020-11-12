@@ -517,25 +517,28 @@ class Layer3Handler( BaseNodeHandler, Node ):
         warning('%0000.3f Host %s: ERROR: received packet from %s not destined for me %s\n' % \
                 (ts, self.name, pkt.src, pkt.dst))
 
-
-    def sendPacket( self, pkt ):
+    def sendPacket( self, pkt, intf=None ):
         '''
-        Send an IP (or IPv6) packet.  Using this node's forwarding table, look
-        up the interface from which the packet should be sent.  If an entry
-        exists, create an Ethernet frame for the packet, and send it out the
-        outgoing interface.
+        Send an IP (or IPv6) packet.  If intf is not specified, look up the
+        interface from which the packet should be sent using this node's
+        forwarding table, .  If an entry exists, create an Ethernet frame for
+        the packet, and send it out the outgoing interface.
 
         pkt: the packet being handled, an instance of scapy.all.IP or
                 scapy.all.IPv6.
+        intf: the interface (mininet.link.Link) out which the packet should be
+                sent.
         '''
 
         dst = IPAddress( pkt.dst )
-        if dst not in self.forwardingTable:
-            error('%0000.3f Host %s: ERROR:  entry not found for %s\n' % \
-                    (self.helper.time( ), self.name, pkt.dst))
-            return
 
-        intf, nextHop = self.forwardingTable.getEntry( pkt.dst )
+        if intf is None:
+            if dst not in self.forwardingTable:
+                error('%0000.3f Host %s: ERROR:  entry not found for %s\n' % \
+                        (self.helper.time( ), self.name, pkt.dst))
+                return
+
+            intf, nextHop = self.forwardingTable.getEntry( pkt.dst )
 
         srcMAC = intf.MAC()
         dstMAC = self.getMAC( pkt.dst )
