@@ -582,7 +582,7 @@ class RouterHandler( Layer3Handler ):
             warning( '%.3f %s WARNING: TTL expired for packet destined for %s\n' % \
                     ( self.helper.time( ), self.name, pkt.dst ) )
         else:
-            self.sendPacket( )
+            self.sendPacket( pkt )
 
 class HostHandler( Layer3Handler ):
     pass
