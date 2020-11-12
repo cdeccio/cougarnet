@@ -509,7 +509,7 @@ class Layer3Handler( BaseNodeHandler, Node ):
                 on which the packet was received.
         '''
 
-        warning('%.3f %s ERROR: received packet from %s not destined for me %s\n' % \
+        warn('%.3f %s ERROR: received packet from %s not destined for me %s\n' % \
                 (ts, self.name, pkt.src, pkt.dst))
 
     def sendPacket( self, pkt, intf=None ):
@@ -579,7 +579,7 @@ class RouterHandler( Layer3Handler ):
     def _handleNotMyPacket( self, ts, pkt, intf ):
         pkt.ttl -= 1
         if pkt.ttl == 0:
-            warning( '%.3f %s WARNING: TTL expired for packet destined for %s\n' % \
+            warn( '%.3f %s WARNING: TTL expired for packet destined for %s\n' % \
                     ( self.helper.time( ), self.name, pkt.dst ) )
         else:
             self.sendPacket( pkt )
