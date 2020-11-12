@@ -90,7 +90,7 @@ class BaseNodeHandler( Node ):
             self.protocolHandlers[ layer ] = {}
         self.protocolHandlers[ layer ][ proto ] = handler
 
-    def _handleNext( self, layer, proto, ts, pkt, intf ):
+    def _handleNext( self, layer, protoList, ts, pkt, intf ):
         '''
         Lookup and call the designated handler on a packet, for a given layer
         and protocol.  If there is no handler installed for the given layer and
@@ -98,8 +98,8 @@ class BaseNodeHandler( Node ):
 
         layer: a string representing which network layer is *currently* being
                 handled.  See installHandler().
-        proto: a value identifying the protocol that will be handled *next*.
-                See installHandler().
+        protoList: a list of values identifying the protocol that will be
+                handled *next*.  See installHandler().
         ts: a float representing the timestamp (seconds and microseconds) at
                 which the packet was received by the interface.
         pkt: the packet being handled.  Note that the packet includes a header
@@ -114,14 +114,16 @@ class BaseNodeHandler( Node ):
                 representing the TCP segment.
         '''
 
-        try:
-            handler = self.protocolHandlers[ layer ][ proto ]
-        except KeyError:
-            # drop - nothing to do
-            warn( '*** %s: No handler for protocol %s at layer %s: %s\n' % \
-                    ( self.name, proto, layer, repr( pkt ) ) )
-            return None
-        return handler( ts, pkt, intf )
+        if layer in self.protocolHandlers:
+            for proto in protoList:
+                if proto in self.protocolHandlers[ layer ]:
+                    handler = self.protocolHandlers[ layer ][ proto ]
+                    return handler( ts, pkt, intf )
+
+        # drop - nothing to do
+        warn( '%.3f %s No handler for protocol %s at layer %s: %s\n' % \
+                ( ts, self.name, protoList[0], layer, repr( pkt ) ) )
+        return None
 
     def _handleFrame( self, ts, frame, intf ):
         raise NotImplemented
@@ -333,8 +335,6 @@ class Layer3Handler( BaseNodeHandler, Node ):
                 which the interface is configured.
         '''
 
-        if localAddress is None:
-            localAddress = self.intf().IP()
         key = ( localAddress, localPort )
         self.installHandler( 'UDP', key, handler )
         self.allowPackets( 'udp', localAddress, localPort )
@@ -354,8 +354,6 @@ class Layer3Handler( BaseNodeHandler, Node ):
                 which the interface is configured.
         '''
 
-        if localAddress is None:
-            localAddress = self.intf().IP()
         key = ( localAddress, localPort )
         self.installHandler( 'TCP', key, handler )
         self.allowPackets( 'tcp', localAddress, localPort )
@@ -426,7 +424,7 @@ class Layer3Handler( BaseNodeHandler, Node ):
             debug( '*** %s: Not my packet: %s\n' % \
                     ( self.name, repr( frame ) ) )
             return None
-        return self._handleNext( 'ETH', frame.type, ts, frame.payload, intf )
+        return self._handleNext( 'ETH', ( frame.type, ), ts, frame.payload, intf )
 
     def _handleIP( self, ts, pkt, intf ):
         '''
@@ -451,7 +449,7 @@ class Layer3Handler( BaseNodeHandler, Node ):
         if pkt.dst in ipv4Addrs or \
                 pkt.dst in ipv6Addrs or \
                 pkt.dst == IP_BROADCAST:
-            self._handleNext( 'IP', pkt.proto, ts, pkt, intf )
+            self._handleNext( 'IP', ( pkt.proto, ), ts, pkt, intf )
 
         else:
             self._handleNotMyPacket( ts, pkt, intf )
@@ -470,8 +468,9 @@ class Layer3Handler( BaseNodeHandler, Node ):
                 on which the packet was received.
         '''
 
-        key = ( pkt.dst, pkt.dport )
-        return self._handleNext( 'UDP', key, ts, pkt, intf )
+        protoList = [ ( pkt.dst, pkt.dport ),
+                    ( None, pkt.dport ) ]
+        return self._handleNext( 'UDP', protoList, ts, pkt, intf )
 
     def _handleTCP( self, ts, pkt, intf ):
         '''
@@ -492,15 +491,11 @@ class Layer3Handler( BaseNodeHandler, Node ):
                 on which the packet was received.
         '''
 
-        key1 = ( pkt.dst, pkt.dport, pkt.src, pkt.sport )
-        key2 = ( pkt.dst, pkt.dport )
-        # handle existing connections
-        if 'TCP' in self.protocolHandlers and \
-                key1 in self.protocolHandlers['TCP']:
-            return self._handleNext( 'TCP', key1, ts, pkt, intf )
-        # handle new connections
-        else:
-            return self._handleNext( 'TCP', key2, ts, pkt, intf )
+        protoList = [ ( pkt.dst, pkt.dport, pkt.src, pkt.sport ),
+                    ( None, pkt.dport, pkt.src, pkt.sport ),
+                    ( pkt.dst, pkt.dport ),
+                    ( None, pkt.dport ) ]
+        return self._handleNext( 'TCP', protoList, ts, pkt, intf )
 
     def _handleNotMyPacket( self, ts, pkt, intf ):
         '''
