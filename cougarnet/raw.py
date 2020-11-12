@@ -34,6 +34,9 @@ class Event( object ):
     def __str__( self ):
         return '<Event: %s>' % ( repr( self.action ) )
 
+    def __lt__( self, other ):
+        return id( self ) < id ( other )
+
     def run( self ):
         return self.action( *( self.args ), **( self.kwargs ) )
 
