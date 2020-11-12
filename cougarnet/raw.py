@@ -54,6 +54,7 @@ class RawPktFramework( object ):
         self.rawPktInToIntf = {}
         self.events = []
         self._registerRawPacketHelpers( )
+        self._configureForwarding( )
         self._registerWakePipe( )
         self._refTime = None
 
@@ -118,8 +119,11 @@ class RawPktFramework( object ):
                 self.rawPktInToIntf[ popen.stdout.fileno( ) ] = intf
                 self.epoll.register( popen.stdout.fileno( ), select.EPOLLIN )
 
-            #TODO move this to node code
-            node.clearForwardingTable( )
+    def _configureForwarding( self ):
+        for node in self.net.hosts + self.net.switches:
+            if not isinstance( node, BaseNodeHandler ):
+                continue
+            node.configureForwarding( )
 
     def _handleWakeEvent( self ):
         while True:

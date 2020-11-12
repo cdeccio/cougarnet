@@ -169,11 +169,21 @@ class Layer3Handler( BaseNodeHandler, Node ):
             }
     }
 
-    def __init__( self, *args, **kwargs ):
+    def __init__( self, *args, disableArp=True, disableRS=True,
+            useKernelForwardingTable=False, **kwargs ):
         super( Layer3Handler, self ).__init__( *args, **kwargs )
-        self.forwardingTable = ForwardingTable( )
 
+        self.forwardingTable = ForwardingTable( )
         self.intfPopen = {}
+
+        self._disableArp = disableArp
+        self._disableRS = disableRS
+        self._useKernelForwardingTable = useKernelForwardingTable
+
+        if self._useKernelForwardingTable:
+            self.setRoute = self._setRouteKernel
+        else:
+            self.setRoute = self._setRoute
 
     def disableArp( self, intf ):
         '''
@@ -183,8 +193,18 @@ class Layer3Handler( BaseNodeHandler, Node ):
                 for which ARP should be disabled.
         '''
 
-        # disable arp and router solicitations
+        # disable ARP
         intf.ifconfig( '-arp' )
+
+    def disableRS( self, intf ):
+        '''
+        Disable router solicitations for the specified interface.
+
+        intf: An instance of mininet.link.Intf that represents the interface
+                for which ARP should be disabled.
+        '''
+
+        # disable RS
         self.cmd( 'sysctl', 'net.ipv6.conf.%s.router_solicitations=0' % intf.name )
 
 
@@ -196,9 +216,68 @@ class Layer3Handler( BaseNodeHandler, Node ):
 
         super( Layer3Handler, self ).addIntf( intf, port, moveIntfFn )
 
-        self.disableArp( intf )
+        if self._disableArp:
+            self.disableArp( intf )
+        if self._disableRS:
+            self.disableRS( intf )
 
-    def clearForwardingTable( self ):
+    #TODO add this to mininet
+    def setHostRoute( self, ip, intf, nextHop=None ):
+        """Add route to host.
+           ip: IP address as dotted decimal
+           intf: string, interface name
+           nextHop: IP address as dotted decimal"""
+        if nextHop is None:
+            cmd = ( 'route add -host', ip, 'dev', intf )
+        else:
+            cmd = ( 'route add -host', ip, 'gw', nextHop, 'dev', intf )
+        return self.cmd( *cmd )
+
+    def setNetRoute( self, prefix, intf, nextHop=None ):
+        """Add route to host.
+           prefix: IP address as dotted decimal
+           intf: string, interface name
+           nextHop: IP address as dotted decimal"""
+        if nextHop is None:
+            cmd = ( 'route add -net', prefix, 'dev', intf )
+        else:
+            cmd = ( 'route add -net', prefix, 'gw', nextHop, 'dev', intf )
+        return self.cmd( *cmd )
+
+    def getForwardingTable( self ):
+        '''
+        Retrieves all "via" (i.e., with next hop) routes from kernel's route
+        table as a dictionary where the destination IP is mapped to tuple
+        composed of intf and nextHop.
+        '''
+
+        #TODO make it IPv6-compatible by updating Interface.IP( ) method (e.g., by creating an IP4( ) method)
+        allRoutesStr = self.cmd( 'ip', 'route' )
+        routes = {}
+        for routeStr in allRoutesStr.splitlines( ):
+            route = routeStr.split( )
+            if len( route ) > 1 and route[ 1 ] == 'via':
+                ip, nextHop, intf = route[0], route[2], self.nameToIntf[ route[4] ]
+                routes[ ip ] = ( intf, nextHop )
+        return routes
+
+    def _clearForwardingTable( self ):
+        '''
+        Clear all "via" (i.e., with next hop) entries from the kernel's
+        forwarding table for the node.  This is useful for when we're using the
+        kernel's forwarding table but want to maintain the non-local routes
+        manually.
+        '''
+
+        #TODO do this as we add interfaces
+        #TODO make it IPv6-compatible by updating Interface.IP( ) method (e.g., by creating an IP4( ) method)
+        allRoutesStr = self.cmd( 'ip', 'route' )
+        for routeStr in allRoutesStr.splitlines( ):
+            route = routeStr.split( )
+            if len( route ) > 1 and route[ 1 ] == 'via':
+                self.cmd( 'ip', 'route', 'del', *route )
+
+    def _clearForwardingTableAll( self ):
         '''
         Clear all entries from the kernel's forwarding table for the node.
         This allows this Layer-3 node to maintain its own forwarding table,
@@ -318,6 +397,10 @@ class Layer3Handler( BaseNodeHandler, Node ):
                 '--destination', localAddress, '--dport', str( localPort ),
                 '-j', 'DROP' )
 
+    def enableForwarding( self ):
+        '''Enable IP forwarding (IPv4).'''
+
+        self.cmd( 'sysctl', 'net.ipv4.ip_forward=1' )
 
     def _handleFrame( self, ts, frame, intf ):
         '''
@@ -469,10 +552,31 @@ class Layer3Handler( BaseNodeHandler, Node ):
         print( '*** (%0.3f) %s: received UDP datagram: %s' % \
                 ( ts, self.name, rawPayload ) )
 
-    def addForwardingEntry( self, prefix, intf, nextHopIP ):
-        self.forwardingTable.addEntry( prefix, intf, nextHopIP )
+    def _setRoute( self, prefix, intf, nextHopIP ):
+        if '/' in prefix:
+            raise ValueError('Adding prefixes is not supported')
+        else:
+            self.forwardingTable.addEntry( prefix, intf, nextHopIP )
+
+    def _setRouteKernel( self, prefix, intf, nextHopIP ):
+        if '/' in prefix:
+            self.setNetRoute( prefix, intf, nextHopIP )
+        else:
+            self.setHostRoute( prefix, intf, nextHopIP )
+
+    def _configureForwarding( self ):
+        pass
+
+    def configureForwarding( self ):
+        if self._useKernelForwardingTable:
+            self._configureForwarding()
+        else:
+            self._clearForwardingTable()
 
 class RouterHandler( Layer3Handler ):
+
+    def _configureForwarding( self ):
+        self.enableForwarding()
 
     def _handleNotMyPacket( self, ts, pkt, intf ):
         pkt.ttl -= 1
