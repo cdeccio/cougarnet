@@ -149,6 +149,9 @@ class RawPktFramework( object ):
                 continue
             intf = self.rawPktInToIntf[ fd ]
             ts, frame = self._readFrame( fd )
+            if not frame:
+                os.close( fd )
+                continue
             ts = self._relativizeTime( ts )
             intf.node._handleFrame( ts, frame, intf )
 
