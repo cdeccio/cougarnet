@@ -130,6 +130,13 @@ class RawPktFramework( object ):
             if not b:
                 break
 
+    def _consumeEpollEvents( self ):
+        events = self.epoll.poll( 0 )
+        for fd, event in events:
+            if fd == self.wakeFhRead.fileno( ):
+                continue
+            self._readFrame( fd )
+
     def _handleEpollEvents( self ):
         try:
             events = self.epoll.poll( )
@@ -158,6 +165,10 @@ class RawPktFramework( object ):
                 break
         if handled and self.events:
             signal.setitimer( signal.ITIMER_REAL, max( ts - time.time( ), 0 ) )
+
+    def resetEvents( self ):
+        self.events = []
+        self._refTime = None
 
     def _resetRefTime( self ):
         self._refTime = time.time( )
@@ -262,6 +273,7 @@ class RawPktFramework( object ):
         minSeconds: the miniumum number of seconds that the scenario should run.
         '''
 
+        self._consumeEpollEvents( )
         self._relativizeEventTimes( )
         self._resetRefTime( )
         if maxSeconds is not None:
