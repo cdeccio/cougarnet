@@ -593,7 +593,27 @@ class Layer3Handler( FrameHelperHandler ):
         warn('%.3f %s ERROR: received packet from %s not destined for me %s\n' % \
                 (ts, self.name, pkt.src, pkt.dst))
 
-    def sendPacket( self, pkt, intf=None ):
+    def sendPacketOnIntf( self, pkt, intf, nextHop ):
+        '''
+        Send an IP (or IPv6) packet on the specified interface using nextHop as
+        the next hop.  Create an Ethernet frame for the packet, and send it out
+        the outgoing interface.
+
+        pkt: the packet being handled, an instance of scapy.all.IP or
+                scapy.all.IPv6.
+        intf: the interface (mininet.link.Intf) out which the packet should be
+                sent.
+        nextHop: the IP address of the next hop (currently unused).
+        '''
+
+        dst = IPAddress( pkt.dst )
+        srcMAC = intf.MAC()
+        dstMAC = self.getMAC( pkt.dst )
+
+        frame = Ether( src=srcMAC, dst=dstMAC ) / pkt
+        self.sendFrame( frame, intf )
+
+    def sendPacket( self, pkt, intf=None, nextHop=None ):
         '''
         Send an IP (or IPv6) packet.  If intf is not specified, look up the
         interface from which the packet should be sent using this node's
@@ -602,25 +622,20 @@ class Layer3Handler( FrameHelperHandler ):
 
         pkt: the packet being handled, an instance of scapy.all.IP or
                 scapy.all.IPv6.
-        intf: the interface (mininet.link.Link) out which the packet should be
+        intf: the interface (mininet.link.Intf) out which the packet should be
                 sent.
         '''
 
         dst = IPAddress( pkt.dst )
 
         if intf is None:
-            if dst not in self.forwardingTable:
+            intf, nextHop = self.getRoute( pkt.dst )
+            if intf is None:
                 error('%.3f %s ERROR:  entry not found for %s\n' % \
                         (self.helper.time( ), self.name, pkt.dst))
                 return
 
-            intf, nextHop = self.forwardingTable.getEntry( pkt.dst )
-
-        srcMAC = intf.MAC()
-        dstMAC = self.getMAC( pkt.dst )
-
-        frame = Ether( src=srcMAC, dst=dstMAC ) / pkt
-        self.sendFrame( frame, intf )
+        return self.sendPacketOnIntf( pkt, intf, nextHop )
 
     def getMAC( self, dstIP ):
         return ETH_BROADCAST
