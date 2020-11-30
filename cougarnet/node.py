@@ -8,9 +8,8 @@ from mininet.util import moveIntf
 
 from scapy.all import Ether, UDP
 
-from .ether import ETH_P_IP, ETH_P_IPV6
+from .ether import ETH_BROADCAST, ETH_P_IP, ETH_P_IPV6
 from .forward import ForwardingTable
-from .mac import ETH_BROADCAST
 from .ip import IPPROTO_TCP, IPPROTO_UDP, IP_BROADCAST, IPAddress
 
 
