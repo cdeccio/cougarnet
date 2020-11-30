@@ -425,9 +425,11 @@ class Layer3Handler( FrameHelperHandler ):
         localAddress: an IP address (string) representing the local address.
         '''
 
-        self.cmd( 'iptables', '-A', 'INPUT', '-p', proto,
-                '--destination', localAddress, '--dport', str( localPort ),
-                '-j', 'DROP' )
+        cmd = [ 'iptables', '-A', 'INPUT', '-p', proto ]
+        if localAddress is not None:
+            cmd += [ '--destination', localAddress ]
+        cmd += [ '--dport', str( localPort ), '-j', 'DROP' ]
+        self.cmd( cmd )
 
     def enableForwarding( self ):
         '''Enable IP forwarding (IPv4).'''
