@@ -291,6 +291,8 @@ class Layer3Handler( FrameHelperHandler ):
             cmd = ( 'route add -host', ip, 'gw', nextHop, 'dev', intf )
         return self.cmd( *cmd )
 
+    addForwardingEntry = setHostRoute
+
     def setNetRoute( self, prefix, intf, nextHop=None ):
         """Add route to host.
            prefix: IP address as dotted decimal
