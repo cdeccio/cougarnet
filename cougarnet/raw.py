@@ -10,7 +10,7 @@ from mininet.log import debug, error
 
 from scapy.all import IP, Ether, UDP
 
-from .node import BaseNodeHandler, NoMatchingMethod, HostHandler
+from .node import FrameHelperHandler, Layer3Handler, NoMatchingMethod, HostHandler
 from .ether import ETH_P_IP, ETH_P_IPV6
 
 
@@ -108,7 +108,7 @@ class RawPktFramework( object ):
 
     def _registerRawPacketHelpers( self ):
         for node in self.net.hosts + self.net.switches:
-            if not isinstance( node, BaseNodeHandler ):
+            if not isinstance( node, FrameHelperHandler ):
                 continue
             node.setHelper( self )
             for intf in node.ports:
@@ -121,7 +121,7 @@ class RawPktFramework( object ):
 
     def _configureForwarding( self ):
         for node in self.net.hosts + self.net.switches:
-            if not isinstance( node, BaseNodeHandler ):
+            if not isinstance( node, Layer3Handler ):
                 continue
             node.configureForwarding( )
 

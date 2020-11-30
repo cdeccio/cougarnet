@@ -17,7 +17,7 @@ from .ip import IPPROTO_TCP, IPPROTO_UDP, IP_BROADCAST, IPAddress
 class NoMatchingMethod(Exception):
     pass
 
-class BaseNodeHandler( Node ):
+class BaseNodeProtocolHandler( Node ):
     '''
     Base Node Handler class.  Extends mininet.node.Node to include handling of
     raw packets, layer by layer.
@@ -27,7 +27,7 @@ class BaseNodeHandler( Node ):
     }
 
     def __init__( self, name, inNamespace=True, **params ):
-        super( BaseNodeHandler, self ).__init__( name, inNamespace, **params )
+        super( BaseNodeProtocolHandler, self ).__init__( name, inNamespace, **params )
 
         self.helper = None
         self.protocolHandlers = None
@@ -125,8 +125,40 @@ class BaseNodeHandler( Node ):
                 ( ts, self.name, protoList[0], layer, repr( pkt ) ) )
         return None
 
-    def _handleFrame( self, ts, frame, intf ):
-        raise NotImplemented
+class FrameHelperHandler( BaseNodeProtocolHandler, Node ):
+
+    def __init__( self, *args, **kwargs ):
+        super( FrameHelperHandler, self ).__init__( *args, **kwargs )
+
+        self.intfPopen = {}
+
+    def startRawPktHelper( self, intf ):
+        '''
+        Start a raw packet helper for a given interface, an process that does
+        only the following:
+            1) listens on stdin for frames to be sent on the interface, and
+                sends them on that interface;
+            2) listens for incoming frames on the interface and sends them to
+                stdout.
+        Map the interface to the process, so we know which process to
+        communicate with when an incoming frame is detected on the interfaces.
+        '''
+
+        cmd = [ 'mnrawpkthelper' ]
+        if lg.getEffectiveLevel() > logging.INFO:
+            cmd.append( '-q' )
+        cmd.append( intf.name )
+        popen = self.popen( *cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=None )
+        self.intfPopen[ intf ] = popen
+
+        # send empty ready bytes (empty frame)
+        popen.stdin.write( b'\x00\x00' )
+        popen.stdin.flush()
+
+        # wait on and consume the ready bytes (empty frame)
+        popen.stdout.read( 2 )
+
+        return popen
 
     def sendFrame( self, frame, intf ):
         '''
@@ -148,9 +180,12 @@ class BaseNodeHandler( Node ):
         frameLen = len( frame )
         frameLenBytes = struct.pack( '!H', frameLen )
         popen.stdin.write( frameLenBytes + frame )
-        popen.stdin.flush ( )
+        popen.stdin.flush( )
 
-class Layer3Handler( BaseNodeHandler, Node ):
+    def _handleFrame( self, ts, frame, intf ):
+        raise NotImplemented
+
+class Layer3Handler( FrameHelperHandler ):
     '''
     A Node Handler specific to Nodes that operate at Layer3, e.g., hosts and
     routers.
@@ -292,34 +327,6 @@ class Layer3Handler( BaseNodeHandler, Node ):
         for routeStr in allRoutesStr.splitlines( ):
             route = routeStr.split( )
             self.cmd( 'ip', 'route', 'del', *route )
-
-    def startRawPktHelper( self, intf ):
-        '''
-        Start a raw packet helper for a given interface, an process that does
-        only the following:
-            1) listens on stdin for frames to be sent on the interface, and
-                sends them on that interface;
-            2) listens for incoming frames on the interface and sends them to
-                stdout.
-        Map the interface to the process, so we know which process to
-        communicate with when an incoming frame is detected on the interfaces.
-        '''
-        
-        cmd = [ 'mnrawpkthelper' ]
-        if lg.getEffectiveLevel() > logging.INFO:
-            cmd.append( '-q' )
-        cmd.append( intf.name )
-        popen = self.popen( *cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=None )
-        self.intfPopen[ intf ] = popen
-
-        # send empty ready bytes (empty frame)
-        popen.stdin.write( b'\x00\x00' )
-        popen.stdin.flush()
-
-        # wait on and consume the ready bytes (empty frame)
-        popen.stdout.read( 2 )
-
-        return popen
 
     def installAppHandlerUDP( self, localPort, handler, localAddress=None ):
         '''
