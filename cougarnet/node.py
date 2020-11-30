@@ -8,7 +8,7 @@ from mininet.util import moveIntf
 
 from scapy.all import Ether, UDP
 
-from .ether import ETH_BROADCAST, ETH_P_IP, ETH_P_IPV6
+from .ether import ETH_BROADCAST, ETH_P_IP, ETH_P_IPV6, ETH_P_ARP
 from .forward import ForwardingTable
 from .ip import IPPROTO_TCP, IPPROTO_UDP, IP_BROADCAST, IPAddress
 
@@ -206,6 +206,7 @@ class Layer3Handler( FrameHelperHandler ):
             'ETH': {
                 ETH_P_IP: '_handleIP',
                 ETH_P_IPV6: '_handleIP',
+                ETH_P_ARP: '_handleARP',
             },
             'IP': {
                 IPPROTO_UDP: '_handleUDP',
@@ -234,6 +235,13 @@ class Layer3Handler( FrameHelperHandler ):
         else:
             self.setRoute = self._setRoute
             self.getRoute = self._getRoute
+
+        # If we are not disabling ARP, then the kernel will be handling ARP, so
+        # we don't need to do it ourselves.  In this case, remove the handler
+        # for ARP.
+        #TODO There is probably a cleaner way to do this.
+        if not self._disableArp:
+            del self.protocolHandlers[ 'ETH' ][ ETH_P_ARP ]
 
     def disableArp( self, intf ):
         '''
@@ -445,6 +453,10 @@ class Layer3Handler( FrameHelperHandler ):
                     ( ts, self.name, repr( frame ) ) )
             return None
         return self._handleNext( 'ETH', ( frame.type, ), ts, frame.payload, intf )
+
+    def _handleARP( self, ts, pkt, intf ):
+        debug( '%.3f %s Received ARP message from %s on %s\n' % \
+                    ( ts, self.name, pkt.psrc, intf.name ) )
 
     def _handleIP( self, ts, pkt, intf ):
         '''
