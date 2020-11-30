@@ -124,6 +124,18 @@ class BaseNodeProtocolHandler( Node ):
                 ( ts, self.name, protoList[0], layer, repr( pkt ) ) )
         return None
 
+    def ignoreAllPackets( self ):
+        '''
+        Create an iptables rule to drop all incoming packets.  This allows us
+        to communicate at the sub-application layers without interference with
+        the kernel.  Without this rule, the packet would be allowed by
+        netfilter to reach the kernel, and the kernel would find no established
+        listener and send a TCP RST (reset) to the sender.
+
+        '''
+
+        self.cmd( 'iptables', '-A', 'INPUT', '-j', 'DROP' )
+
 class FrameHelperHandler( BaseNodeProtocolHandler, Node ):
 
     def __init__( self, *args, **kwargs ):
@@ -218,8 +230,10 @@ class Layer3Handler( FrameHelperHandler ):
 
         if self._useKernelForwardingTable:
             self.setRoute = self._setRouteKernel
+            self.getRoute = self._getRouteKernel
         else:
             self.setRoute = self._setRoute
+            self.getRoute = self._getRoute
 
     def disableArp( self, intf ):
         '''
@@ -555,6 +569,29 @@ class Layer3Handler( FrameHelperHandler ):
         rawPayload = bytes( pkt.getlayer( UDP ).payload ).decode( 'utf-8' )
         print( '%.3f %s received UDP datagram: %s' % \
                 ( ts, self.name, rawPayload ) )
+
+    def _getRoute( self, addr ):
+        #return self.forwardingTable.getEntry( addr )
+        return self._getRouteKernel( addr )
+
+    def _getRouteKernel( self, addr ):
+        routeStr = self.cmd( 'ip', 'route', 'get', addr )
+        intf, nextHop = None, None
+        # get just the first line
+        try:
+            routeStr = routeStr.splitlines( )[0]
+        except IndexError:
+            pass
+        else:
+            route = routeStr.split( )
+            if len( route ) > 1:
+                if route[ 1 ] == 'via':
+                    nextHop = route[ 2 ]
+                    intf = self.nameToIntf[ route[ 4 ] ]
+                elif route[ 1 ] == 'dev':
+                    nextHop = None
+                    intf = self.nameToIntf[ route[ 2 ] ]
+        return ( intf, nextHop )
 
     def _setRoute( self, prefix, intf, nextHopIP ):
         if '/' in prefix:
