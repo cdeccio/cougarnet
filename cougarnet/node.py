@@ -410,6 +410,7 @@ class Layer3Handler( FrameHelperHandler ):
         key = ( localAddress, localPort, remoteAddress, remotePort )
         self.installHandler( 'TCP', key, handler )
 
+    #TODO rename allowPackets, perhaps to ignorePackets
     def allowPackets( self, proto, localAddress, localPort ):
         '''
         Create an iptables rule to drop packets arriving for given destination
