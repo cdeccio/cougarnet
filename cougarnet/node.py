@@ -3,7 +3,7 @@ import struct
 import subprocess
 
 from mininet.node import Node
-from mininet.log import lg, debug, warn, error
+from mininet.log import lg, debug, info, warn, error
 from mininet.util import moveIntf
 
 from scapy.all import Ether, UDP
@@ -228,6 +228,7 @@ class Layer3Handler( FrameHelperHandler ):
         self._disableArp = disableArp
         self._disableRS = disableRS
         self._useKernelForwardingTable = useKernelForwardingTable
+        self._l2snoop_filter = []
 
         if self._useKernelForwardingTable:
             self.setRoute = self._setRouteKernel
@@ -278,6 +279,9 @@ class Layer3Handler( FrameHelperHandler ):
             self.disableArp( intf )
         if self._disableRS:
             self.disableRS( intf )
+
+    def addL2Snoop( self, src=None, dst=None, sport=None, dport=None ):
+        self._l2snoop_filter.append( ( src, dst, sport, dport ) )
 
     #TODO add this to mininet
     def setHostRoute( self, ip, intf, nextHop=None ):
@@ -430,6 +434,46 @@ class Layer3Handler( FrameHelperHandler ):
 
         self.cmd( 'sysctl', 'net.ipv4.ip_forward=1' )
 
+    def _snoop( self, ts, frame, intf ):
+        '''
+        If a frame is not ours, then check our snoop filters to see if we print
+        something about it.  This helps us keep a balance between printing
+        everything and printing nothing.  Return True if there was a match,
+        False otherwise.
+
+        ts: a float representing the timestamp (seconds and microseconds) at
+                which the packet was received by the interface.
+        frame: the frame being handled.  Note that the packet includes a frame
+                header and a payload. The frame is an instance of
+                scapy.all.Ether, and frame.payload returns an instance of the
+                the packet class for the next layer above Ethernet, typically
+                scapy.all.IP or scapy.all.IPv6.
+        intf: An instance of mininet.link.Intf that represents the interface
+                on which the Ethernet frame was received.
+        '''
+
+        #TODO add general protocol support
+        if frame.type not in ( ETH_P_IP, ETH_P_IPV6 ):
+            return False
+
+        pkt = frame.payload
+        if frame.type == ETH_P_IP and \
+                pkt.proto not in ( IPPROTO_TCP, IPPROTO_UDP ):
+            return False
+        elif frame.type == ETH_P_IPV6 and \
+                pkt.nh not in ( IPPROTO_TCP, IPPROTO_UDP ):
+            return False
+
+        for src, dst, sport, dport in self._l2snoop_filter:
+            if ( src is None or pkt.src == src ) and \
+                    ( dst is None or pkt.dst == dst ) and \
+                    ( sport is None or pkt.sport == sport ) and \
+                    ( dport is None or pkt.dport == dport ):
+                info( '%.3f %s observed packet for %s: %s\n' % \
+                        ( ts, self.name, pkt.dst, repr( frame ) ) )
+                return True
+        return False
+
     def _handleFrame( self, ts, frame, intf ):
         '''
         Handle a frame received on the wire.  Check the destination MAC address
@@ -451,8 +495,9 @@ class Layer3Handler( FrameHelperHandler ):
         frame = Ether( frame )
         if frame.dst.lower( ) not in (intf.mac.lower( ), ETH_BROADCAST):
             # drop
-            debug( '%.3f %s Not my packet: %s\n' % \
-                    ( ts, self.name, repr( frame ) ) )
+            if not self._snoop( ts, frame, intf ):
+                debug( '%.3f %s received frame for someone else: %s\n' % \
+                        ( ts, self.name, repr( frame ) ) )
             return None
         return self._handleNext( 'ETH', ( frame.type, ), ts, frame.payload, intf )
 
