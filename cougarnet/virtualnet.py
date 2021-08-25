@@ -346,6 +346,12 @@ class VirtualNetwork(object):
             none_exists = True
             for hostname, host in self.host_by_name.items():
                 if os.path.exists(host.pidfile):
+                    pid = open(host.pidfile, 'r').read()
+                    cmd = ['ps', '-p', pid]
+                    if subprocess.run(cmd, stdout=subprocess.DEVNULL).returncode != 0:
+                        cmd = ['rm', host.pidfile]
+                        subprocess.run(cmd)
+                        raise HostNotStarted(f'{hostname} did not start properly.')
                     none_exists = False
             if none_exists:
                 break
