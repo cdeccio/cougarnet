@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import argparse
 import sys
 
 from cougarnet.virtualnet import VirtualNetwork
