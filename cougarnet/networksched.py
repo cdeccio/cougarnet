@@ -7,10 +7,14 @@ import socket
 import struct
 import time
 
-import pcapy
-
 # From: /usr/include/asm-generic/socket.h:
 SO_BINDTODEVICE = 25
+
+# From: /usr/include/linux/if_ether.h
+ETH_P_ALL = 0x0003
+ETH_P_IP = 0x0800
+ETH_P_IPV6 = 0x86DD
+ETH_P_ARP = 0x0806
 
 class EndRun(Exception):
     pass
@@ -49,9 +53,7 @@ class NetworkEventLoop(object):
         self.wake_fh_read, self.wake_fh_write = None, None
         self.epoll = select.epoll()
         self.sock_to_int = {}
-        self.int_to_sock4 = {}
-        self.int_to_sock6 = {}
-        self.sock_to_pc = {}
+        self.fd_to_sock = {}
         self.events = []
         self._setup_receive_sockets()
         self._register_wake_pipe()
@@ -83,11 +85,13 @@ class NetworkEventLoop(object):
                 continue
 
             # For receiving...
-            pc = pcapy.open_live(intf, 0, 0, 1)
-            pc.setnonblock(1)
-            self.epoll.register(pc.getfd(), select.EPOLLIN)
-            self.sock_to_int[pc.getfd()] = intf
-            self.sock_to_pc[pc.getfd()] = pc
+            sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_ALL))
+            sock.bind((intf, 0))
+
+            sock.setblocking(False)
+            self.epoll.register(sock.fileno(), select.EPOLLIN)
+            self.sock_to_int[sock.fileno()] = intf
+            self.fd_to_sock[sock.fileno()] = sock
 
     def _handle_wake_event(self):
         while True:
@@ -103,8 +107,8 @@ class NetworkEventLoop(object):
         for fd, event in events:
             if fd == self.wake_fh_read.fileno():
                 continue
-            pc = self.sock_to_pc[fd]
-            pc.next()
+            sock = self.fd_to_sock[fd]
+            sock.recvfrom(4096)
 
     def _handle_epoll_events(self):
         try:
@@ -117,8 +121,8 @@ class NetworkEventLoop(object):
                 self._handle_wake_event()
                 continue
             intf = self.sock_to_int[fd]
-            pc = self.sock_to_pc[fd]
-            hdr, frame = pc.next()
+            sock = self.fd_to_sock[fd]
+            frame, addr = sock.recvfrom(4096)
             ts = self.time()
             self._handle_frame(ts, intf, frame)
 
