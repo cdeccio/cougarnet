@@ -10,55 +10,90 @@ import subprocess
 import sys
 import tempfile
 
-def apply_config(fh):
-    hostinfo = fh.readline().strip()
-    hostname, type, gw4, gw6, commsock_file = hostinfo.split(',')
+class VirtualHost:
+    def __init__(self, config_fh):
+        self.ints = None
+        self.hostname = None
+        self.type = None
+        self.gw4 = None
+        self.gw6 = None
+        self.commsock_file = None
 
-    cmd = ['hostname', hostname]
-    subprocess.run(cmd, check=True)
+        self._apply_config(config_fh)
 
-    for line in fh.readlines():
-        line = line.strip()
-        parts = line.split(',')
-        intf = parts[0]
-        addrs = parts[2:]
+    def _apply_config(self, fh):
+        hostinfo = fh.readline().strip()
+        self.hostname, self.type, \
+                self.gw4, self.gw6, self.commsock_file = hostinfo.split(',')
 
-        if len(parts) > 1:
-            mac = parts[1]
-            # set MAC address, if specified
-            if mac:
-                cmd = ['ip', 'link', 'set', intf, 'address', mac]
-                subprocess.run(cmd, check=True)
-
-        # bring link up
-        cmd = ['ip', 'link', 'set', intf, 'up']
+        cmd = ['hostname', self.hostname]
         subprocess.run(cmd, check=True)
 
-        # disable router solicitations
-        cmd = ['sysctl', f'net.ipv6.conf.{intf}.router_solicitations=0']
-        subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
+        self.ints = []
+        for line in fh.readlines():
+            line = line.strip()
+            parts = line.split(',')
+            intf = parts[0]
+            addrs = parts[2:]
 
-        #TODO
-        # disable ARP
-        #cmd = ['ip', 'link', 'set', intf, 'arp', 'off']
-        #subprocess.run(cmd, check=True)
+            self.ints.append(intf)
 
-        # add each IP address
-        for addr in addrs:
-            cmd = ['ip', 'addr', 'add', addr, 'dev', intf]
+            if len(parts) > 1:
+                mac = parts[1]
+                # set MAC address, if specified
+                if mac:
+                    cmd = ['ip', 'link', 'set', intf, 'address', mac]
+                    subprocess.run(cmd, check=True)
+
+            # bring link up
+            cmd = ['ip', 'link', 'set', intf, 'up']
             subprocess.run(cmd, check=True)
 
-    if commsock_file:
-        os.environ['COUGARNET_COMM_SOCK'] = commsock_file
+            # add each IP address
+            for addr in addrs:
+                cmd = ['ip', 'addr', 'add', addr, 'dev', intf]
+                subprocess.run(cmd, check=True)
+
+            # disable router solicitations
+            cmd = ['sysctl', f'net.ipv6.conf.{intf}.router_solicitations=0']
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
+
+        if self.commsock_file:
+            os.environ['COUGARNET_COMM_SOCK'] = self.commsock_file
+
+    def disable_arp(self):
+        for intf in self.ints:
+            cmd = ['ip', 'link', 'set', intf, 'arp', 'off']
+            subprocess.run(cmd, check=True)
+
+    def enable_iptables(self):
+            cmd = ['iptables', '-t', 'filter', '-I', 'INPUT', '-j', 'DROP']
+            subprocess.run(cmd, check=True)
+            cmd = ['ip6tables', '-t', 'filter', '-I', 'INPUT', '-j', 'DROP']
+            subprocess.run(cmd, check=True)
+
+def user_group_info(user):
+    pwinfo = pwd.getpwnam(user)
+    uid = pwinfo.pw_uid
+
+    groups = [pwinfo.pw_gid]
+    for gr in grp.getgrall():
+        if user in gr.gr_mem:
+            groups.append(gr.gr_gid)
+
+    return uid, groups
 
 def sighup_handler(signum, frame):
     pass
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--disable-native-stack', '-n',
+    parser.add_argument('--disable-arp', '-a',
             action='store_const', const=True, default=False,
-            help='Disable the native network stack')
+            help='Drop incoming packets, so they aren\'t directed to the native network stack')
+    parser.add_argument('--drop-incoming-packets', '-d',
+            action='store_const', const=True, default=False,
+            help='Drop incoming packets, so they aren\'t directed to the native network stack')
     parser.add_argument('--hosts-file', '-f',
             action='store', type=str, default=None,
             help='Specify the hosts file')
@@ -85,7 +120,7 @@ def main():
         # wait for SIGHUP to let us know that the interfaces have been added
         signal.pause()
 
-        apply_config(args.config_file)
+        host = VirtualHost(args.config_file)
 
         cmd = ['mount', '-t', 'sysfs', '/sys', '/sys']
         subprocess.run(cmd, check=True)
@@ -94,19 +129,14 @@ def main():
             cmd = ['mount', '-o', 'bind', args.hosts_file, '/etc/hosts']
             subprocess.run(cmd, check=True)
 
-        if args.disable_native_stack:
-            cmd = ['iptables', '-t', 'filter', '-I', 'INPUT', '-j', 'DROP']
-            subprocess.run(cmd, check=True)
-            cmd = ['ip6tables', '-t', 'filter', '-I', 'INPUT', '-j', 'DROP']
-            subprocess.run(cmd, check=True)
+        if args.drop_incoming_packets:
+            host.enable_iptables()
+
+        if args.disable_arp:
+            host.disable_arp()
 
         if args.user is not None:
-            pwinfo = pwd.getpwnam(args.user)
-            groups = [pwinfo.pw_gid]
-            for gr in grp.getgrall():
-                if args.user in gr.gr_mem:
-                    groups.append(gr.gr_gid)
-            uid = pwinfo.pw_uid
+            uid, groups = user_group_info(args.user)
 
         cmd = ['rm', args.pid_file.name]
         subprocess.run(cmd, check=True)
@@ -119,7 +149,8 @@ def main():
         signal.pause()
 
         if args.prog is not None:
-            os.execvp(args.prog, [args.prog])
+            prog_args = args.prog.split('|')
+            os.execvp(args.prog, [prog_args])
         else:
             os.execvp(os.environ.get('SHELL'), [os.environ.get('SHELL'), '-i'])
 

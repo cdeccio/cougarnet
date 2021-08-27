@@ -92,7 +92,8 @@ class Host(object):
                 f'--uts ' + \
                 f'{sys.executable} -m {HOSTPREP_MODULE} ' + \
                 f'--hosts-file {hosts_file} ' + \
-                f'--disable-native-stack ' + \
+                f'--disable-arp ' + \
+                f'--drop-incoming-packets ' + \
                 f'--user {os.environ.get("USER")} ' + \
                 f'{self.pidfile} {self.config_file}']
         p = subprocess.Popen(cmd)
