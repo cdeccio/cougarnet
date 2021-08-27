@@ -86,7 +86,7 @@ class Host(object):
                 prefix=f'{self.hostname}-', dir=TMPDIR)
         os.close(fd)
 
-        cmd = [TERM, '-e', f'sudo -E unshare '+ \
+        cmd = [TERM, '-e', f'sudo -E unshare ' + \
                 f'--mount ' + \
                 f'--net=/run/netns/{self.hostname} ' + \
                 f'--uts ' + \
