@@ -11,7 +11,7 @@ setup(name='cougarnet',
         license='LICENSE',
         packages=['cougarnet'],
         scripts=['bin/cougarnet'],
-        data_files=[('share/doc/dnsviz', ['README.md'])],
+        data_files=[('share/doc/cougarnet', ['README.md'])],
         classifiers=[],
         cmdclass={},
 )
