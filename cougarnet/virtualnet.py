@@ -187,14 +187,16 @@ class VirtualNetwork(object):
             # IP address
             slash = addr.find('/')
             if slash < 0:
-                raise ValueError(f'Address for {hostname} interface must include prefix length!')
+                raise ValueError(f'Address for {hostname} interface ' + \
+                        'must include prefix length!')
             if ':' in addr:
                 # IPv6 address
                 subnet = str(ipaddress.IPv6Network(addr, strict=False))
                 if subnet6 is None:
                     subnet6 = subnet
                 if subnet6 != subnet:
-                    raise ValueError(f'All connected IP addresses must be on the same subnet!')
+                    raise ValueError(f'All connected IP addresses ' + \
+                            'must be on the same subnet!')
                 addrs6.append(addr)
             else:
                 # IPv4 address
@@ -202,7 +204,8 @@ class VirtualNetwork(object):
                 if subnet4 is None:
                     subnet4 = subnet
                 if subnet4 != subnet:
-                    raise ValueError(f'All connected IP addresses must be on the same subnet!')
+                    raise ValueError(f'All connected IP addresses ' + \
+                            'must be on the same subnet!')
                 addrs4.append(addr)
 
         if hostname not in self.host_by_name:
@@ -222,16 +225,23 @@ class VirtualNetwork(object):
                 self.import_int(int2_info)
 
         if set(addrs41).intersection(set(addrs42)):
-            raise ValueError(f'Addresses for {host1.hostname} and {host2.hostname} cannot be the same!')
-        if subnet41 is not None and subnet42 is not None and subnet41 != subnet42:
-            raise ValueError(f'Addresses for {host1.hostname} and {host2.hostname} must be in the same subnet!')
+            raise ValueError(f'Addresses for {host1.hostname} and ' + \
+                    '{host2.hostname} cannot be the same!')
+        if subnet41 is not None and subnet42 is not None and \
+                subnet41 != subnet42:
+            raise ValueError(f'Addresses for {host1.hostname} and ' + \
+                    '{host2.hostname} must be in the same subnet!')
         if set(addrs61).intersection(set(addrs62)):
-            raise ValueError(f'Addresses for {host1.hostname} and {host2.hostname} cannot be the same!')
-        if subnet61 is not None and subnet62 is not None and subnet61 != subnet62:
-            raise ValueError(f'Addresses for {host1.hostname} and {host2.hostname} must be in the same subnet!')
+            raise ValueError(f'Addresses for {host1.hostname} and ' + \
+                    '{host2.hostname} cannot be the same!')
+        if subnet61 is not None and subnet62 is not None and \
+                subnet61 != subnet62:
+            raise ValueError(f'Addresses for {host1.hostname} and ' + \
+                    '{host2.hostname} must be in the same subnet!')
 
         if len(parts) > 2:
-            attrs = dict([p.split('=', maxsplit=1) for p in parts[2].split(',')])
+            attrs = dict([p.split('=', maxsplit=1) \
+                    for p in parts[2].split(',')])
         else:
             attrs = {}
 
@@ -277,7 +287,8 @@ class VirtualNetwork(object):
 
         hostname = parts[0]
         if len(parts) > 1:
-            attrs = dict([p.split('=', maxsplit=1) for p in parts[1].split(',')])
+            attrs = dict([p.split('=', maxsplit=1) \
+                            for p in parts[1].split(',')])
         else:
             attrs = {}
 
@@ -349,7 +360,8 @@ class VirtualNetwork(object):
                 if os.path.exists(host.pidfile):
                     pid = open(host.pidfile, 'r').read()
                     cmd = ['ps', '-p', pid]
-                    if subprocess.run(cmd, stdout=subprocess.DEVNULL).returncode != 0:
+                    p = subprocess.run(cmd, stdout=subprocess.DEVNULL)
+                    if p.returncode != 0:
                         cmd = ['rm', host.pidfile]
                         subprocess.run(cmd)
                         raise HostNotStarted(f'{hostname} did not start properly.')
