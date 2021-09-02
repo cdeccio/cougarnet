@@ -183,8 +183,13 @@ class Host(object):
         cmd = ['sudo', 'rm', f'/run/netns/{self.hostname}']
         subprocess.run(cmd)
 
-        cmd = ['rm', self.config_file]
-        subprocess.run(cmd)
+        if self.pidfile is not None and os.path.exists(self.pidfile):
+            cmd = ['sudo', 'rm', self.pidfile]
+            subprocess.run(cmd)
+
+        if self.config_file is not None and os.path.exists(self.config_file):
+            cmd = ['rm', self.config_file]
+            subprocess.run(cmd)
 
     def label_for_int(self, intf):
         label = ''
