@@ -38,8 +38,7 @@ class VirtualHost:
         else:
             attrs = {}
 
-        arp = False
-        iptables = True
+        native_apps = False
         for name, val in attrs.items():
             if name == 'gw4':
                 # set gateway
@@ -47,16 +46,11 @@ class VirtualHost:
             elif name == 'gw6':
                 # set gateway
                 pass
-            elif name == 'arp':
+            elif name == 'native_apps':
                 if not val or val.lower() in FALSE_STRINGS:
-                    arp = False
+                    native_apps = False
                 else:
-                    arp = True
-            elif name == 'iptables':
-                if not val or val.lower() in FALSE_STRINGS:
-                    iptables = False
-                else:
-                    iptables = True
+                    native_apps = True
         self.ints = []
         for line in fh.readlines():
             line = line.strip()
@@ -77,13 +71,12 @@ class VirtualHost:
             cmd = ['ip', 'link', 'set', intf, 'up']
             subprocess.run(cmd, check=True)
 
-            if not arp:
+            if not native_apps:
                 # disable ARP
                 cmd = ['ip', 'link', 'set', intf, 'arp', 'off']
                 subprocess.run(cmd, check=True)
 
-            # enable iptables
-            if iptables:
+                # enable iptables
                 cmd = ['iptables', '-t', 'filter', '-I', 'INPUT', '-j', 'DROP']
                 subprocess.run(cmd, check=True)
                 cmd = ['ip6tables', '-t', 'filter', '-I', 'INPUT', '-j', 'DROP']

@@ -25,7 +25,7 @@ class HostNotStarted(Exception):
 
 class Host(object):
     def __init__(self, hostname, gw4=None, gw6=None, type='node', \
-            arp=False, iptables=True, terminal=True):
+            native_apps=False, terminal=True):
         self.hostname = hostname
         self.pid = None
         self.pidfile = None
@@ -43,14 +43,10 @@ class Host(object):
         self.gw6 = gw6
         self.type = type
 
-        if not arp or str(arp).lower() in FALSE_STRINGS:
-            self.arp = False
+        if not native_apps or str(native_apps).lower() in FALSE_STRINGS:
+            self.native_apps = False
         else:
-            self.arp = True
-        if not iptables or str(iptables).lower() in FALSE_STRINGS:
-            self.iptables = False
-        else:
-            self.iptables = True
+            self.native_apps = True
         if not terminal or str(terminal).lower() in FALSE_STRINGS:
             self.terminal = False
         else:
@@ -62,7 +58,7 @@ class Host(object):
     def _host_config(self):
         s = f'{self.hostname} '
         attrs = (('gw4', str(self.gw4)), ('gw6', str(self.gw6)),
-                ('arp', str(self.arp)), ('iptables', str(self.iptables)))
+                ('native_apps', str(self.native_apps)))
         s += ','.join(['='.join(pair) for pair in attrs if pair[1] is not None])
         return s
 
