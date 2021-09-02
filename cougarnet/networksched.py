@@ -123,8 +123,7 @@ class NetworkEventLoop(object):
             intf = self.sock_to_int[fd]
             sock = self.fd_to_sock[fd]
             frame, addr = sock.recvfrom(4096)
-            ts = self.time()
-            self._handle_frame(ts, intf, frame)
+            self._handle_frame(intf, frame)
 
     def _handle_scheduled_events(self):
         handled = False
