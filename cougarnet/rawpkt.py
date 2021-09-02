@@ -1,6 +1,9 @@
 import os
 import socket
 
+#From /usr/include/linux/if_ether.h:
+ETH_P_ALL = 0x0003
+
 class BaseFrameHandler:
     def __init__(self):
         self.int_to_sock = {}
