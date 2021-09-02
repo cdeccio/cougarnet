@@ -11,7 +11,6 @@ import sys
 import tempfile
 import time
 
-from pygraphviz import AGraph
 
 MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
 
@@ -443,6 +442,13 @@ class VirtualNetwork(object):
         subprocess.run(cmd)
 
     def display(self, to_screen, output_file):
+        try:
+            from pygraphviz import AGraph
+        except ImportError:
+            sys.stderr.write('Pygraphviz is not installed, ' + \
+                    'so the network cannot be displayed\n')
+            return
+
         G = AGraph()
 
         done = set()
