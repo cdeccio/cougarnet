@@ -153,6 +153,8 @@ class Host(object):
 
     def add_int(self, intf, host):
         self.int_to_neighbor[intf] = host
+        if host in self.neighbor_to_int:
+            raise ValueError('Only one link can exist between two hosts')
         self.neighbor_to_int[host] = intf
 
     def next_int(self):
