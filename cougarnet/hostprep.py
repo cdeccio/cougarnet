@@ -10,6 +10,8 @@ import subprocess
 import sys
 import tempfile
 
+FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
+
 class VirtualHost:
     def __init__(self, config_fh):
         self.ints = None
@@ -17,18 +19,44 @@ class VirtualHost:
         self.type = None
         self.gw4 = None
         self.gw6 = None
-        self.commsock_file = None
 
         self._apply_config(config_fh)
 
     def _apply_config(self, fh):
-        hostinfo = fh.readline().strip()
-        self.hostname, self.type, \
-                self.gw4, self.gw6, self.commsock_file = hostinfo.split(',')
+        line = fh.readline().strip()
+        parts = line.split()
+        if len(parts) < 1 or len(parts) > 2:
+            raise ValueError(f'Invalid node format: {line}')
 
+        self.hostname = parts[0]
         cmd = ['hostname', self.hostname]
         subprocess.run(cmd, check=True)
 
+        if len(parts) > 1:
+            attrs = dict([p.split('=', maxsplit=1) \
+                            for p in parts[1].split(',')])
+        else:
+            attrs = {}
+
+        arp = False
+        iptables = True
+        for name, val in attrs.items():
+            if name == 'gw4':
+                # set gateway
+                pass
+            elif name == 'gw6':
+                # set gateway
+                pass
+            elif name == 'arp':
+                if not val or val.lower() in FALSE_STRINGS:
+                    arp = False
+                else:
+                    arp = True
+            elif name == 'iptables':
+                if not val or val.lower() in FALSE_STRINGS:
+                    iptables = False
+                else:
+                    iptables = True
         self.ints = []
         for line in fh.readlines():
             line = line.strip()
@@ -49,6 +77,18 @@ class VirtualHost:
             cmd = ['ip', 'link', 'set', intf, 'up']
             subprocess.run(cmd, check=True)
 
+            if not arp:
+                # disable ARP
+                cmd = ['ip', 'link', 'set', intf, 'arp', 'off']
+                subprocess.run(cmd, check=True)
+
+            # enable iptables
+            if iptables:
+                cmd = ['iptables', '-t', 'filter', '-I', 'INPUT', '-j', 'DROP']
+                subprocess.run(cmd, check=True)
+                cmd = ['ip6tables', '-t', 'filter', '-I', 'INPUT', '-j', 'DROP']
+                subprocess.run(cmd, check=True)
+
             # add each IP address
             for addr in addrs:
                 cmd = ['ip', 'addr', 'add', addr, 'dev', intf]
@@ -57,20 +97,6 @@ class VirtualHost:
             # disable router solicitations
             cmd = ['sysctl', f'net.ipv6.conf.{intf}.router_solicitations=0']
             subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
-
-        if self.commsock_file:
-            os.environ['COUGARNET_COMM_SOCK'] = self.commsock_file
-
-    def disable_arp(self):
-        for intf in self.ints:
-            cmd = ['ip', 'link', 'set', intf, 'arp', 'off']
-            subprocess.run(cmd, check=True)
-
-    def enable_iptables(self):
-            cmd = ['iptables', '-t', 'filter', '-I', 'INPUT', '-j', 'DROP']
-            subprocess.run(cmd, check=True)
-            cmd = ['ip6tables', '-t', 'filter', '-I', 'INPUT', '-j', 'DROP']
-            subprocess.run(cmd, check=True)
 
 def user_group_info(user):
     pwinfo = pwd.getpwnam(user)
@@ -88,15 +114,13 @@ def sighup_handler(signum, frame):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--disable-arp', '-a',
-            action='store_const', const=True, default=False,
-            help='Drop incoming packets, so they aren\'t directed to the native network stack')
-    parser.add_argument('--drop-incoming-packets', '-d',
-            action='store_const', const=True, default=False,
-            help='Drop incoming packets, so they aren\'t directed to the native network stack')
     parser.add_argument('--hosts-file', '-f',
             action='store', type=str, default=None,
             help='Specify the hosts file')
+    parser.add_argument('--comm-sock', '-s',
+            action='store', type=str, default=None,
+            help='Path to UNIX socket with which we communicate with the' + \
+                    'coordinating process')
     parser.add_argument('--prog', '-p',
             action='store', type=str, default=None,
             help='Path to program that should be executed at start')
@@ -120,6 +144,9 @@ def main():
         # wait for SIGHUP to let us know that the interfaces have been added
         signal.pause()
 
+        if args.comm_sock:
+            os.environ['COUGARNET_COMM_SOCK'] = args.comm_sock
+
         host = VirtualHost(args.config_file)
 
         cmd = ['mount', '-t', 'sysfs', '/sys', '/sys']
@@ -128,12 +155,6 @@ def main():
         if args.hosts_file is not None:
             cmd = ['mount', '-o', 'bind', args.hosts_file, '/etc/hosts']
             subprocess.run(cmd, check=True)
-
-        if args.drop_incoming_packets:
-            host.enable_iptables()
-
-        if args.disable_arp:
-            host.disable_arp()
 
         if args.user is not None:
             uid, groups = user_group_info(args.user)

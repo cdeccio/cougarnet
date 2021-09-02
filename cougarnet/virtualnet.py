@@ -19,11 +19,14 @@ TERM="xfce4-terminal"
 HOSTPREP_MODULE="cougarnet.hostprep"
 TMPDIR="./tmp"
 
+FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
+
 class HostNotStarted(Exception):
     pass
 
 class Host(object):
-    def __init__(self, hostname, gw4=None, gw6=None, type='node'):
+    def __init__(self, hostname, gw4=None, gw6=None, type='node', \
+            arp=False, iptables=True, terminal=True):
         self.hostname = hostname
         self.pid = None
         self.pidfile = None
@@ -34,28 +37,65 @@ class Host(object):
         self.int_to_mac = {}
         self.int_to_ip4 = {}
         self.int_to_ip6 = {}
+        self.int_to_bw = {}
+        self.int_to_delay = {}
+        self.int_to_loss = {}
         self.gw4 = gw4
         self.gw6 = gw6
         self.type = type
 
-    def create_config(self, commsock):
+        if not arp or str(arp).lower() in FALSE_STRINGS:
+            self.arp = False
+        else:
+            self.arp = True
+        if not iptables or str(iptables).lower() in FALSE_STRINGS:
+            self.iptables = False
+        else:
+            self.iptables = True
+        if not terminal or str(terminal).lower() in FALSE_STRINGS:
+            self.terminal = False
+        else:
+            self.terminal = True
+
+    def __str__(self):
+        return self.hostname
+
+    def _host_config(self):
+        s = f'{self.hostname} '
+        attrs = (('gw4', str(self.gw4)), ('gw6', str(self.gw6)),
+                ('arp', str(self.arp)), ('iptables', str(self.iptables)))
+        s += ','.join(['='.join(pair) for pair in attrs if pair[1] is not None])
+        return s
+
+    def _int_config(self, intf):
+        if self.int_to_mac[intf] is not None:
+            mac = self.int_to_mac[intf]
+        else:
+            mac = ''
+        s = f'{intf},{mac}'
+        for addr in self.int_to_ip4[intf]:
+            s += f',{addr}'
+        for addr in self.int_to_ip6[intf]:
+            s += f',{addr}'
+
+        attrs = (('bw', self.int_to_bw[intf]),
+                ('delay', self.int_to_delay[intf]),
+                ('loss', self.int_to_loss[intf]))
+        s += ','.join(['='.join(pair) for pair in attrs if pair[1] is not None])
+        return s
+
+    def create_config(self):
         cmd = ['mkdir', '-p', TMPDIR]
         subprocess.run(cmd)
         fd, self.config_file = tempfile.mkstemp(suffix='.cfg',
                 prefix=f'{self.hostname}-', dir=TMPDIR)
 
         with os.fdopen(fd, 'w') as fh:
-            gw4 = self.gw4 if self.gw4 is not None else ''
-            gw6 = self.gw6 if self.gw6 is not None else ''
-            fh.write(f'{self.hostname},{self.type},{gw4},{gw6},{commsock}\n')
+            host_config = self._host_config()
+            fh.write(f'{host_config}\n')
             for intf in self.int_to_neighbor:
-                mac = self.int_to_mac[intf] if self.int_to_mac[intf] is not None else ''
-                fh.write(f'{intf},{mac}')
-                for addr in self.int_to_ip4[intf]:
-                    fh.write(f',{addr}')
-                for addr in self.int_to_ip6[intf]:
-                    fh.write(f',{addr}')
-                fh.write('\n')
+                int_config = self._int_config(intf)
+                fh.write(f'{int_config}\n')
 
     def create_hosts_file_entries(self, fh):
         for intf in self.int_to_neighbor:
@@ -70,7 +110,7 @@ class Host(object):
                     addr = addr[:slash]
                 fh.write(f'{addr} {self.hostname}\n')
 
-    def start(self, hosts_file):
+    def start(self, hosts_file, comm_sock):
         assert self.config_file is not None, \
                 "create_config() must be called before start()"
 
@@ -91,9 +131,8 @@ class Host(object):
                 f'--net=/run/netns/{self.hostname} ' + \
                 f'--uts ' + \
                 f'{sys.executable} -m {HOSTPREP_MODULE} ' + \
+                f'--comm-sock {comm_sock} ' + \
                 f'--hosts-file {hosts_file} ' + \
-                f'--disable-arp ' + \
-                f'--drop-incoming-packets ' + \
                 f'--user {os.environ.get("USER")} ' + \
                 f'{self.pidfile} {self.config_file}']
         p = subprocess.Popen(cmd)
@@ -294,7 +333,7 @@ class VirtualNetwork(object):
 
         self.host_by_name[hostname] = Host(hostname, **attrs)
 
-    def add_link(self, host1, host2, bw=None, delay=None):
+    def add_link(self, host1, host2, bw=None, delay=None, loss=None):
         if isinstance(host1, str):
             host1 = self.host_by_name[host1]
         if isinstance(host2, str):
@@ -306,6 +345,12 @@ class VirtualNetwork(object):
         int2 = f'{host2.hostname}-eth{num2}'
         host1.add_int(int1, host2)
         host2.add_int(int2, host1)
+        host1.int_to_bw[int1] = bw
+        host2.int_to_bw[int2] = bw
+        host1.int_to_delay[int1] = delay
+        host2.int_to_delay[int2] = delay
+        host1.int_to_loss[int1] = loss
+        host2.int_to_loss[int2] = loss
 
     def apply_links(self):
         done = set()
@@ -347,7 +392,7 @@ class VirtualNetwork(object):
 
         self.create_hosts_file()
         for hostname, host in self.host_by_name.items():
-            host.create_config(self.commsock_file)
+            host.create_config()
 
     def signal_hosts(self, signal):
         for hostname, host in self.host_by_name.items():
@@ -372,7 +417,7 @@ class VirtualNetwork(object):
 
     def start(self):
         for hostname, host in self.host_by_name.items():
-            host.start(self.hosts_file)
+            host.start(self.hosts_file, self.commsock_file)
 
         self.apply_links()
         self.signal_hosts('HUP')
