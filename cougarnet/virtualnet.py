@@ -14,7 +14,8 @@ import time
 
 MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
 
-TERM="xfce4-terminal"
+#TERM="xfce4-terminal"
+TERM="lxterminal"
 HOSTPREP_MODULE="cougarnet.hostprep"
 TMPDIR="./tmp"
 
@@ -417,13 +418,15 @@ class VirtualNetwork(object):
                 break
             time.sleep(1)
 
-    def start(self):
+    def start(self, wireshark_host=None):
         for hostname, host in self.host_by_name.items():
             host.start(self.hosts_file, self.commsock_file)
 
         self.apply_links()
         self.signal_hosts('HUP')
         self.wait_for_startup()
+        if wireshark_host is not None:
+            self.start_wireshark(self.host_by_name[wireshark_host])
         self.signal_hosts('HUP')
 
     def cleanup(self):
@@ -466,7 +469,11 @@ class VirtualNetwork(object):
             subprocess.run(['graph-easy', '--from', 'graphviz'], input=img,
                     stderr=subprocess.DEVNULL)
         if output_file:
-            G.draw(output_file, prog='dot')
+            G.draw(output_file, format='png', prog='dot')
+
+    def start_wireshark(self, host):
+        cmd = ['sudo', '-E', 'ip', 'netns', 'exec', host.hostname, 'wireshark']
+        subprocess.Popen(cmd)
 
     def message_loop(self):
         start_time = time.time()
@@ -481,23 +488,35 @@ class VirtualNetwork(object):
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--wireshark', '-w',
+            action='store', type=str, default=None,
+            metavar='NODE',
+            help='Start wireshark for the specified node')
     parser.add_argument('--display',
             action='store_const', const=True, default=False,
             help='Display the network configuration as text')
-    parser.add_argument('--output-file', '-o',
-            type=argparse.FileType('w'), action='store',
-            help='Print the network configuration to a file')
+    parser.add_argument('--display-file',
+            type=argparse.FileType('wb'), action='store',
+            help='Print the network configuration to a file (.png)')
     parser.add_argument('config_file',
             type=argparse.FileType('r'), action='store',
             help='File containing the network configuration')
     args = parser.parse_args(sys.argv[1:])
 
     net = VirtualNetwork.from_file(args.config_file)
-    if args.display:
-        net.display(args.output_file)
+
+    if args.wireshark is not None and \
+            args.wireshark not in net.host_by_name:
+        sys.stderr.write(f'The host specified for wireshark ' + \
+                f'({args.wireshark}) does not exist.\n')
+        sys.exit(1)
+
+    if args.display or args.display_file is not None:
+        net.display(args.display, args.display_file)
+
     try:
         net.config()
-        net.start()
+        net.start(args.wireshark)
         sys.stdout.write('Ctrl-c to quit\n')
         net.message_loop()
     except KeyboardInterrupt:
