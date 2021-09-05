@@ -26,7 +26,7 @@ class HostNotStarted(Exception):
 
 class Host(object):
     def __init__(self, hostname, gw4=None, gw6=None, type='node', \
-            native_apps=False, terminal=True):
+            native_apps=True, terminal=True):
         self.hostname = hostname
         self.pid = None
         self.pidfile = None
