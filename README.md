@@ -193,24 +193,34 @@ h1 gw4=10.0.0.4,terminal=false
 h2
 ```
 
+In this case, 10.0.0.4 has been designated as the default IPv4 gateway for
+`h1`, and no terminal will be started for `h1` as would normally be the case.
+
 In general, the syntax for a host is:
 
 ```
-<hostname> [name=val,[name=val,...]]
+<hostname> [name=val[,name=val[...]]
 ```
 
-That is, if there are additional attributes, they come after a space following
-the hostname and consist of a comma-delimited list of name-value pairs.  The
-defined host attribute names are the following, accompanied by the expected
-value:
- - *gw4*: an IPv4 address representing the gateway or default router.  Default:
+That is, if there are additional attributes, there is a space after the
+hostname, and those attributes come after the space. The attributes consist a
+comma-delimited list of name-value pairs.  The defined host attribute names are
+the following, accompanied by the expected value:
+ - `gw4`: an IPv4 address representing the gateway or default router.  Default:
    no IPv4 gateway.
- - *gw6*: an IPv6 address representing the gateway or default router.  Default:
+ - `gw6`: an IPv6 address representing the gateway or default router.  Default:
    no IPv6 gateway.
- - *native_apps*: a boolean (i.e., `true` or `false`) indicating whether or the
+ - `native_apps`: a boolean (i.e., `true` or `false`) indicating whether or the
    native network stack should be used.  Default: `true`.
- - *terminal*: a boolean (i.e., `true` or `false`) whether a terminal should be
-   spawned (TODO: reference the terminal section).  Default: `true`.
+ - `terminal`: a boolean (i.e., `true` or `false`) whether a terminal should be
+   spawned.  Sometimes neither an interactive interface with a virtual host nor
+   console output is necessary, in which case `false` would be appropriate.  An
+   example of this is if a script is designated to be run automatically with
+   the host using the `prog` attribute.  Default: `true`.
+ - `prog`: a string representing a program and its arguments, which are to be
+   run instead of an interactive shell.  The program path and its arguments are
+   delimited by `|`.  For example `echo|foo|bar` would execute `echo foo bar`.
+   Default: execute an interactive shell.
 
 
 # Virtual Links
