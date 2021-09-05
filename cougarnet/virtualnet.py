@@ -344,8 +344,8 @@ class VirtualNetwork(object):
 
         num1 = host1.next_int()
         num2 = host2.next_int()
-        int1 = f'{host1.hostname}-eth{num1}'
-        int2 = f'{host2.hostname}-eth{num2}'
+        int1 = f'eth{num1}'
+        int2 = f'eth{num2}'
         host1.add_int(int1, host2)
         host2.add_int(int2, host1)
         host1.int_to_bw[int1] = bw
