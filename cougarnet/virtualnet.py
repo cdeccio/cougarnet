@@ -479,10 +479,13 @@ class VirtualNetwork(object):
         start_time = time.time()
         while True:
             data, peer = self.commsock.recvfrom(4096)
+            data = data.decode('utf-8')
             try:
-                hostname, msg = data.decode('utf-8').split(',', maxsplit=1)
+                hostname, msg = data.split(',', maxsplit=1)
             except:
                 sys.stderr.write('Malformed message: %s' % str(data))
+                hostname = ''
+                msg = data
             ts = time.time() - start_time
             print('%000.3f \033[1m%4s\033[0m  %s' % (ts, hostname, msg))
 
