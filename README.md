@@ -5,8 +5,7 @@ protocols.  It takes as input a [network configuration
 file](#network-configuration-file).  Using the configuration as a guide, it
 creates [virtual hosts](#virtual-hosts) and [virtual links](#virtual-links)
 between them.  It can also add MAC and IP address information to interfaces,
-specify [bandwidth](#link-bandwidth), (propagation) [delay](#link-delay), or
-[loss](#link-loss) to links.
+specify bandwidth, (propagation) delay, or loss to links.
 
 Perhaps the most power feature of Cougarnet is the ability to either use the
 built-in Linux network stack or capture raw frames only.  The former is useful
@@ -95,7 +94,9 @@ return to the terminal on which you ran the `cougarnet` command, and enter
 
 Congratulations!  You have just completed a simple Cougarnet excercise!
 
+
 # Virtual Hosts
+
 Each virtual host is actually just a process that is running in its own Linux
 namespace (see the `man` page for `namespaces(7)`).  Specifically, it is a
 process spawned with the `unshare` command.  The `--mount`, `--net`, and
@@ -172,11 +173,12 @@ it will handle the formatting for you.
 TODO: more on this BaseFrameHandler below.  For an example, refer to
 BaseFrameHandler documentation.
 
+
 ## Configuration
 
-In the Cougarnet configuration file, additional options can be specified for a
-given host.  Consider the `NODES` section of the [example configuration given
-previously](#getting-started):
+In the Cougarnet configuration file, a host is designated by a hostname on a
+single line in the `NODES` section of the file. Consider the `NODES` section of
+the [example configuration given previously](#getting-started):
 
 ```
 NODES
@@ -184,8 +186,10 @@ h1
 h2
 ```
 
-We might like to provide `h1` with additional configuration, such as the
-following:
+This creates two hosts, with hostnames `h1` and `h2`.
+
+Additional options can be specified for any host.  For example, we might like
+to provide `h1` with additional configuration, such as the following:
 
 ```
 NODES
@@ -202,10 +206,10 @@ In general, the syntax for a host is:
 <hostname> [name=val[,name=val[...]]
 ```
 
-That is, if there are additional attributes, there is a space after the
-hostname, and those attributes come after the space. The attributes consist a
-comma-delimited list of name-value pairs.  The defined host attribute names are
-the following, accompanied by the expected value:
+That is, if there are additional options, there is a space after the hostname,
+and those options come after the space. The options consist a comma-delimited
+list of name-value pairs, each name-value connected by `=`.  The defined host
+option names are the following, accompanied by the expected value:
  - `gw4`: an IPv4 address representing the gateway or default router.  Default:
    no IPv4 gateway.
  - `gw6`: an IPv6 address representing the gateway or default router.  Default:
@@ -225,3 +229,76 @@ the following, accompanied by the expected value:
 
 # Virtual Links
 
+Virtual links are created between two virtual interfaces with the `ip link`
+command, using type `veth`: such that one virtual interface is associated with
+one network namespace and the second is associated with another network
+namespace.  Those two namespaces are the two associated with two processes
+ that are running in their own namespaces.  These processes, of course, are
+[virtual hosts](#virtual-hosts), so these virtual links become the basis for
+connections between virtual hosts.
+
+
+## Configuration
+
+In the Cougarnet configuration file, a link between two hosts is designated in
+the `LINKS` section by indicating two hosts on a line, separated by a space.
+Consider the `LINKS` section of the [example configuration given
+previously](#getting-started):
+
+```
+LINKS
+h1,10.0.0.1/24 h2,10.0.0.2/24
+```
+
+This results in a virtual interface being created for each virtual host.  Each
+interface can be configured with zero or more addresses, up to one MAC address
+and zero or more IPv4 and/or IPv6 addresses.  The list of addresses is
+comma-separated.  For example, we might like to configure the `h1` and  `h2`
+virtual interfaces thus:
+
+```
+LINKS
+h1,00:00:aa:aa:aa:aa,10.0.0.1/24,fd00::1/64 h2,10.0.0.2/24,fd00::2/64
+```
+TODO: loss should be configured unidirectionally
+
+In this case, `h1`'s virtual network interface will not only have IPv4 address
+10.0.0.1, but also MAC address 00:00:aa:aa:aa:aa and IPv6 address fd00::1/64.
+Likewise, `h2`'s virtual network interface will have IPv6 address fd00::2/64,
+in addition to IPv4 address 10.0.0.2.
+
+
+Additional options can be specified for any link.  For example, we might like
+to provide the (original) link between `h1` and `h2` with additional
+configuration, such as the following:
+
+```
+LINKS
+h1,10.0.0.1/24 h2,10.0.0.2/24 bw=1Mbps,loss1=10%
+```
+
+In this case, the bandwidth of the link will be 1Mbps, instead of the default
+10Gbps, and an artificial packet loss rate of 10% will be applied to packets
+leaving `h1`'s interface.  That is, any packet has a 10% chance of being
+dropped.
+
+In general, the syntax for a link is:
+
+```
+<hostname>[,<addr>[,<addr>...]] <hostname>[,addr>[,<addr>...]] [name=val[,name=val[...]]
+```
+
+That is, if there are additional options, there is a space after the interface
+information for the second host, and those options come after the space. The
+options consist a comma-delimited list of name-value pairs, each name-value
+connected by `=`.  The defined link option names are the following, accompanied
+by the expected value:
+ - `bw`:  an artificial bandwith to apply to the link.  Example: `1Mbps`.
+   Default: 10Gbps.
+ - `delay1` / `delay2`: an artificial delay to be added to all packets, on
+   packets leaving the interface of the first host or those leaving the
+   interface of the second host, respectively.  Example: `10ms`.  Default: no
+   delay.
+ - `loss1` / `loss2`: an average rate of artificial loss that should be applied
+   to the interface of the first host or the interface of the second host,
+   respectively.  Example: `10%`.  Default: no loss.
