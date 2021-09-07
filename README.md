@@ -204,9 +204,10 @@ hostname = socket.gethostname()
 
 ## Interface Names
 
-The interface names for each host created dynamically, starting with `eth0`,
-then `eth1`, etc.  The interfaces for a host, and their respective
-configurations, can be viewed by running the following from the command line:
+The interface names for each host created dynamically with each [link
+defined](#virtual-links), starting with `eth0`, then `eth1`, etc.  The
+interfaces for a host, and their respective configurations, can be viewed by
+running the following from the command line:
 
 ```
 $ ip addr
