@@ -41,11 +41,9 @@ class VirtualHost:
         native_apps = False
         for name, val in attrs.items():
             if name == 'gw4':
-                # set gateway
-                pass
+                os.environ['COUGARNET_DEFAULT_GATEWAY_IPV4'] = val
             elif name == 'gw6':
-                # set gateway
-                pass
+                os.environ['COUGARNET_DEFAULT_GATEWAY_IPV6'] = val
             elif name == 'native_apps':
                 if not val or val.lower() in FALSE_STRINGS:
                     native_apps = False
