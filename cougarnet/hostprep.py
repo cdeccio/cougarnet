@@ -164,7 +164,7 @@ def main():
 
         if args.prog is not None:
             prog_args = args.prog.split('|')
-            os.execvp(args.prog, [prog_args])
+            os.execvp(prog_args[0], prog_args)
         else:
             os.execvp(os.environ.get('SHELL'), [os.environ.get('SHELL'), '-i'])
 
