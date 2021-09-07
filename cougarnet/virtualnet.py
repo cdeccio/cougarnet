@@ -507,8 +507,7 @@ class VirtualNetwork(object):
             data = data.decode('utf-8')
             try:
                 hostname, msg = data.split(',', maxsplit=1)
-            except:
-                sys.stderr.write('Malformed message: %s' % str(data))
+            except ValueError:
                 hostname = ''
                 msg = data
             ts = time.time() - start_time
