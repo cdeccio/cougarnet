@@ -559,7 +559,7 @@ h2 h3 vlan=32
 h2 h4 trunk=true
 ```
 
-In this case, `h2 and `h3` are each switches, connected by a trunk.  Both `h1`
+In this case, `h2` and `h3` are each switches, connected by a trunk.  Both `h1`
 and `h3` are connected to `h2`, with their links having VLAN assignments 25 and
 32, respectively.  The link between `h2` and `h4` is a trunk.  In this case,
 the process associated with `h2` will have the following environment variables
@@ -571,4 +571,46 @@ COUGARNET_VLAN_ETH1=32
 COUGARNET_TRUNK_ETH1=true
 ```
 
+# Network Configuration File
+
+The full syntax for the network configuration file is as follows:
+
+```
+HOSTS
+[<hostname> [name=val[,name=val[...]]]
+[...]
+LINKS
+[<hostname>[,<addr>[,<addr>...]] <hostname>[,<addr>[,<addr>...]] [name=val[,name=val[...]]]
+[...]
+```
+Blank links and lines beginning with `#` (i.e., comments) are ignored.
+
 # `cougarnet` Usage
+
+```
+$ cougarnet --help
+usage: cougarnet [-h] [--wireshark NODE] [--display] [--terminal {all,none}] [--native-apps {all,none}]
+                 [--display-file DISPLAY_FILE]
+                 config_file
+
+positional arguments:
+  config_file           File containing the network configuration
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --wireshark NODE, -w NODE
+                        Start wireshark for the specified node
+  --display             Display the network configuration as text
+  --terminal {all,none}
+                        Specify that all virtual hosts should launch (all) or not launch (none) a terminal.
+  --native-apps {all,none}
+                        Specify that all virtual hosts should enable (all) or disable (none) native apps.
+  --display-file DISPLAY_FILE
+                        Print the network configuration to a file (.png)
+
+```
+
+Note that `--terminal` and `--native-apps` options override all per-host
+`terminal` and `native_apps` options.
+
+Also note that the `--display-file` option is not yet fully-functional.
