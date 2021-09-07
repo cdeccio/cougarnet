@@ -127,7 +127,21 @@ h1
 h2
 ```
 
-This creates two hosts, with hostnames `h1` and `h2`.
+This creates two virtual hosts, with hostnames `h1` and `h2`.  When started,
+their hostnames are assigned accordingly.  This can be seen in the title of the
+terminal as well as the command-line prompt.  You can also retrieve the
+hostname by simply running the following from the command line:
+
+```
+$ hostname
+```
+
+Or it can be retrieved using Python with the following:
+
+```
+import socket
+hostname = socket.gethostname()
+```
 
 Additional options can be specified for any host.  For example, we might like
 to provide `h1` with additional configuration, such as the following:
@@ -167,7 +181,7 @@ option names are the following, accompanied by the expected value:
  - `prog`: a string representing a program and its arguments, which are to be
    run, instead of an interactive shell.  The program path and its arguments
    are delimited by `|`.  For example, `echo|foo|bar` would execute
-   `echo foo kbar`.  Default: execute an interactive shell.
+   `echo foo bar`.  Default: execute an interactive shell.
 
 ## Communicating with the Calling Process
 
@@ -278,7 +292,23 @@ In this case, `h1`'s virtual network interface will not only have IPv4 address
 Likewise, `h2`'s virtual network interface will have IPv6 address fd00::2/64,
 in addition to IPv4 address 10.0.0.2.
 
+The interface names for each host created dynamically, starting with `eth0`,
+then `eth1`, etc.  The interfaces for a host can be viewed by running the
+folloing from the command line:
 
+```
+$ ip addr
+```
+
+Or they can be retrieved from the special "directory" `/sys/class/net`.  For
+example, the Python code to retrieve the names of all interfaces except
+loopback interfaces (i.e., starting with `lo`) is the following:
+
+```
+import os
+ints = [i for i in os.listdir('/sys/class/net/') if not i.startswith('lo')]
+```
+        
 Additional options can be specified for any link.  For example, we might like
 to provide the (original) link between `h1` and `h2` with additional
 configuration, such as the following:
