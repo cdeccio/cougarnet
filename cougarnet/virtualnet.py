@@ -143,7 +143,8 @@ class Host(object):
         if self.terminal:
             cmd = [TERM, '-e', ' '.join(cmd)]
 
-        p = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         while True:
             with open(self.pidfile, 'r') as fh:
