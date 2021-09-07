@@ -216,9 +216,11 @@ class Host(object):
         return label
 
 class VirtualNetwork(object):
-    def __init__(self):
+    def __init__(self, native_apps, terminal):
         self.host_by_name = {}
         self.hosts_file = None
+        self.native_apps = native_apps
+        self.terminal = terminal
 
     def import_int(self, hostname_addr):
         parts = hostname_addr.split(',')
@@ -309,8 +311,8 @@ class VirtualNetwork(object):
         host2.int_to_ip6[host2.neighbor_to_int[host1]] = addrs62
 
     @classmethod
-    def from_file(cls, fh):
-        net = cls()
+    def from_file(cls, fh, native_apps, terminal):
+        net = cls(native_apps, terminal)
         mode = None
         for line in fh:
             line = line.strip()
@@ -346,6 +348,11 @@ class VirtualNetwork(object):
                             for p in parts[1].split(',')])
         else:
             attrs = {}
+
+        if self.native_apps is not None:
+            attrs['native_apps'] = str(self.native_apps)
+        if self.terminal is not None:
+            attrs['terminal'] = str(self.terminal)
 
         self.host_by_name[hostname] = Host(hostname, **attrs)
 
@@ -516,6 +523,12 @@ def main():
     parser.add_argument('--display',
             action='store_const', const=True, default=False,
             help='Display the network configuration as text')
+    parser.add_argument('--terminal',
+            action='store', type=str, choices=('all', 'none'), default=None,
+            help='Specify that all virtual hosts should launch (all) or not launch (none) a terminal.') 
+    parser.add_argument('--native-apps',
+            action='store', type=str, choices=('all', 'none'), default=None,
+            help='Specify that all virtual hosts should enable (all) or disable (none) native apps.') 
     parser.add_argument('--display-file',
             type=argparse.FileType('wb'), action='store',
             help='Print the network configuration to a file (.png)')
@@ -524,7 +537,21 @@ def main():
             help='File containing the network configuration')
     args = parser.parse_args(sys.argv[1:])
 
-    net = VirtualNetwork.from_file(args.config_file)
+    if args.native_apps == 'all':
+        native_apps = True
+    elif args.native_apps == 'none':
+        native_apps = False
+    else:
+        native_apps = None
+
+    if args.terminal == 'all':
+        terminal = True
+    elif args.terminal == 'none':
+        terminal = False
+    else:
+        terminal = None
+
+    net = VirtualNetwork.from_file(args.config_file, native_apps, terminal)
 
     if args.wireshark is not None and \
             args.wireshark not in net.host_by_name:
