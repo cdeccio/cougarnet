@@ -20,11 +20,11 @@ stack and some that do not.
 To install Cougarnet, run the following:
 
 ```
-$ python setup.py build
-$ sudo python setup.py install
+$ python3 setup.py build
+$ sudo python3 setup.py install
 ```
 
-TODO: `sudo`, `wireshark`, `lxde-terminal`
+TODO: dependencies, `sudo`, `wireshark`, `lxde-terminal`
 
 
 # Getting Started
