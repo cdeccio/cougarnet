@@ -174,7 +174,7 @@ class Host(object):
         if self.pid is None:
             return
         cmd = ['sudo', 'kill', f'-{signal_type}', str(self.pid)]
-        subprocess.run(cmd)
+        subprocess.run(cmd, stderr=subprocess.DEVNULL)
 
     def cleanup(self):
         self.signal('KILL')
