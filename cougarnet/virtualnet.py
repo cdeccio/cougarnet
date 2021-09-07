@@ -151,7 +151,13 @@ class Host(object):
         cmd += [self.pidfile, self.config_file]
 
         if self.terminal:
-            cmd = [TERM, '-e', ' '.join(cmd)]
+            cmd_quoted = []
+            for c in cmd:
+                c = c.replace('"', r'\"')
+                c = f'"{c}"'
+                cmd_quoted.append(c)
+            subcmd = ' '.join(cmd_quoted)
+            cmd = [TERM, '-e', subcmd]
 
         p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
