@@ -25,7 +25,7 @@ class HostNotStarted(Exception):
     pass
 
 class Host(object):
-    def __init__(self, hostname, gw4=None, gw6=None, type='node', \
+    def __init__(self, hostname, gw4=None, gw6=None, type='host', \
             native_apps=True, terminal=True, prog=None):
         self.hostname = hostname
         self.pid = None
@@ -40,6 +40,8 @@ class Host(object):
         self.int_to_bw = {}
         self.int_to_delay = {}
         self.int_to_loss = {}
+        self.int_to_vlan = {}
+        self.int_to_trunk = {}
         self.gw4 = gw4
         self.gw6 = gw6
         self.type = type
@@ -59,7 +61,7 @@ class Host(object):
 
     def _host_config(self):
         s = f'{self.hostname} '
-        attrs = (('gw4', str(self.gw4)), ('gw6', str(self.gw6)),
+        attrs = (('gw4', self.gw4), ('gw6', self.gw6),
                 ('native_apps', str(self.native_apps)))
         s += ','.join(['='.join(pair) for pair in attrs if pair[1] is not None])
         return s
@@ -75,10 +77,14 @@ class Host(object):
         for addr in self.int_to_ip6[intf]:
             s += f',{addr}'
 
-        attrs = (('bw', self.int_to_bw[intf]),
+        attrs = [('bw', self.int_to_bw[intf]),
                 ('delay', self.int_to_delay[intf]),
-                ('loss', self.int_to_loss[intf]))
-        s += ','.join(['='.join(pair) for pair in attrs if pair[1] is not None])
+                ('loss', self.int_to_loss[intf])]
+        if self.type == 'switch':
+            attrs += [('vlan', self.int_to_vlan[intf]), ('trunk', str(self.int_to_trunk[intf]))]
+        attr_str = ','.join(['='.join(pair) for pair in attrs if pair[1] is not None])
+        if attr_str:
+            s += f' {attr_str}'
         return s
 
     def create_config(self):
@@ -342,7 +348,8 @@ class VirtualNetwork(object):
 
         self.host_by_name[hostname] = Host(hostname, **attrs)
 
-    def add_link(self, host1, host2, bw=None, delay=None, loss=None):
+    def add_link(self, host1, host2, bw=None, delay=None, loss=None,
+            vlan=None, trunk=False):
         if isinstance(host1, str):
             host1 = self.host_by_name[host1]
         if isinstance(host2, str):
@@ -360,6 +367,10 @@ class VirtualNetwork(object):
         host2.int_to_delay[int2] = delay
         host1.int_to_loss[int1] = loss
         host2.int_to_loss[int2] = loss
+        host1.int_to_vlan[int1] = vlan
+        host2.int_to_vlan[int2] = vlan
+        host1.int_to_trunk[int1] = vlan
+        host2.int_to_trunk[int2] = vlan
 
     def apply_links(self):
         done = set()

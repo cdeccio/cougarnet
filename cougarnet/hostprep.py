@@ -54,14 +54,18 @@ class VirtualHost:
         self.ints = []
         for line in fh.readlines():
             line = line.strip()
-            parts = line.split(',')
-            intf = parts[0]
-            addrs = parts[2:]
+            parts = line.split(maxsplit=1)
+
+            intf_addrs = parts[0]
+
+            parts2 = intf_addrs.split(',')
+            intf = parts2[0]
+            addrs = parts2[2:]
 
             self.ints.append(intf)
 
-            if len(parts) > 1:
-                mac = parts[1]
+            if len(parts2) > 1:
+                mac = parts2[1]
                 # set MAC address, if specified
                 if mac:
                     cmd = ['ip', 'link', 'set', intf, 'address', mac]
@@ -86,6 +90,23 @@ class VirtualHost:
             for addr in addrs:
                 cmd = ['ip', 'addr', 'add', addr, 'dev', intf]
                 subprocess.run(cmd, check=True)
+
+            if len(parts) > 1:
+                attrs = dict([p.split('=', maxsplit=1) \
+                                for p in parts[1].split(',')])
+                cmd = ['tc', 'qdisc', 'add', 'dev', intf, 'root', 'netem']
+                if 'bw' in attrs:
+                    cmd += ['rate', attrs['bw']]
+                if 'delay' in attrs:
+                    cmd += ['delay', attrs['delay']]
+                if 'loss' in attrs:
+                    cmd += ['loss', attrs['loss']]
+                subprocess.run(cmd, check=True)
+
+                if 'vlan' in attrs:
+                    os.environ[f'COUGARNET_VLAN_{intf.upper()}'] = attrs['vlan']
+                if 'trunk' in attrs:
+                    os.environ[f'COUGARNET_TRUNK_{intf.upper()}'] = attrs['trunk']
 
             # disable router solicitations
             cmd = ['sysctl', f'net.ipv6.conf.{intf}.router_solicitations=0']
