@@ -1,7 +1,9 @@
 #!/usr/bin/python3
 
 import argparse
+import csv
 import grp
+import io
 import os
 import pwd
 import signal
@@ -33,8 +35,10 @@ class VirtualHost:
         subprocess.run(cmd, check=True)
 
         if len(parts) > 1:
+            s = io.StringIO(parts[1])
+            csv_reader = csv.reader(s)
             attrs = dict([p.split('=', maxsplit=1) \
-                            for p in parts[1].split(',')])
+                    for p in next(csv_reader)])
         else:
             attrs = {}
 
@@ -90,8 +94,10 @@ class VirtualHost:
                 subprocess.run(cmd, check=True)
 
             if len(parts) > 1:
+                s = io.StringIO(parts[1])
+                csv_reader = csv.reader(s)
                 attrs = dict([p.split('=', maxsplit=1) \
-                                for p in parts[1].split(',')])
+                        for p in next(csv_reader)])
                 cmd = ['tc', 'qdisc', 'add', 'dev', intf, 'root', 'netem']
                 if 'bw' in attrs:
                     cmd += ['rate', attrs['bw']]

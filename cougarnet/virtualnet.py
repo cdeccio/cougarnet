@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 
 import argparse
+import csv
+import io
 import ipaddress
 import os
 import re
@@ -60,32 +62,40 @@ class Host(object):
         return self.hostname
 
     def _host_config(self):
-        s = f'{self.hostname} '
-        attrs = (('gw4', self.gw4), ('gw6', self.gw6),
+        s = io.StringIO()
+        s.write(f'{self.hostname} ')
+        attrs_tuple = (('gw4', self.gw4), ('gw6', self.gw6),
                 ('native_apps', str(self.native_apps)))
-        s += ','.join(['='.join(pair) for pair in attrs if pair[1] is not None])
-        return s
+        attrs_str = ['='.join(pair) for pair in attrs_tuple if pair[1] is not None]
+        csv_writer = csv.writer(s)
+        csv_writer.writerow(attrs_str)
+        return s.getvalue()
 
     def _int_config(self, intf):
+        #TODO change this to YAML
+        s = io.StringIO()
         if self.int_to_mac[intf] is not None:
             mac = self.int_to_mac[intf]
         else:
             mac = ''
-        s = f'{intf},{mac}'
+        s.write(f'{intf},{mac}')
         for addr in self.int_to_ip4[intf]:
-            s += f',{addr}'
+            s.write(f',{addr}')
         for addr in self.int_to_ip6[intf]:
-            s += f',{addr}'
+            s.write(f',{addr}')
 
-        attrs = [('bw', self.int_to_bw[intf]),
+        attrs_tuple = [('bw', self.int_to_bw[intf]),
                 ('delay', self.int_to_delay[intf]),
-                ('loss', self.int_to_loss[intf])]
-        if self.type == 'switch':
-            attrs += [('vlan', self.int_to_vlan[intf]), ('trunk', str(self.int_to_trunk[intf]))]
-        attr_str = ','.join(['='.join(pair) for pair in attrs if pair[1] is not None])
-        if attr_str:
-            s += f' {attr_str}'
-        return s
+                ('loss', self.int_to_loss[intf]),
+                ('vlan', self.int_to_vlan[intf]),
+                ('trunk', self.int_to_trunk[intf])]
+
+        attrs_str = ['='.join(pair) for pair in attrs_tuple if pair[1] is not None]
+        if attrs_str:
+            s.write(' ')
+            csv_writer = csv.writer(s)
+            csv_writer.writerow(attrs_str)
+        return s.getvalue()
 
     def create_config(self):
         cmd = ['mkdir', '-p', TMPDIR]
@@ -95,10 +105,10 @@ class Host(object):
 
         with os.fdopen(fd, 'w') as fh:
             host_config = self._host_config()
-            fh.write(f'{host_config}\n')
+            fh.write(f'{host_config}')
             for intf in self.int_to_neighbor:
                 int_config = self._int_config(intf)
-                fh.write(f'{int_config}\n')
+                fh.write(f'{int_config}')
 
     def create_hosts_file_entries(self, fh):
         for intf in self.int_to_neighbor:
@@ -271,7 +281,7 @@ class VirtualNetwork(object):
         return host, mac, addrs4, addrs6, subnet4, subnet6
 
     def import_link(self, line):
-        parts = line.split()
+        parts = line.split(maxsplit=2)
         if len(parts) < 2 or len(parts) > 3:
             raise ValueError(f'Invalid link format.')
 
@@ -297,8 +307,10 @@ class VirtualNetwork(object):
                     '{host2.hostname} must be in the same subnet!')
 
         if len(parts) > 2:
+            s = io.StringIO(parts[2])
+            csv_reader = csv.reader(s)
             attrs = dict([p.split('=', maxsplit=1) \
-                    for p in parts[2].split(',')])
+                    for p in next(csv_reader)])
         else:
             attrs = {}
 
@@ -344,8 +356,10 @@ class VirtualNetwork(object):
 
         hostname = parts[0]
         if len(parts) > 1:
+            s = io.StringIO(parts[1])
+            csv_reader = csv.reader(s)
             attrs = dict([p.split('=', maxsplit=1) \
-                            for p in parts[1].split(',')])
+                    for p in next(csv_reader)])
         else:
             attrs = {}
 
