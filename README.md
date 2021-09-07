@@ -229,6 +229,8 @@ option names are the following, accompanied by the expected value:
    `echo foo kbar`.  Default: execute an interactive shell.
 
 
+## Host Types
+
 ## Running Programs
 
 When a host runs the 
@@ -359,7 +361,33 @@ response message received.  In the example above, packets 1 and 3 were lost.
 ## VLAN Attributes
 
 Currently, the `vlan` and `trunk` attributes are only useful when the host is
-not configured for native apps (i.e., when the `native_app` host option is not
-in use)
+not configured for native apps (i.e., when not enabled with the `native_apps`
+host option or the `--native-apps` command-line option).
+
+The `vlan` and `trunk` attributes have no effect unless at least one of the
+hosts is of type `switch`.  If `vlan` is specified for a switch, then the
+virtual switch is made aware of the VLAN assignment via an environment
+variable.  Consider the following configuration.
+
+```
+NODES
+h1
+h2 type=switch
+h3
+
+LINKS
+h1 h2 vlan=25
+h2 h3 vlan=32
+```
+
+In this case, both `h1` and `h3` are connected to `h2`, a switch.  The link
+between `h2` and `h1` uses VLAN 25, and the link between `h2` and `h3` uses
+VLAN 32.  In this case, `h2` the process associated with `h2` will have the
+following environment variables set:
+
+```
+COUGARNET_VLAN_ETH0=25
+COUGARNET_VLAN_ETH1=32
+```
 
 # `cougarnet` Usage
