@@ -104,7 +104,7 @@ class VirtualHost:
                 if 'vlan' in attrs:
                     os.environ[f'COUGARNET_VLAN_{intf.upper()}'] = attrs['vlan']
                 if 'trunk' in attrs:
-                    os.environ[f'COUGARNET_TRUNK_{intf.upper()}'] = attrs['trunk']
+                    os.environ[f'COUGARNET_TRUNK_{intf.upper()}'] = attrs['trunk'].lower()
 
             # disable router solicitations
             cmd = ['sysctl', f'net.ipv6.conf.{intf}.router_solicitations=0']
