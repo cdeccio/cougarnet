@@ -122,7 +122,7 @@ that invoked all the virtual hosts (i.e., the `cougarnet` process).  This
 enables the logs for all messages to be received and printed in a single
 location.  To accomplish this, each virtual process has the
 `COUGARNET_COMM_SOCK`  environment variable set, the value of which is a path
-corresponding to a Unix domain socket (i.e., family `AF_UNIX`) of type
+corresponding to a UNIX domain socket (i.e., family `AF_UNIX`) of type
 `SOCK_DGRAM`.  Once all the virtual machines are started, the `cougarnet`
 process will print to standard output all messages received on this socket.
 
@@ -210,21 +210,31 @@ That is, if there are additional options, there is a space after the hostname,
 and those options come after the space. The options consist a comma-delimited
 list of name-value pairs, each name-value connected by `=`.  The defined host
 option names are the following, accompanied by the expected value:
- - `gw4`: an IPv4 address representing the gateway or default router.  Default:
-   no IPv4 gateway.
- - `gw6`: an IPv6 address representing the gateway or default router.  Default:
-   no IPv6 gateway.
- - `native_apps`: a boolean (i.e., `true` or `false`) indicating whether or the
-   native network stack should be used.  Default: `true`.
- - `terminal`: a boolean (i.e., `true` or `false`) whether a terminal should be
-   spawned.  Sometimes neither an interactive interface with a virtual host nor
-   console output is necessary, in which case `false` would be appropriate.  An
-   example of this is if a script is designated to be run automatically with
-   the host using the `prog` attribute.  Default: `true`.
+ - `gw4`: an IPv4 address representing the gateway or default router.  Example:
+   `10.0.0.4`.  Default: no IPv4 gateway.
+ - `gw6`: an IPv6 address representing the gateway or default router.  Example:
+   `fd00::4`.  Default: no IPv6 gateway.
+ - `native_apps`: a boolean (i.e., `true` or `false`) indicating whether or not
+   the native network stack should be used.  Default: `true`.
+ - `terminal`: a boolean (i.e., `true` or `false`) indicating whether or not a
+   terminal should be spawned.  Sometimes neither an interactive interface with
+   a virtual host nor console output is necessary, in which case `false` would
+   be appropriate.  An example of this is if a script is designated to be run
+   automatically with the host using the `prog` attribute.  Default: `true`.
+ - `type`: a string representing the type of node.  The supported types are:
+   `host`, `switch`, `router`.  Default: `host`.
  - `prog`: a string representing a program and its arguments, which are to be
-   run instead of an interactive shell.  The program path and its arguments are
-   delimited by `|`.  For example `echo|foo|bar` would execute `echo foo bar`.
-   Default: execute an interactive shell.
+   run, instead of an interactive shell.  The program path and its arguments
+   are delimited by `|`.  For example, `echo|foo|bar` would execute
+   `echo foo kbar`.  Default: execute an interactive shell.
+
+
+## Running Programs
+
+When a host runs the 
+TODO: environment vars
+
+## Getting all Interfaces
 
 
 # Virtual Links
@@ -260,7 +270,6 @@ virtual interfaces thus:
 LINKS
 h1,00:00:aa:aa:aa:aa,10.0.0.1/24,fd00::1/64 h2,10.0.0.2/24,fd00::2/64
 ```
-TODO: loss should be configured unidirectionally
 
 In this case, `h1`'s virtual network interface will not only have IPv4 address
 10.0.0.1, but also MAC address 00:00:aa:aa:aa:aa and IPv6 address fd00::1/64.
@@ -274,18 +283,18 @@ configuration, such as the following:
 
 ```
 LINKS
-h1,10.0.0.1/24 h2,10.0.0.2/24 bw=1Mbps,loss1=10%
+h1,10.0.0.1/24 h2,10.0.0.2/24 bw=1Mbps,delay=20ms,loss=10%
 ```
 
 In this case, the bandwidth of the link will be 1Mbps, instead of the default
-10Gbps, and an artificial packet loss rate of 10% will be applied to packets
-leaving `h1`'s interface.  That is, any packet has a 10% chance of being
-dropped.
+10Gbps, an artificial delay of 20 ms will be applied to any packet crossing the
+link, and an artificial packet loss rate of 10% will be applied to packets
+crossing the link.  That is, any packet has a 10% chance of being dropped.
 
 In general, the syntax for a link is:
 
 ```
-<hostname>[,<addr>[,<addr>...]] <hostname>[,addr>[,<addr>...]] [name=val[,name=val[...]]
+<hostname>[,<addr>[,<addr>...]] <hostname>[,<addr>[,<addr>...]] [name=val[,name=val[...]]
 ```
 
 That is, if there are additional options, there is a space after the interface
@@ -295,10 +304,62 @@ connected by `=`.  The defined link option names are the following, accompanied
 by the expected value:
  - `bw`:  an artificial bandwith to apply to the link.  Example: `1Mbps`.
    Default: 10Gbps.
- - `delay1` / `delay2`: an artificial delay to be added to all packets, on
-   packets leaving the interface of the first host or those leaving the
-   interface of the second host, respectively.  Example: `10ms`.  Default: no
-   delay.
- - `loss1` / `loss2`: an average rate of artificial loss that should be applied
-   to the interface of the first host or the interface of the second host,
-   respectively.  Example: `10%`.  Default: no loss.
+ - `delay`: an artificial delay to be added to all packets on the link.
+   Example: `50ms`.  Default: no delay.
+ - `loss`: an average rate of artificial loss that should be applied
+   to the link.  Example: `10%`.  Default: no loss.
+ - `vlan`: the VLAN id (integer with value 0 through 1023) associated with the
+   link.  Example: `20`.  Default: no VLAN id.
+ - `trunk`: a boolean (i.e., `true` or `false`) indicating whether this link
+   should be a trunk link between two switches, such that 802.1Q frames are
+   passed on that link.  Default: `false`.
+
+
+## Bi-Directionality of Link Attributes
+
+A note about the link-specific attributes.  They are applied in both
+directions.  Thus, using the example configuration above, running a `ping`
+command between `h1` and `h2` will result in something like this:
+
+```
+h2$ ping h1
+PING h1 (10.0.0.1) 56(84) bytes of data.
+64 bytes from h1 (10.0.0.1): icmp_seq=2 ttl=64 time=41.5 ms
+64 bytes from h1 (10.0.0.1): icmp_seq=4 ttl=64 time=41.3 ms
+64 bytes from h1 (10.0.0.1): icmp_seq=5 ttl=64 time=41.1 ms
+64 bytes from h1 (10.0.0.1): icmp_seq=6 ttl=64 time=40.8 ms
+64 bytes from h1 (10.0.0.1): icmp_seq=7 ttl=64 time=40.8 ms
+64 bytes from h1 (10.0.0.1): icmp_seq=8 ttl=64 time=41.8 ms
+64 bytes from h1 (10.0.0.1): icmp_seq=9 ttl=64 time=41.4 ms
+64 bytes from h1 (10.0.0.1): icmp_seq=10 ttl=64 time=41.3 ms
+
+--- h1 ping statistics ---
+10 packets transmitted, 8 received, 20% packet loss, time 9061ms
+rtt min/avg/max/mdev = 40.811/41.242/41.775/0.306 ms
+```
+
+Note that the round-trip time (RTT) was consistently around just over 40 ms
+(i.e., 20 ms for the ICMP request and 20 ms for the ICMP response).  Also, any
+packet has a 10% chance of being lost.  Because a successful `ping` requires
+the successful transmission of both an ICMP request and the corresponding ICMP
+response, the chance of success is 81%:
+
+```
+P(success)
+  = P(neither pkt is lost)
+  = (1 - P(loss)) * (1 - P(loss))
+  = (1 - 0.10) * (1 - 0.10)
+  = 0.81
+```
+
+In other words, 1 in 5 ICMP request messages sent will not result in an ICMP
+response message received.  In the example above, packets 1 and 3 were lost.
+
+
+## VLAN Attributes
+
+Currently, the `vlan` and `trunk` attributes are only useful when the host is
+not configured for native apps (i.e., when the `native_app` host option is not
+in use)
+
+# `cougarnet` Usage
