@@ -129,21 +129,21 @@ class Host(object):
                 prefix=f'{self.hostname}-', dir=TMPDIR)
         os.close(fd)
 
-        if self.prog is not None:
-            prog_arg = f'--prog {self.prog} '
-        else:
-            prog_arg = ''
+        cmd = ['sudo', '-E', 'unshare', '--mount',
+                f'--net=/run/netns/{self.hostname}',
+                '--uts', sys.executable, '-m', f'{HOSTPREP_MODULE}',
+                '--comm-sock', comm_sock, '--hosts-file',
+                hosts_file, '--user', os.environ.get("USER")]
 
-        cmd = [TERM, '-e', f'sudo -E unshare ' + \
-                f'--mount ' + \
-                f'--net=/run/netns/{self.hostname} ' + \
-                f'--uts ' + \
-                f'{sys.executable} -m {HOSTPREP_MODULE} ' + \
-                f'--comm-sock {comm_sock} ' + \
-                f'--hosts-file {hosts_file} ' + prog_arg + \
-                f'--user {os.environ.get("USER")} ' + \
-                f'{self.pidfile} {self.config_file}']
-        p = subprocess.Popen(cmd)
+        if self.prog is not None:
+            cmd += ['--prog', self.prog]
+
+        cmd += [self.pidfile, self.config_file]
+
+        if self.terminal:
+            cmd = [TERM, '-e', ' '.join(cmd)]
+
+        p = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
         while True:
             with open(self.pidfile, 'r') as fh:
