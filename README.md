@@ -115,6 +115,60 @@ changed if `unshare` were called with `--root`, and the latter could be changed
 if `unshare` were called with `--pid`, but currently that is not an option).
 
 
+## Configuration
+
+In the Cougarnet configuration file, a host is designated by a hostname on a
+single line in the `NODES` section of the file. Consider the `NODES` section of
+the [example configuration given previously](#getting-started):
+
+```
+NODES
+h1
+h2
+```
+
+This creates two hosts, with hostnames `h1` and `h2`.
+
+Additional options can be specified for any host.  For example, we might like
+to provide `h1` with additional configuration, such as the following:
+
+```
+NODES
+h1 gw4=10.0.0.4,terminal=false
+h2
+```
+
+In this case, 10.0.0.4 has been designated as the default IPv4 gateway for
+`h1`, and no terminal will be started for `h1` as would normally be the case.
+
+In general, the syntax for a host is:
+
+```
+<hostname> [name=val[,name=val[...]]
+```
+
+That is, if there are additional options, there is a space after the hostname,
+and those options come after the space. The options consist a comma-delimited
+list of name-value pairs, each name-value connected by `=`.  The defined host
+option names are the following, accompanied by the expected value:
+ - `gw4`: an IPv4 address representing the gateway or default router.  Example:
+   `10.0.0.4`.  Default: no IPv4 gateway.
+ - `gw6`: an IPv6 address representing the gateway or default router.  Example:
+   `fd00::4`.  Default: no IPv6 gateway.
+ - `native_apps`: a boolean (i.e., `true` or `false`) indicating whether or not
+   the native network stack should be used.  Default: `true`.
+ - `terminal`: a boolean (i.e., `true` or `false`) indicating whether or not a
+   terminal should be spawned.  Sometimes neither an interactive interface with
+   a virtual host nor console output is necessary, in which case `false` would
+   be appropriate.  An example of this is if a script is designated to be run
+   automatically with the host using the `prog` attribute.  Default: `true`.
+ - `type`: a string representing the type of node.  The supported types are:
+   `host`, `switch`, `router`.  Default: `host`.
+ - `prog`: a string representing a program and its arguments, which are to be
+   run, instead of an interactive shell.  The program path and its arguments
+   are delimited by `|`.  For example, `echo|foo|bar` would execute
+   `echo foo kbar`.  Default: execute an interactive shell.
+
 ## Communicating with the Calling Process
 
 Often it is useful for the virtual host to send messages back to the process
@@ -173,60 +227,6 @@ it will handle the formatting for you.
 TODO: more on this BaseFrameHandler below.  For an example, refer to
 BaseFrameHandler documentation.
 
-
-## Configuration
-
-In the Cougarnet configuration file, a host is designated by a hostname on a
-single line in the `NODES` section of the file. Consider the `NODES` section of
-the [example configuration given previously](#getting-started):
-
-```
-NODES
-h1
-h2
-```
-
-This creates two hosts, with hostnames `h1` and `h2`.
-
-Additional options can be specified for any host.  For example, we might like
-to provide `h1` with additional configuration, such as the following:
-
-```
-NODES
-h1 gw4=10.0.0.4,terminal=false
-h2
-```
-
-In this case, 10.0.0.4 has been designated as the default IPv4 gateway for
-`h1`, and no terminal will be started for `h1` as would normally be the case.
-
-In general, the syntax for a host is:
-
-```
-<hostname> [name=val[,name=val[...]]
-```
-
-That is, if there are additional options, there is a space after the hostname,
-and those options come after the space. The options consist a comma-delimited
-list of name-value pairs, each name-value connected by `=`.  The defined host
-option names are the following, accompanied by the expected value:
- - `gw4`: an IPv4 address representing the gateway or default router.  Example:
-   `10.0.0.4`.  Default: no IPv4 gateway.
- - `gw6`: an IPv6 address representing the gateway or default router.  Example:
-   `fd00::4`.  Default: no IPv6 gateway.
- - `native_apps`: a boolean (i.e., `true` or `false`) indicating whether or not
-   the native network stack should be used.  Default: `true`.
- - `terminal`: a boolean (i.e., `true` or `false`) indicating whether or not a
-   terminal should be spawned.  Sometimes neither an interactive interface with
-   a virtual host nor console output is necessary, in which case `false` would
-   be appropriate.  An example of this is if a script is designated to be run
-   automatically with the host using the `prog` attribute.  Default: `true`.
- - `type`: a string representing the type of node.  The supported types are:
-   `host`, `switch`, `router`.  Default: `host`.
- - `prog`: a string representing a program and its arguments, which are to be
-   run, instead of an interactive shell.  The program path and its arguments
-   are delimited by `|`.  For example, `echo|foo|bar` would execute
-   `echo foo kbar`.  Default: execute an interactive shell.
 
 
 ## Host Types
