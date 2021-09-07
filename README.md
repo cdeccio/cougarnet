@@ -583,7 +583,12 @@ LINKS
 [<hostname>[,<addr>[,<addr>...]] <hostname>[,<addr>[,<addr>...]] [name=val[,name=val[...]]]
 [...]
 ```
+
 Blank links and lines beginning with `#` (i.e., comments) are ignored.
+
+See specifics in the [virtual host](#configuration) and [virtual
+link](#configuration-1) configuration sections.
+
 
 # `cougarnet` Usage
 
