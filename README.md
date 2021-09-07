@@ -51,7 +51,7 @@ bits, i.e., 10.0.0.0/24.
 Start Cougarnet with this configuration by running the following command:
 
 ```
-cougarnet simple-net.cfg
+$ cougarnet simple-net.cfg
 ```
 
 When it starts up, it will launch two new terminals.  One will be associated
@@ -197,6 +197,7 @@ $ hostname
 Or it can be retrieved using Python with the following:
 
 ```
+#!/usr/bin/python3
 import socket
 hostname = socket.gethostname()
 ```
@@ -229,6 +230,7 @@ $ ls -l /sys/class/net | awk '$9 !~ /^lo/ { print $9 }'
 The equivalent Python code is the following:
 
 ```
+#!/usr/bin/python3
 import os
 ints = [i for i in os.listdir('/sys/class/net/') if not i.startswith('lo')]
 ```
@@ -250,7 +252,7 @@ a UDP datagram being sent to the UNIX domain socket on which the `cougarnet`
 process is listening.
 
 ```
-echo -n `hostname`,hello world | socat - UNIX-SENDTO:$COUGARNET_COMM_SOCK
+$ echo -n `hostname`,hello world | socat - UNIX-SENDTO:$COUGARNET_COMM_SOCK
 ```
 
 The equivalent Python code is the following:
@@ -341,6 +343,7 @@ $ echo $COUGARNET_COMM_SOCK
 or from Python
 
 ```
+#!/usr/bin/python3
 import os
 print(os.environ['COUGARNET_COMM_SOCK'])
 ```
@@ -594,6 +597,7 @@ The full syntax for the network configuration file is as follows:
 HOSTS
 [<hostname> [name=val[,name=val[...]]]
 [...]
+
 LINKS
 [<hostname>[,<addr>[,<addr>...]] <hostname>[,<addr>[,<addr>...]] [name=val[,name=val[...]]]
 [...]
