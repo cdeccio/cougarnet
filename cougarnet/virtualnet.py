@@ -389,10 +389,20 @@ class VirtualNetwork(object):
         host2.int_to_delay[int2] = delay
         host1.int_to_loss[int1] = loss
         host2.int_to_loss[int2] = loss
-        host1.int_to_vlan[int1] = vlan
-        host2.int_to_vlan[int2] = vlan
-        host1.int_to_trunk[int1] = vlan
-        host2.int_to_trunk[int2] = vlan
+        if host1.type == 'switch':
+            host1.int_to_vlan[int1] = vlan
+        else:
+            host1.int_to_vlan[int1] = None
+        if host2.type == 'switch':
+            host2.int_to_vlan[int2] = vlan
+        else:
+            host2.int_to_vlan[int2] = None
+        if host1.type == 'switch' and host2.type == 'switch':
+            host1.int_to_trunk[int1] = trunk
+            host2.int_to_trunk[int2] = trunk
+        else:
+            host1.int_to_trunk[int1] = None
+            host2.int_to_trunk[int2] = None
 
     def apply_links(self):
         done = set()
