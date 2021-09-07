@@ -1,47 +1,5 @@
 #!/usr/bin/python3
 
-import argparse
-import sys
+from cougarnet.virtualnet import main
 
-from cougarnet.virtualnet import VirtualNetwork
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--wireshark', '-w',
-            action='store', type=str, default=None,
-            metavar='NODE',
-            help='Start wireshark for the specified node')
-    parser.add_argument('--display',
-            action='store_const', const=True, default=False,
-            help='Display the network configuration as text')
-    parser.add_argument('--display-file',
-            type=argparse.FileType('wb'), action='store',
-            help='Print the network configuration to a file (.png)')
-    parser.add_argument('config_file',
-            type=argparse.FileType('r'), action='store',
-            help='File containing the network configuration')
-    args = parser.parse_args(sys.argv[1:])
-
-    net = VirtualNetwork.from_file(args.config_file)
-
-    if args.wireshark is not None and \
-            args.wireshark not in net.host_by_name:
-        sys.stderr.write(f'The host specified for wireshark ' + \
-                f'({args.wireshark}) does not exist.\n')
-        sys.exit(1)
-
-    if args.display or args.display_file is not None:
-        net.display(args.display, args.display_file)
-
-    try:
-        net.config()
-        net.start(args.wireshark)
-        sys.stdout.write('Ctrl-c to quit\n')
-        net.message_loop()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        net.cleanup()
-
-if __name__ == '__main__':
-    main()
+main()
