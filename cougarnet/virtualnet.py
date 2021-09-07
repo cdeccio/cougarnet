@@ -26,7 +26,7 @@ class HostNotStarted(Exception):
 
 class Host(object):
     def __init__(self, hostname, gw4=None, gw6=None, type='node', \
-            native_apps=True, terminal=True):
+            native_apps=True, terminal=True, prog=None):
         self.hostname = hostname
         self.pid = None
         self.pidfile = None
@@ -43,6 +43,7 @@ class Host(object):
         self.gw4 = gw4
         self.gw6 = gw6
         self.type = type
+        self.prog = prog
 
         if not native_apps or str(native_apps).lower() in FALSE_STRINGS:
             self.native_apps = False
@@ -122,13 +123,18 @@ class Host(object):
                 prefix=f'{self.hostname}-', dir=TMPDIR)
         os.close(fd)
 
+        if self.prog is not None:
+            prog_arg = f'--prog {self.prog} '
+        else:
+            prog_arg = ''
+
         cmd = [TERM, '-e', f'sudo -E unshare ' + \
                 f'--mount ' + \
                 f'--net=/run/netns/{self.hostname} ' + \
                 f'--uts ' + \
                 f'{sys.executable} -m {HOSTPREP_MODULE} ' + \
                 f'--comm-sock {comm_sock} ' + \
-                f'--hosts-file {hosts_file} ' + \
+                f'--hosts-file {hosts_file} ' + prog_arg + \
                 f'--user {os.environ.get("USER")} ' + \
                 f'{self.pidfile} {self.config_file}']
         p = subprocess.Popen(cmd)
