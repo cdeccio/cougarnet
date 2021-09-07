@@ -542,10 +542,16 @@ Currently, the `vlan` and `trunk` attributes are only useful when the host is
 not configured for native apps (i.e., when not enabled with the `native_apps`
 host option or the `--native-apps` command-line option).
 
-The `vlan` and `trunk` attributes have no effect unless at least one of the
+The `vlan` attribute has no effect unless at least one of the
 hosts is of type `switch`.  If `vlan` is specified for a switch, then the
 virtual switch is made aware of the VLAN assignment via an environment
-variable.  Consider the following configuration.
+variable.
+
+The `trunk` attribute has no effect unless both of the hosts of the link are
+switches.  In this case, the virtual switches are both made aware of the
+trunked link via an environment variable.
+
+For example, consider the following configuration.
 
 ```
 NODES
@@ -571,6 +577,14 @@ COUGARNET_VLAN_ETH0=25
 COUGARNET_VLAN_ETH1=32
 COUGARNET_TRUNK_ETH1=true
 ```
+
+Likewise, the process associated with `h4` will have the following environment
+variables set:
+
+```
+COUGARNET_TRUNK_ETH0=true
+```
+
 
 # Network Configuration File
 
