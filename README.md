@@ -59,9 +59,17 @@ with the virtual host `h1` and the other with `h2`.  The prompt at each should
 indicate which is which.
 
 Each each terminal, run the following to see the network configuration:
+
 ```
 $ ip addr
 ```
+
+Then run the following on each to see the hostname:
+
+```
+$ hostname
+```
+
 Note first that each virtual host sees only its own interface. Also note that
 each host is configured with the address from the configuration file.
 
@@ -70,6 +78,7 @@ Next, from the `h2` terminal, run the following:
 ```
 h2$ sudo tcpdump -l
 ```
+
 (Note that in this example and elsewhere in this document `h2$` simply
 indicates that it is the prompt corresponding to `h2`.)
 
@@ -127,21 +136,11 @@ h1
 h2
 ```
 
-This creates two virtual hosts, with hostnames `h1` and `h2`.  When started,
-their hostnames are assigned accordingly.  This can be seen in the title of the
-terminal as well as the command-line prompt.  You can also retrieve the
-hostname by simply running the following from the command line:
+This creates two virtual hosts, `h1` and `h2` with their
+[hostnames](#hostnames) set accordingly.
 
-```
-$ hostname
-```
 
-Or it can be retrieved using Python with the following:
-
-```
-import socket
-hostname = socket.gethostname()
-```
+### Additional Options
 
 Additional options can be specified for any host.  For example, we might like
 to provide `h1` with additional configuration, such as the following:
@@ -182,6 +181,57 @@ option names are the following, accompanied by the expected value:
    run, instead of an interactive shell.  The program path and its arguments
    are delimited by `|`.  For example, `echo|foo|bar` would execute
    `echo foo bar`.  Default: execute an interactive shell.
+
+
+## Hostnames
+
+When started, the hostname of a virtual host is set according to the name given
+in the configuration.  This can be seen in the title of the terminal as well as
+the command-line prompt.  You can also retrieve the hostname by simply running
+the following from the command line:
+
+```
+$ hostname
+```
+
+Or it can be retrieved using Python with the following:
+
+```
+import socket
+hostname = socket.gethostname()
+```
+
+
+## Interface Names
+
+The interface names for each host created dynamically, starting with `eth0`,
+then `eth1`, etc.  The interfaces for a host, and their respective
+configurations, can be viewed by running the following from the command line:
+
+```
+$ ip addr
+```
+
+The interface names alone can be retrieved by listing the contents of the
+special directory `/sys/class/net`.  For example:
+
+```
+$ ls /sys/class/net
+```
+
+Or to show all interfaces except loopback interfaces (i.e., starting with `lo`):
+
+```
+$ ls -l /sys/class/net | awk '$9 !~ /^lo/ { print $9 }'
+```
+
+The equivalent Python code is the following:
+
+```
+import os
+ints = [i for i in os.listdir('/sys/class/net/') if not i.startswith('lo')]
+```
+
 
 ## Communicating with the Calling Process
 
@@ -234,24 +284,129 @@ The three components of the output message can be explained as follows:
    ```
  - *Message* (`hello world`): the actual message to be logged and/or printed.
 
-The `rawpkt.BaseFrameHandler` has a function `log()` which can be used to issue
-messages.  So if you subclass `rawpkt.BaseFrameHandler` and then call `log()`,
-it will handle the formatting for you.
-
-TODO: more on this BaseFrameHandler below.  For an example, refer to
-BaseFrameHandler documentation.
+The `rawpkt.BaseFrameHandler` class has a function `log()` which can be used to
+issue messages.  So if you subclass `rawpkt.BaseFrameHandler` and then call
+`log()`, it will handle the formatting for you.
 
 
-TODO: something about naming; also remove `/etc/hosts` if native_apps is not used
+## Name Resolution
+
+When the `native_apps` option is used in a host configuration, or when the
+`--native-apps` option is used on the command line, a virtual host has access
+to `/etc/hosts`, which contains a mapping of the names and IP addresses of all
+virtual hosts in the virtual network.  That allows apps such as `ping` to use
+hostname instead of IP address exclusively (see the [example given
+previously](#getting-started)).
+
 
 ## Host Types
 
+The host types (i.e., `host`, `router`, `switch`) are intended to give special
+behavior to the virtual host, depending on the type.  Currently, however, only
+hosts of type `switch` have special meaning.  See [VLAN
+Attributes](#vlan-attributes) for more.
+
+
+## Default Gateway
+
+The default IPv4 or IPv6 gateway can be set using the `gw4` or `gw6` options,
+respectively.  At the moment, the only result is that the following environment variables are set in the virtual host:
+`COUGARNET_DEFAULT_GATEWAY_IPV4` and `COUGARNET_DEFAULT_GATEWAY_IPV6`.
+
+
+## Environment
+
+In the virtual host process, certain environment variables are set to help
+processes running within the virtual host have better context of their network
+environment.  All environment variables start with `COUGARNET_`.  The
+environment variables currently defined are:
+
+ - `COUGARNET_COMM_SOCK`:
+   [description](#communicating-with-the-calling-process)
+ - `COUGARNET_VLAN_ETH0`, `COUGARNET_VLAN_ETH1`, etc.:
+   [description](#vlan-attributes)
+ - `COUGARNET_TRUNK_ETH0`, `COUGARNET_TRUNK_ETH1`, etc.:
+   [description](#vlan-attributes)
+ - `COUGARNET_DEFAULT_GATEWAY_IPV4`, `COUGARNET_DEFAULT_GATEWAY_IPV6`:
+   [description](#default-gateway)
+
+They can be retrieved from a running process in the standard way.  For example,
+from command line:
+
+```
+$ echo $COUGARNET_COMM_SOCK
+```
+
+or from Python
+
+```
+import os
+print(os.environ['COUGARNET_COMM_SOCK'])
+```
+
 ## Running Programs
 
-When a host runs the 
-TODO: environment vars
+When a program is specified with the `prog` attribute, it will be run in the
+virtual host, instead of a standard shell (the default).  Furthermore, programs
+from all virtual hosts are intended to start at *approximately* the same
+time--though there is some non-determinism as to their *exact* timing.
 
-## Getting all Interfaces
+If `terminal` is enabled for a given host (the default), or the `--terminal
+all` option is used on the command line, then the program will have access to
+the standard input, standard output, and standard error.
+
+In either case (terminal or not), the program will have access to all the
+[environment variables](#environment-variables) associated with the virtual
+host.
+
+Suppose `loop.sh` (in the current directory) contains the following:
+
+```
+#!/bin/bash
+hostname
+echo $COUGARNET_DEFAULT_GATEWAY_IPV4
+echo $1
+for i in {1..3}; do
+    echo $i
+    sleep 1
+done
+```
+
+And `cougarnet` is run with the following configuration:
+
+```
+NODES
+h1 prog=./loop.sh|hello,gw4=10.0.0.4
+```
+
+The result would be the following:
+
+```
+h1
+10.0.0.4
+hello
+1
+2
+3
+```
+
+The equivalent Python code would be:
+
+```
+#!/usr/bin/python3
+import os
+import socket
+import sys
+import time
+print(socket.gethostname())
+print(os.environ['COUGARNET_DEFAULT_GATEWAY_IPV4'])
+print(sys.argv[1])
+for i in range(1, 4):
+    print(i)
+    time.sleep(1)
+```
+
+The output is the same as the previous output.
 
 
 # Virtual Links
@@ -277,9 +432,14 @@ LINKS
 h1,10.0.0.1/24 h2,10.0.0.2/24
 ```
 
-This results in a virtual interface being created for each virtual host.  Each
-interface can be configured with zero or more addresses, up to one MAC address
-and zero or more IPv4 and/or IPv6 addresses.  The list of addresses is
+This results in a virtual interface being created for each virtual host.  More
+on per-host interface naming can be found [here](#interface-names).
+
+
+### Addressing
+
+Each interface can be configured with zero or more addresses, up to one MAC
+address and zero or more IPv4 and/or IPv6 addresses.  The list of addresses is
 comma-separated.  For example, we might like to configure the `h1` and  `h2`
 virtual interfaces thus:
 
@@ -293,23 +453,9 @@ In this case, `h1`'s virtual network interface will not only have IPv4 address
 Likewise, `h2`'s virtual network interface will have IPv6 address fd00::2/64,
 in addition to IPv4 address 10.0.0.2.
 
-The interface names for each host created dynamically, starting with `eth0`,
-then `eth1`, etc.  The interfaces for a host can be viewed by running the
-folloing from the command line:
 
-```
-$ ip addr
-```
+### Additional Options
 
-Or they can be retrieved from the special "directory" `/sys/class/net`.  For
-example, the Python code to retrieve the names of all interfaces except
-loopback interfaces (i.e., starting with `lo`) is the following:
-
-```
-import os
-ints = [i for i in os.listdir('/sys/class/net/') if not i.startswith('lo')]
-```
-        
 Additional options can be specified for any link.  For example, we might like
 to provide the (original) link between `h1` and `h2` with additional
 configuration, such as the following:
