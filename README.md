@@ -242,6 +242,7 @@ TODO: more on this BaseFrameHandler below.  For an example, refer to
 BaseFrameHandler documentation.
 
 
+TODO: something about naming; also remove `/etc/hosts` if native_apps is not used
 
 ## Host Types
 
@@ -404,20 +405,24 @@ NODES
 h1
 h2 type=switch
 h3
+h4 type=switch
 
 LINKS
 h1 h2 vlan=25
 h2 h3 vlan=32
+h2 h4 trunk=true
 ```
 
-In this case, both `h1` and `h3` are connected to `h2`, a switch.  The link
-between `h2` and `h1` uses VLAN 25, and the link between `h2` and `h3` uses
-VLAN 32.  In this case, `h2` the process associated with `h2` will have the
-following environment variables set:
+In this case, `h2 and `h3` are each switches, connected by a trunk.  Both `h1`
+and `h3` are connected to `h2`, with their links having VLAN assignments 25 and
+32, respectively.  The link between `h2` and `h4` is a trunk.  In this case,
+the process associated with `h2` will have the following environment variables
+set:
 
 ```
 COUGARNET_VLAN_ETH0=25
 COUGARNET_VLAN_ETH1=32
+COUGARNET_TRUNK_ETH1=true
 ```
 
 # `cougarnet` Usage
