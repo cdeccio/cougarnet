@@ -609,7 +609,7 @@ See specifics in the [virtual host](#configuration) and [virtual
 link](#configuration-1) configuration sections.
 
 
-# `cougarnet` Usage
+# Command-Line Usage
 
 ```
 $ cougarnet --help
