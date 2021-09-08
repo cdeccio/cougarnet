@@ -536,7 +536,8 @@ P(success)
 ```
 
 In other words, 1 in 5 ICMP request messages sent will not result in an ICMP
-response message received.  In the example above, packets 1 and 3 were lost.
+response message received.  In the example above, `ping` messages with id
+numbers 1 and 3 were unsuccessful.
 
 
 ## VLAN Attributes
