@@ -95,6 +95,8 @@ class Host(object):
             s.write(' ')
             csv_writer = csv.writer(s)
             csv_writer.writerow(attrs_str)
+        else:
+            s.write('\n')
         return s.getvalue()
 
     def create_config(self):
