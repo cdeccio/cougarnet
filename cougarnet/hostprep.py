@@ -53,6 +53,8 @@ class VirtualHost:
                     native_apps = False
                 else:
                     native_apps = True
+            elif name == 'type':
+                self.type = val
         self.ints = []
         for line in fh.readlines():
             line = line.strip()
@@ -167,8 +169,9 @@ def main():
 
         host = VirtualHost(args.config_file)
 
-        cmd = ['mount', '-t', 'sysfs', '/sys', '/sys']
-        subprocess.run(cmd, check=True)
+        if host.type != 'switch':
+            cmd = ['mount', '-t', 'sysfs', '/sys', '/sys']
+            subprocess.run(cmd, check=True)
 
         if args.hosts_file is not None:
             cmd = ['mount', '-o', 'bind', args.hosts_file, '/etc/hosts']

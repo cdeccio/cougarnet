@@ -48,6 +48,7 @@ class Host(object):
         self.gw6 = gw6
         self.type = type
         self.prog = prog
+        self.has_bridge = False
 
         if not native_apps or str(native_apps).lower() in FALSE_STRINGS:
             self.native_apps = False
@@ -65,7 +66,8 @@ class Host(object):
         s = io.StringIO()
         s.write(f'{self.hostname} ')
         attrs_tuple = (('gw4', self.gw4), ('gw6', self.gw6),
-                ('native_apps', str(self.native_apps)))
+                ('native_apps', str(self.native_apps)),
+                ('type', self.type))
         attrs_str = ['='.join(pair) for pair in attrs_tuple if pair[1] is not None]
         csv_writer = csv.writer(s)
         csv_writer.writerow(attrs_str)
@@ -109,6 +111,10 @@ class Host(object):
             host_config = self._host_config()
             fh.write(f'{host_config}')
             for intf in self.int_to_neighbor:
+                if (self.type == 'switch' and self.native_apps) and \
+                        not (self.int_to_neighbor[intf].type == 'switch' and \
+                                self.int_to_neighbor[intf].native_apps):
+                    continue
                 int_config = self._int_config(intf)
                 fh.write(f'{int_config}')
 
@@ -141,11 +147,12 @@ class Host(object):
                 prefix=f'{self.hostname}-', dir=TMPDIR)
         os.close(fd)
 
-        cmd = ['sudo', '-E', 'unshare', '--mount',
-                f'--net=/run/netns/{self.hostname}',
-                '--uts', sys.executable, '-m', f'{HOSTPREP_MODULE}',
-                '--comm-sock', comm_sock, '--hosts-file',
-                hosts_file, '--user', os.environ.get("USER")]
+        cmd = ['sudo', '-E', 'unshare', '--mount']
+        if not (self.type == 'switch' and self.native_apps):
+            cmd += [f'--net=/run/netns/{self.hostname}']
+        cmd += ['--uts', sys.executable, '-m', f'{HOSTPREP_MODULE}',
+                    '--comm-sock', comm_sock, '--hosts-file',
+                    hosts_file, '--user', os.environ.get("USER")]
 
         if self.prog is not None:
             cmd += ['--prog', self.prog]
@@ -209,6 +216,10 @@ class Host(object):
 
         cmd = ['sudo', 'rm', f'/run/netns/{self.hostname}']
         subprocess.run(cmd)
+
+        if self.type == 'switch' and self.native_apps:
+            cmd = ['sudo', 'ovs-vsctl', 'del-br', self.hostname]
+            subprocess.run(cmd)
 
         if self.pidfile is not None and os.path.exists(self.pidfile):
             cmd = ['sudo', 'rm', self.pidfile]
@@ -387,8 +398,8 @@ class VirtualNetwork(object):
 
         num1 = host1.next_int()
         num2 = host2.next_int()
-        int1 = f'eth{num1}'
-        int2 = f'eth{num2}'
+        int1 = f'{host1.hostname}-eth{num1}'
+        int2 = f'{host2.hostname}-eth{num2}'
         host1.add_int(int1, host2)
         host2.add_int(int2, host1)
         host1.int_to_bw[int1] = bw
@@ -424,11 +435,54 @@ class VirtualNetwork(object):
                     continue
                 done.add((host1, host2, int1, int2))
                 done.add((host2, host1, int2, int1))
-                cmd = ['sudo', 'ip', 'link', 'add',
-                        int1, 'netns', host1.hostname,
-                        'type', 'veth', 'peer', 'name',
-                        int2, 'netns', host2.hostname]
+
+                # create both interfaces
+                cmd = ['sudo', 'ip', 'link', 'add', int1,
+                        'type', 'veth', 'peer', 'name', int2]
                 subprocess.run(cmd, check=True)
+
+                host1_bridge = False
+                if host1.type == 'switch' and host1.native_apps:
+                    host1_bridge = True
+                    if not host1.has_bridge:
+                        cmd = ['sudo', 'ovs-vsctl', 'add-br',
+                                host1.hostname]
+                        subprocess.run(cmd, check=True)
+                        host1.has_bridge = True
+
+                    cmd = ['sudo', 'ovs-vsctl', 'add-port',
+                            host1.hostname, int1, 'tag=0']
+                    subprocess.run(cmd, check=True)
+
+                host2_bridge = False
+                if host2.type == 'switch' and host2.native_apps:
+                    host2_bridge = True
+                    if not host2.has_bridge:
+                        cmd = ['sudo', 'ovs-vsctl', 'add-br',
+                                host2.hostname]
+                        subprocess.run(cmd, check=True)
+                        host2.has_bridge = True
+
+                    cmd = ['sudo', 'ovs-vsctl', 'add-port',
+                            host2.hostname, int2, 'tag=0']
+                    subprocess.run(cmd, check=True)
+
+                # Move interfaces to their appropriate namespaces
+                if host1_bridge:
+                    cmd = ['sudo', 'ip', 'link', 'set', int1, 'up']
+                    subprocess.run(cmd, check=True)
+                else:
+                    cmd = ['sudo', 'ip', 'link', 'set', int1, 'netns',
+                            host1.hostname]
+                    subprocess.run(cmd, check=True)
+                if host2_bridge:
+                    cmd = ['sudo', 'ip', 'link', 'set', int2, 'up']
+                    subprocess.run(cmd, check=True)
+                else:
+                    cmd = ['sudo', 'ip', 'link', 'set', int2, 'netns',
+                            host2.hostname]
+                    subprocess.run(cmd, check=True)
+
 
     def create_hosts_file(self):
         cmd = ['mkdir', '-p', TMPDIR]
