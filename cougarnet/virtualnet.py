@@ -478,7 +478,7 @@ class VirtualNetwork(object):
                             host1.hostname, int1]
                     if host1.type == 'switch':
                         if host1.int_to_vlan[int1] is not None:
-                            cmd.append(f'tag={host1.int_to_vlan[intf]}')
+                            cmd.append(f'tag={host1.int_to_vlan[int1]}')
                         elif host1.int_to_trunk[int1]:
                             pass
                         else:
@@ -498,7 +498,7 @@ class VirtualNetwork(object):
                             host2.hostname, int2]
                     if host2.type == 'switch':
                         if host2.int_to_vlan[int2] is not None:
-                            cmd.append(f'tag={host2.int_to_vlan[intf]}')
+                            cmd.append(f'tag={host2.int_to_vlan[int2]}')
                         elif host2.int_to_trunk[int2]:
                             pass
                         else:
