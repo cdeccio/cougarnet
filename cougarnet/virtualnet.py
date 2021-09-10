@@ -26,6 +26,9 @@ FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 class HostNotStarted(Exception):
     pass
 
+class InconsistentConfiguration(Exception):
+    pass
+
 class Host(object):
     def __init__(self, hostname, gw4=None, gw6=None, type='host', \
             native_apps=True, terminal=True, prog=None):
@@ -49,6 +52,7 @@ class Host(object):
         self.type = type
         self.prog = prog
         self.has_bridge = False
+        self.has_vlans = None
 
         if not native_apps or str(native_apps).lower() in FALSE_STRINGS:
             self.native_apps = False
@@ -436,6 +440,20 @@ class VirtualNetwork(object):
                 done.add((host1, host2, int1, int2))
                 done.add((host2, host1, int2, int1))
 
+                # Sanity check
+                if host1.type == 'switch':
+                    has_vlans = host1.int_to_vlan[int1] is not None or \
+                            host1.int_to_trunk[int1]
+                    if has_vlans and host1.has_vlans is False:
+                        raise InconsistentConfiguration(f'Some links on {host1.hostname} have VLANs while others do not!')
+                    host1.has_vlans = has_vlans
+                if host2.type == 'switch':
+                    has_vlans = host2.int_to_vlan[int2] is not None or \
+                            host2.int_to_trunk[int2]
+                    if has_vlans and host2.has_vlans is False:
+                        raise InconsistentConfiguration(f'Some links on {host2.hostname} have VLANs while others do not!')
+                    host2.has_vlans = has_vlans
+
                 # create both interfaces
                 cmd = ['sudo', 'ip', 'link', 'add', int1,
                         'type', 'veth', 'peer', 'name', int2]
@@ -451,7 +469,14 @@ class VirtualNetwork(object):
                         host1.has_bridge = True
 
                     cmd = ['sudo', 'ovs-vsctl', 'add-port',
-                            host1.hostname, int1, 'tag=0']
+                            host1.hostname, int1]
+                    if host1.type == 'switch':
+                        if host1.int_to_vlan[int1] is not None:
+                            cmd.append(f'tag={host1.int_to_vlan[intf]}')
+                        elif host1.int_to_trunk[int1]:
+                            pass
+                        else:
+                            cmd.append('tag=0')
                     subprocess.run(cmd, check=True)
 
                 host2_bridge = False
@@ -464,7 +489,14 @@ class VirtualNetwork(object):
                         host2.has_bridge = True
 
                     cmd = ['sudo', 'ovs-vsctl', 'add-port',
-                            host2.hostname, int2, 'tag=0']
+                            host2.hostname, int2]
+                    if host2.type == 'switch':
+                        if host2.int_to_vlan[int2] is not None:
+                            cmd.append(f'tag={host2.int_to_vlan[intf]}')
+                        elif host2.int_to_trunk[int2]:
+                            pass
+                        else:
+                            cmd.append('tag=0')
                     subprocess.run(cmd, check=True)
 
                 # Move interfaces to their appropriate namespaces
