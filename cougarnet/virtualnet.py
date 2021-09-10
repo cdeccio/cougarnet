@@ -225,6 +225,12 @@ class Host(object):
             cmd = ['sudo', 'ovs-vsctl', 'del-br', self.hostname]
             subprocess.run(cmd)
 
+            for intf in self.int_to_neighbor:
+                neighbor = self.int_to_neighbor[intf]
+                if neighbor.type == 'switch' and neighbor.native_apps:
+                    cmd = ['sudo', 'ip', 'link', 'del', intf]
+                    subprocess.run(cmd)
+
         if self.pidfile is not None and os.path.exists(self.pidfile):
             cmd = ['sudo', 'rm', self.pidfile]
             subprocess.run(cmd)
