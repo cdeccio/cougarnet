@@ -448,14 +448,14 @@ class VirtualNetwork(object):
 
                 # Sanity check
                 if host1.type == 'switch':
-                    has_vlans = host1.int_to_vlan[int1] is not None or \
-                            host1.int_to_trunk[int1]
+                    has_vlans = bool(host1.int_to_vlan[int1] is not None or \
+                            host1.int_to_trunk[int1])
                     if has_vlans and host1.has_vlans is False:
                         raise InconsistentConfiguration(f'Some links on {host1.hostname} have VLANs while others do not!')
                     host1.has_vlans = has_vlans
                 if host2.type == 'switch':
-                    has_vlans = host2.int_to_vlan[int2] is not None or \
-                            host2.int_to_trunk[int2]
+                    has_vlans = bool(host2.int_to_vlan[int2] is not None or \
+                            host2.int_to_trunk[int2])
                     if has_vlans and host2.has_vlans is False:
                         raise InconsistentConfiguration(f'Some links on {host2.hostname} have VLANs while others do not!')
                     host2.has_vlans = has_vlans
