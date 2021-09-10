@@ -615,7 +615,10 @@ class VirtualNetwork(object):
             G.draw(output_file, format='png', prog='dot')
 
     def start_wireshark(self, host):
-        cmd = ['sudo', '-E', 'ip', 'netns', 'exec', host.hostname, 'wireshark']
+        if host.type == 'switch' and host.native_apps:
+            cmd = ['sudo', 'wireshark']
+        else:
+            cmd = ['sudo', '-E', 'ip', 'netns', 'exec', host.hostname, 'wireshark']
         subprocess.Popen(cmd)
 
     def message_loop(self):
