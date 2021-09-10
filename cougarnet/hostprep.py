@@ -48,9 +48,9 @@ def _apply_config(fh):
             cmd = ['ip', 'link', 'set', intf, 'arp', 'off']
             subprocess.run(cmd, check=True)
 
-            # disable router solicitations
-            cmd = ['sysctl', f'net.ipv6.conf.{intf}.router_solicitations=0']
-            subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
+        # disable router solicitations
+        cmd = ['sysctl', f'net.ipv6.conf.{intf}.router_solicitations=0']
+        subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
 
         # add each IP address
         for addr in int_info.get('addrs4', []) + \
