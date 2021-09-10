@@ -9,8 +9,8 @@ specify bandwidth, (propagation) delay, or loss to links.
 
 Perhaps the most power feature of Cougarnet is the ability to either use the
 built-in Linux network stack or capture raw frames only.  The former is useful
-for configuring and using a network with built-in tools (e.g., ping,
-traceroute), while the latter is useful for implementing the protocol stack in
+for configuring and using a network with built-in tools (e.g., `ping1,
+`traceroute`), while the latter is useful for implementing the protocol stack in
 software.  Additionally, there can be a mixture--some hosts that use native
 stack and some that do not.
 
@@ -24,7 +24,7 @@ $ python3 setup.py build
 $ sudo python3 setup.py install
 ```
 
-TODO: dependencies, `sudo`, `wireshark`, `lxde-terminal`
+TODO: dependencies, `sudo`, `wireshark`, `lxde-terminal`, `socat`, `openvswitch-switch`, `python3-pygraphviz`, `libgraph-easy-perl`
 
 
 # Getting Started
@@ -205,10 +205,13 @@ hostname = socket.gethostname()
 
 ## Interface Names
 
-The interface names for each host created dynamically with each [link
-defined](#virtual-links), starting with `eth0`, then `eth1`, etc.  The
-interfaces for a host, and their respective configurations, can be viewed by
-running the following from the command line:
+The interface names for a given [link](#virtual-links) are derived from the
+name of the current host and the host it connects to on that link.  For
+example, if there is a link connecting host `h1` and host `h2`, then the `h1`'s
+interface will be called `h1-h2`, and `h2`'s interface will be callsed `h2-h1`.
+That helps greatly with identification.  The interfaces for a host, and their
+respective configurations, can be viewed by running the following from the
+command line:
 
 ```
 $ ip addr
@@ -313,7 +316,8 @@ Attributes](#vlan-attributes) for more.
 ## Default Gateway
 
 The default IPv4 or IPv6 gateway can be set using the `gw4` or `gw6` options,
-respectively.  At the moment, the only result is that the following environment variables are set in the virtual host:
+respectively.  At the moment, the only result is that the following environment
+variables are set in the virtual host:
 `COUGARNET_DEFAULT_GATEWAY_IPV4` and `COUGARNET_DEFAULT_GATEWAY_IPV6`.
 
 
@@ -326,10 +330,10 @@ environment variables currently defined are:
 
  - `COUGARNET_COMM_SOCK`:
    [description](#communicating-with-the-calling-process)
- - `COUGARNET_VLAN_ETH0`, `COUGARNET_VLAN_ETH1`, etc.:
-   [description](#vlan-attributes)
- - `COUGARNET_TRUNK_ETH0`, `COUGARNET_TRUNK_ETH1`, etc.:
-   [description](#vlan-attributes)
+ - `COUGARNET_VLAN_H1_H2`, etc.:
+   [description](#vlan-attributes) and [description](#interface-names)
+ - `COUGARNET_TRUNK_H1`, etc.:
+   [description](#vlan-attributes) and [description](#interface-names)
  - `COUGARNET_DEFAULT_GATEWAY_IPV4`, `COUGARNET_DEFAULT_GATEWAY_IPV6`:
    [description](#default-gateway)
 
@@ -340,7 +344,7 @@ from command line:
 $ echo $COUGARNET_COMM_SOCK
 ```
 
-or from Python
+or from Python:
 
 ```
 #!/usr/bin/python3
@@ -350,10 +354,11 @@ print(os.environ['COUGARNET_COMM_SOCK'])
 
 ## Running Programs
 
-When a program is specified with the `prog` attribute, it will be run in the
-virtual host, instead of a standard shell (the default).  Furthermore, programs
-from all virtual hosts are intended to start at *approximately* the same
-time--though there is some non-determinism as to their *exact* timing.
+When a program is specified with the `prog` attribute, that program will be
+executed in the virtual host, instead of the standard shell being executed (the
+default).  Furthermore, programs from all virtual hosts are intended to start
+at *approximately* the same time--though there is some non-determinism as to
+their *exact* timing.
 
 If `terminal` is enabled for a given host (the default), or the `--terminal
 all` option is used on the command line, then the program will have access to
@@ -486,16 +491,25 @@ options consist a comma-delimited list of name-value pairs, each name-value
 connected by `=`.  The defined link option names are the following, accompanied
 by the expected value:
  - `bw`:  an artificial bandwith to apply to the link.  Example: `1Mbps`.
-   Default: 10Gbps.
+   Default: `10Gbps`.
  - `delay`: an artificial delay to be added to all packets on the link.
    Example: `50ms`.  Default: no delay.
  - `loss`: an average rate of artificial loss that should be applied
    to the link.  Example: `10%`.  Default: no loss.
+ - `mtu`: the number of bytes associated with the maximum transmission unit
+   (MTU).  Example: `500`.  Default: `1500`.
  - `vlan`: the VLAN id (integer with value 0 through 1023) associated with the
    link.  Example: `20`.  Default: no VLAN id.
  - `trunk`: a boolean (i.e., `true` or `false`) indicating whether this link
    should be a trunk link between two switches, such that 802.1Q frames are
    passed on that link.  Default: `false`.
+
+Note that for a given switch, one of the following must be true:
+ - all interfaces must be either trunked (i.e., `trunk=true`) or have a
+   designated VLAN (e.g., `vlan=10`); or
+ - no interfaces must be trunked or have a designated VLAN.
+The former case is a more modern example of a switch, where VLANs are the norm,
+and the latter is an example of a simple switch.
 
 
 ## Bi-Directionality of Link Attributes
@@ -542,18 +556,23 @@ numbers 1 and 3 were unsuccessful.
 
 ## VLAN Attributes
 
-Currently, the `vlan` and `trunk` attributes are only useful when the host is
-not configured for native apps (i.e., when not enabled with the `native_apps`
-host option or the `--native-apps` command-line option).
+The behavior resulting from setting the `vlan` and `trunk` attributes depends
+on whether a switch has been configured for native apps (i.e., with the
+`native_apps` configuration option or the `--native-apps` command-line option).
 
-The `vlan` attribute has no effect unless at least one of the
-hosts is of type `switch`.  If `vlan` is specified for a switch, then the
-virtual switch is made aware of the VLAN assignment via an environment
-variable.
+In either case, neither the `vlan` attribute nor the `trunk` attribute have any
+effect unless at least one of the hosts is of type `switch`.
 
-The `trunk` attribute has no effect unless both of the hosts of the link are
-switches.  In this case, the virtual switches are both made aware of the
-trunked link via an environment variable.
+### Native Apps
+In native apps mode, a virtual switch is created (using Open vSwitch), and the
+links are assigned as designated VLAN or trunk links, respectively.
+
+### Non-Native Apps
+If `vlan` is specified for a switch, then the virtual switch is made aware of
+the VLAN assignment via an environment variable.
+
+In this case, the virtual switches are both made aware of the trunked link via
+an environment variable.
 
 For example, consider the following configuration.
 
@@ -577,16 +596,16 @@ the process associated with `h2` will have the following environment variables
 set:
 
 ```
-COUGARNET_VLAN_ETH0=25
-COUGARNET_VLAN_ETH1=32
-COUGARNET_TRUNK_ETH1=true
+COUGARNET_VLAN_H2_H1=25
+COUGARNET_VLAN_H2_H3=32
+COUGARNET_TRUNK_H2_H4=true
 ```
 
 Likewise, the process associated with `h4` will have the following environment
 variables set:
 
 ```
-COUGARNET_TRUNK_ETH0=true
+COUGARNET_TRUNK_H4_H2=true
 ```
 
 
