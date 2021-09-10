@@ -427,8 +427,12 @@ class VirtualNetwork(object):
         else:
             host2.int_to_vlan[int2] = None
         if host1.type == 'switch' and host2.type == 'switch':
-            host1.int_to_trunk[int1] = trunk
-            host2.int_to_trunk[int2] = trunk
+            if not trunk or str(trunk).lower() in FALSE_STRINGS:
+                host1.int_to_trunk[int1] = False
+                host2.int_to_trunk[int2] = False
+            else:
+                host1.int_to_trunk[int1] = True
+                host2.int_to_trunk[int2] = True
         else:
             host1.int_to_trunk[int1] = None
             host2.int_to_trunk[int2] = None
