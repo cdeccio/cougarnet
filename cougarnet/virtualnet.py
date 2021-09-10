@@ -94,7 +94,7 @@ class Host(object):
                 ('delay', self.int_to_delay[intf]),
                 ('loss', self.int_to_loss[intf]),
                 ('vlan', self.int_to_vlan[intf]),
-                ('trunk', self.int_to_trunk[intf])]
+                ('trunk', str(self.int_to_trunk[intf]))]
 
         attrs_str = ['='.join(pair) for pair in attrs_tuple if pair[1] is not None]
         if attrs_str:
