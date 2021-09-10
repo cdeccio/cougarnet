@@ -4,6 +4,7 @@ import argparse
 import csv
 import io
 import ipaddress
+import json
 import os
 import re
 import signal
@@ -45,6 +46,7 @@ class Host(object):
         self.int_to_bw = {}
         self.int_to_delay = {}
         self.int_to_loss = {}
+        self.int_to_mtu = {}
         self.int_to_vlan = {}
         self.int_to_trunk = {}
         self.gw4 = gw4
@@ -67,60 +69,49 @@ class Host(object):
         return self.hostname
 
     def _host_config(self):
-        s = io.StringIO()
-        s.write(f'{self.hostname} ')
-        attrs_tuple = (('gw4', self.gw4), ('gw6', self.gw6),
-                ('native_apps', str(self.native_apps)),
-                ('type', self.type))
-        attrs_str = ['='.join(pair) for pair in attrs_tuple if pair[1] is not None]
-        csv_writer = csv.writer(s)
-        csv_writer.writerow(attrs_str)
-        return s.getvalue()
+        host_info = {
+                'hostname': self.hostname,
+                'gw4': self.gw4,
+                'gw6': self.gw6,
+                'native_apps': self.native_apps,
+                'type': self.type
+                }
+        int_infos = {}
+        for intf in self.int_to_neighbor:
+            int_infos[intf] = self._int_config(intf)
+        host_info['interfaces'] = int_infos
+        return host_info
 
     def _int_config(self, intf):
-        #TODO change this to YAML
-        s = io.StringIO()
-        if self.int_to_mac[intf] is not None:
-            mac = self.int_to_mac[intf]
-        else:
-            mac = ''
-        s.write(f'{intf},{mac}')
-        for addr in self.int_to_ip4[intf]:
-            s.write(f',{addr}')
-        for addr in self.int_to_ip6[intf]:
-            s.write(f',{addr}')
-
-        attrs_tuple = [('bw', self.int_to_bw[intf]),
-                ('delay', self.int_to_delay[intf]),
-                ('loss', self.int_to_loss[intf]),
-                ('vlan', self.int_to_vlan[intf]),
-                ('trunk', str(self.int_to_trunk[intf]))]
-
-        attrs_str = ['='.join(pair) for pair in attrs_tuple if pair[1] is not None]
-        if attrs_str:
-            s.write(' ')
-            csv_writer = csv.writer(s)
-            csv_writer.writerow(attrs_str)
-        else:
-            s.write('\n')
-        return s.getvalue()
+        return {
+                'mac': self.int_to_mac[intf],
+                'addrs4': self.int_to_ip4[intf][:],
+                'addrs6': self.int_to_ip6[intf][:],
+                'bw': self.int_to_bw[intf],
+                'delay': self.int_to_delay[intf],
+                'loss': self.int_to_loss[intf],
+                'mtu': self.int_to_mtu[intf],
+                'vlan': self.int_to_vlan[intf],
+                'trunk': self.int_to_trunk[intf]
+                }
 
     def create_config(self):
+
+        host_config = self._host_config()
+
+        #XXX can't remember why we need this loop
+        for intf in [i for i in host_config['interfaces']]:
+            if (self.type == 'switch' and self.native_apps) and \
+                    not (self.int_to_neighbor[intf].type == 'switch' and \
+                            self.int_to_neighbor[intf].native_apps):
+                del host_config['interfaces'][intf]
+
         cmd = ['mkdir', '-p', TMPDIR]
         subprocess.run(cmd)
         fd, self.config_file = tempfile.mkstemp(suffix='.cfg',
                 prefix=f'{self.hostname}-', dir=TMPDIR)
-
         with os.fdopen(fd, 'w') as fh:
-            host_config = self._host_config()
-            fh.write(f'{host_config}')
-            for intf in self.int_to_neighbor:
-                if (self.type == 'switch' and self.native_apps) and \
-                        not (self.int_to_neighbor[intf].type == 'switch' and \
-                                self.int_to_neighbor[intf].native_apps):
-                    continue
-                int_config = self._int_config(intf)
-                fh.write(f'{int_config}')
+            fh.write(json.dumps(host_config))
 
     def create_hosts_file_entries(self, fh):
         for intf in self.int_to_neighbor:
@@ -160,6 +151,8 @@ class Host(object):
 
         if self.prog is not None:
             cmd += ['--prog', self.prog]
+        if not (self.type == 'switch' and self.native_apps):
+            cmd += ['--mount-sys']
 
         cmd += [self.pidfile, self.config_file]
 
@@ -400,7 +393,7 @@ class VirtualNetwork(object):
         self.host_by_name[hostname] = Host(hostname, **attrs)
 
     def add_link(self, host1, host2, bw=None, delay=None, loss=None,
-            vlan=None, trunk=False):
+            mtu=None, vlan=None, trunk=None):
         if isinstance(host1, str):
             host1 = self.host_by_name[host1]
         if isinstance(host2, str):
@@ -418,6 +411,8 @@ class VirtualNetwork(object):
         host2.int_to_delay[int2] = delay
         host1.int_to_loss[int1] = loss
         host2.int_to_loss[int2] = loss
+        host1.int_to_mtu[int1] = mtu
+        host2.int_to_mtu[int2] = mtu
         if host1.type == 'switch':
             host1.int_to_vlan[int1] = vlan
         else:
@@ -454,14 +449,20 @@ class VirtualNetwork(object):
                 if host1.type == 'switch':
                     has_vlans = bool(host1.int_to_vlan[int1] is not None or \
                             host1.int_to_trunk[int1])
-                    if has_vlans and host1.has_vlans is False:
-                        raise InconsistentConfiguration(f'Some links on {host1.hostname} have VLANs while others do not!')
+                    if has_vlans and host1.has_vlans is False or \
+                            not has_vlans and host1.has_vlans:
+                        raise InconsistentConfiguration(
+                                f'Some links on {host1.hostname} have ' + \
+                                        'VLANs while others do not!')
                     host1.has_vlans = has_vlans
                 if host2.type == 'switch':
                     has_vlans = bool(host2.int_to_vlan[int2] is not None or \
                             host2.int_to_trunk[int2])
-                    if has_vlans and host2.has_vlans is False:
-                        raise InconsistentConfiguration(f'Some links on {host2.hostname} have VLANs while others do not!')
+                    if has_vlans and host2.has_vlans is False or \
+                            not has_vlans and host2.has_vlans:
+                        raise InconsistentConfiguration(
+                                f'Some links on {host2.hostname} have ' + \
+                                        'VLANs while others do not!')
                     host2.has_vlans = has_vlans
 
                 # create both interfaces

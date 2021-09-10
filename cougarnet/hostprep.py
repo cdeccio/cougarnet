@@ -1,9 +1,9 @@
 #!/usr/bin/python3
 
 import argparse
-import csv
 import grp
 import io
+import json
 import os
 import pwd
 import signal
@@ -12,111 +12,74 @@ import subprocess
 import sys
 import tempfile
 
-FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
+def _apply_config(fh):
+    info = json.loads(fh.read())
 
-class VirtualHost:
-    def __init__(self, config_fh):
-        self.ints = None
-        self.hostname = None
-        self.type = None
-        self.gw4 = None
-        self.gw6 = None
-
-        self._apply_config(config_fh)
-
-    def _apply_config(self, fh):
-        line = fh.readline().strip()
-        parts = line.split()
-        if len(parts) < 1 or len(parts) > 2:
-            raise ValueError(f'Invalid node format: {line}')
-
-        self.hostname = parts[0]
-        cmd = ['hostname', self.hostname]
+    if info.get('hostname', None) is not None:
+        cmd = ['hostname', info['hostname']]
         subprocess.run(cmd, check=True)
 
-        if len(parts) > 1:
-            s = io.StringIO(parts[1])
-            csv_reader = csv.reader(s)
-            attrs = dict([p.split('=', maxsplit=1) \
-                    for p in next(csv_reader)])
-        else:
-            attrs = {}
+    if info.get('gw4', None) is not None:
+        os.environ['COUGARNET_DEFAULT_GATEWAY_IPV4'] = info['gw4']
+    if info.get('gw6', None) is not None:
+        os.environ['COUGARNET_DEFAULT_GATEWAY_IPV6'] = info['gw6']
+    native_apps = info.get('native_apps', True)
 
-        native_apps = False
-        for name, val in attrs.items():
-            if name == 'gw4':
-                os.environ['COUGARNET_DEFAULT_GATEWAY_IPV4'] = val
-            elif name == 'gw6':
-                os.environ['COUGARNET_DEFAULT_GATEWAY_IPV6'] = val
-            elif name == 'native_apps':
-                if not val or val.lower() in FALSE_STRINGS:
-                    native_apps = False
-                else:
-                    native_apps = True
-            elif name == 'type':
-                self.type = val
-        self.ints = []
-        for line in fh.readlines():
-            line = line.strip()
-            parts = line.split(maxsplit=1)
+    if not native_apps:
+        # enable iptables
+        cmd = ['iptables', '-t', 'filter', '-I', 'INPUT', '-j', 'DROP']
+        subprocess.run(cmd, check=True)
+        cmd = ['ip6tables', '-t', 'filter', '-I', 'INPUT', '-j', 'DROP']
+        subprocess.run(cmd, check=True)
 
-            intf_addrs = parts[0]
-
-            parts2 = intf_addrs.split(',')
-            intf = parts2[0]
-            addrs = parts2[2:]
-
-            self.ints.append(intf)
-
-            if len(parts2) > 1:
-                mac = parts2[1]
-                # set MAC address, if specified
-                if mac:
-                    cmd = ['ip', 'link', 'set', intf, 'address', mac]
-                    subprocess.run(cmd, check=True)
-
-            # bring link up
-            cmd = ['ip', 'link', 'set', intf, 'up']
+    for intf in info.get('interfaces', []):
+        int_info = info['interfaces'][intf]
+        if int_info.get('mac', None):
+            # set MAC address, if specified
+            cmd = ['ip', 'link', 'set', intf, 'address', int_info['mac']]
             subprocess.run(cmd, check=True)
 
-            if not native_apps:
-                # disable ARP
-                cmd = ['ip', 'link', 'set', intf, 'arp', 'off']
-                subprocess.run(cmd, check=True)
+        # bring link up
+        cmd = ['ip', 'link', 'set', intf, 'up']
+        subprocess.run(cmd, check=True)
 
-                # enable iptables
-                cmd = ['iptables', '-t', 'filter', '-I', 'INPUT', '-j', 'DROP']
-                subprocess.run(cmd, check=True)
-                cmd = ['ip6tables', '-t', 'filter', '-I', 'INPUT', '-j', 'DROP']
-                subprocess.run(cmd, check=True)
-
-            # add each IP address
-            for addr in addrs:
-                cmd = ['ip', 'addr', 'add', addr, 'dev', intf]
-                subprocess.run(cmd, check=True)
-
-            if len(parts) > 1:
-                s = io.StringIO(parts[1])
-                csv_reader = csv.reader(s)
-                attrs = dict([p.split('=', maxsplit=1) \
-                        for p in next(csv_reader)])
-                cmd = ['tc', 'qdisc', 'add', 'dev', intf, 'root', 'netem']
-                if 'bw' in attrs:
-                    cmd += ['rate', attrs['bw']]
-                if 'delay' in attrs:
-                    cmd += ['delay', attrs['delay']]
-                if 'loss' in attrs:
-                    cmd += ['loss', attrs['loss']]
-                subprocess.run(cmd, check=True)
-
-                if 'vlan' in attrs:
-                    os.environ[f'COUGARNET_VLAN_{intf.upper()}'] = attrs['vlan']
-                if 'trunk' in attrs:
-                    os.environ[f'COUGARNET_TRUNK_{intf.upper()}'] = attrs['trunk'].lower()
+        if not native_apps:
+            # disable ARP
+            cmd = ['ip', 'link', 'set', intf, 'arp', 'off']
+            subprocess.run(cmd, check=True)
 
             # disable router solicitations
             cmd = ['sysctl', f'net.ipv6.conf.{intf}.router_solicitations=0']
             subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
+
+        # add each IP address
+        for addr in int_info.get('addrs4', []) + \
+                int_info.get('addrs6', []):
+            cmd = ['ip', 'addr', 'add', addr, 'dev', intf]
+            subprocess.run(cmd, check=True)
+
+        cmd_suffix = []
+        if int_info.get('bw', None) is not None:
+            cmd_suffix += ['rate', int_info['bw']]
+        if int_info.get('delay', None) is not None:
+            cmd_suffix += ['delay', int_info['delay']]
+        if int_info.get('loss', None) is not None:
+            cmd_suffix += ['loss', int_info['loss']]
+        if cmd_suffix:
+            cmd = ['tc', 'qdisc', 'add', 'dev', intf, 'root', 'netem'] + \
+                    cmd_suffix
+            subprocess.run(cmd, check=True)
+
+        if int_info.get('mtu', None) is not None:
+            cmd = ['ip', 'link', 'set', intf, 'mtu', int_info['mtu']]
+            subprocess.run(cmd, check=True)
+
+        myintf = intf.replace('-', '_').upper()
+        if int_info.get('vlan', None) is not None:
+            os.environ[f'COUGARNET_VLAN_{myintf}'] = str(int_info['vlan'])
+        if int_info.get('trunk', None) is not None:
+            myintf = intf.replace('-', '_').upper()
+            os.environ[f'COUGARNET_TRUNK_{myintf}'] = str(int_info['trunk']).upper()
 
 def user_group_info(user):
     pwinfo = pwd.getpwnam(user)
@@ -144,6 +107,9 @@ def main():
     parser.add_argument('--prog', '-p',
             action='store', type=str, default=None,
             help='Path to program that should be executed at start')
+    parser.add_argument('--mount-sys',
+            action='store_const', const=True, default=False,
+            help='Whether or not to mount sysfs on /sys')
     parser.add_argument('--user', '-u',
             type=str, action='store', default=None,
             help='Change effective user')
@@ -167,9 +133,9 @@ def main():
         if args.comm_sock:
             os.environ['COUGARNET_COMM_SOCK'] = args.comm_sock
 
-        host = VirtualHost(args.config_file)
+        _apply_config(args.config_file)
 
-        if host.type != 'switch':
+        if args.mount_sys:
             cmd = ['mount', '-t', 'sysfs', '/sys', '/sys']
             subprocess.run(cmd, check=True)
 
