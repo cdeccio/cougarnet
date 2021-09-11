@@ -99,12 +99,12 @@ class Host(object):
 
         host_config = self._host_config()
 
-        #XXX can't remember why we need this loop
-        for intf in [i for i in host_config['interfaces']]:
-            if (self.type == 'switch' and self.native_apps) and \
-                    not (self.int_to_neighbor[intf].type == 'switch' and \
-                            self.int_to_neighbor[intf].native_apps):
-                del host_config['interfaces'][intf]
+        ##XXX can't remember why we need this loop
+        #for intf in [i for i in host_config['interfaces']]:
+        #    if (self.type == 'switch' and self.native_apps) and \
+        #            not (self.int_to_neighbor[intf].type == 'switch' and \
+        #                    self.int_to_neighbor[intf].native_apps):
+        #        del host_config['interfaces'][intf]
 
         cmd = ['mkdir', '-p', TMPDIR]
         subprocess.run(cmd)
