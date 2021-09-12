@@ -1,4 +1,5 @@
 import bisect
+import errno
 import fcntl
 import os
 import select
@@ -250,3 +251,8 @@ class NetworkEventLoop(object):
                 self._handle_epoll_events()
             except EndRun as e:
                 break
+            except OSError as e:
+                if e.errno == errno.ENETDOWN:
+                    # If network is down, just break out of the loop
+                    break
+                raise
