@@ -519,7 +519,7 @@ directions.  Thus, using the example configuration above, running a `ping`
 command between `h1` and `h2` will result in something like this:
 
 ```
-h2$ ping h1
+h2$ ping -c 10 h1
 PING h1 (10.0.0.1) 56(84) bytes of data.
 64 bytes from h1 (10.0.0.1): icmp_seq=2 ttl=64 time=41.5 ms
 64 bytes from h1 (10.0.0.1): icmp_seq=4 ttl=64 time=41.3 ms
