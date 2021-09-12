@@ -18,7 +18,7 @@ class BaseFrameHandler:
             if intf.startswith('lo'):
                 continue
 
-            sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, ETH_P_ALL)
+            sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_ALL))
             sock.bind((intf, 0))
             self.int_to_sock[intf] = sock
 
