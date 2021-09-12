@@ -122,8 +122,11 @@ class NetworkEventLoop(object):
                 continue
             intf = self.sock_to_int[fd]
             sock = self.fd_to_sock[fd]
-            frame, addr = sock.recvfrom(4096)
-            self._handle_frame(intf, frame)
+            frame, info = sock.recvfrom(4096)
+            (ifname, proto, pkttype, hatype, addr) = info
+            if pkttype == socket.PACKET_OUTGOING:
+                continue
+            self._handle_frame(frame, intf)
 
     def _handle_scheduled_events(self):
         handled = False
