@@ -173,7 +173,7 @@ class Host(object):
                     cmd = ['rm', self.pidfile]
                     subprocess.run(cmd)
                     raise HostNotStarted(f'{self.hostname} did not start properly.')
-                time.sleep(1)
+                time.sleep(0.1)
 
     def add_int(self, intf, host):
         self.int_to_neighbor[intf] = host
@@ -563,7 +563,7 @@ class VirtualNetwork(object):
                     none_exists = False
             if none_exists:
                 break
-            time.sleep(1)
+            time.sleep(0.1)
 
     def start(self, wireshark_host=None):
         for hostname, host in self.host_by_name.items():
