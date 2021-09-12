@@ -9,7 +9,7 @@ specify bandwidth, (propagation) delay, or loss to links.
 
 Perhaps the most power feature of Cougarnet is the ability to either use the
 built-in Linux network stack or capture raw frames only.  The former is useful
-for configuring and using a network with built-in tools (e.g., `ping1,
+for configuring and using a network with built-in tools (e.g., `ping`,
 `traceroute`), while the latter is useful for implementing the protocol stack in
 software.  Additionally, there can be a mixture--some hosts that use native
 stack and some that do not.
