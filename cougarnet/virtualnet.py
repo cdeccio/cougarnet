@@ -156,6 +156,10 @@ class Host(object):
                 c = f'"{c}"'
                 cmd_quoted.append(c)
             subcmd = ' '.join(cmd_quoted)
+            # let the terminal of processes that ended unsuccessfully--but not
+            # because of a signal--linger a little longer, so any error message
+            # can be read.
+            subcmd += '; if [ $? -gt 0 -a $? -lt 128 ]; then sleep 10; fi'
             cmd = [TERM, '-e', subcmd]
 
         p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
