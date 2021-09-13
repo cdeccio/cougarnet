@@ -19,7 +19,7 @@ stack and some that do not.
 
 To install Cougarnet, run the following:
 
-```
+```bash
 $ python3 setup.py build
 $ sudo python3 setup.py install
 ```
@@ -50,7 +50,7 @@ bits, i.e., 10.0.0.0/24.
 
 Start Cougarnet with this configuration by running the following command:
 
-```
+```bash
 $ cougarnet simple-net.cfg
 ```
 
@@ -60,13 +60,13 @@ indicate which is which.
 
 Each each terminal, run the following to see the network configuration:
 
-```
+```bash
 $ ip addr
 ```
 
 Then run the following on each to see the hostname:
 
-```
+```bash
 $ hostname
 ```
 
@@ -75,7 +75,7 @@ each host is configured with the address from the configuration file.
 
 Next, from the `h2` terminal, run the following:
 
-```
+```bash
 h2$ sudo tcpdump -l
 ```
 
@@ -87,7 +87,7 @@ output is printed as soon as it is generated.
 
 Now from the `h1` terminal, run the following:
 
-```
+```bash
 h1$ ping h2
 ```
 
@@ -190,13 +190,13 @@ in the configuration.  This can be seen in the title of the terminal as well as
 the command-line prompt.  You can also retrieve the hostname by simply running
 the following from the command line:
 
-```
+```bash
 $ hostname
 ```
 
 Or it can be retrieved using Python with the following:
 
-```
+```python
 #!/usr/bin/python3
 import socket
 hostname = socket.gethostname()
@@ -213,26 +213,26 @@ That helps greatly with identification.  The interfaces for a host, and their
 respective configurations, can be viewed by running the following from the
 command line:
 
-```
+```bash
 $ ip addr
 ```
 
 The interface names alone can be retrieved by listing the contents of the
 special directory `/sys/class/net`.  For example:
 
-```
+```bash
 $ ls /sys/class/net
 ```
 
 Or to show all interfaces except loopback interfaces (i.e., starting with `lo`):
 
-```
+```bash
 $ ls -l /sys/class/net | awk '$9 !~ /^lo/ { print $9 }'
 ```
 
 The equivalent Python code is the following:
 
-```
+```python
 #!/usr/bin/python3
 import os
 ints = [i for i in os.listdir('/sys/class/net/') if not i.startswith('lo')]
@@ -254,13 +254,13 @@ For example, the following command, issued from a virtual host, will result in
 a UDP datagram being sent to the UNIX domain socket on which the `cougarnet`
 process is listening.
 
-```
+```bash
 $ echo -n `hostname`,hello world | socat - UNIX-SENDTO:$COUGARNET_COMM_SOCK
 ```
 
 The equivalent Python code is the following:
 
-```
+```python
 import os
 import socket
 
@@ -285,7 +285,7 @@ The three components of the output message can be explained as follows:
    was sent.  Note that the hostname must be sent by the virtual host.  It is
    done by prepending the hostname, separating it from the actual message with
    a comma.  Thus, the following message in the previous example:
-   ```
+   ```bash
    echo -n `hostname`,hello world
    ```
  - *Message* (`hello world`): the actual message to be logged and/or printed.
@@ -340,13 +340,13 @@ environment variables currently defined are:
 They can be retrieved from a running process in the standard way.  For example,
 from command line:
 
-```
+```bash
 $ echo $COUGARNET_COMM_SOCK
 ```
 
 or from Python:
 
-```
+```python
 #!/usr/bin/python3
 import os
 print(os.environ['COUGARNET_COMM_SOCK'])
@@ -370,7 +370,7 @@ host.
 
 Suppose `loop.sh` (in the current directory) contains the following:
 
-```
+```bash
 #!/bin/bash
 hostname
 echo $COUGARNET_DEFAULT_GATEWAY_IPV4
@@ -401,7 +401,7 @@ hello
 
 The equivalent Python code would be:
 
-```
+```python
 #!/usr/bin/python3
 import os
 import socket
@@ -595,7 +595,7 @@ and `h3` are connected to `h2`, with their links having VLAN assignments 25 and
 the process associated with `h2` will have the following environment variables
 set:
 
-```
+```bash
 COUGARNET_VLAN_H2_H1=25
 COUGARNET_VLAN_H2_H3=32
 COUGARNET_TRUNK_H2_H4=true
@@ -604,7 +604,7 @@ COUGARNET_TRUNK_H2_H4=true
 Likewise, the process associated with `h4` will have the following environment
 variables set:
 
-```
+```bash
 COUGARNET_TRUNK_H4_H2=true
 ```
 
