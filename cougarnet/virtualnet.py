@@ -55,6 +55,7 @@ class Host(object):
         self.prog = prog
         self.has_bridge = False
         self.has_vlans = None
+        self.hosts_file = None
 
         if not native_apps or str(native_apps).lower() in FALSE_STRINGS:
             self.native_apps = False
@@ -106,6 +107,16 @@ class Host(object):
         with os.fdopen(fd, 'w') as fh:
             fh.write(json.dumps(host_config))
 
+    def create_hosts_file(self, other_hosts):
+        cmd = ['mkdir', '-p', TMPDIR]
+        subprocess.run(cmd)
+        fd, self.hosts_file = tempfile.mkstemp(prefix=f'hosts-{self.hostname}-', dir=TMPDIR)
+
+        with os.fdopen(fd, 'w') as write_fh:
+            write_fh.write(f'127.0.0.1 localhost {self.hostname}\n')
+            with open(other_hosts, 'r') as read_fh:
+                write_fh.write(read_fh.read())
+
     def create_hosts_file_entries(self, fh):
         for intf in self.int_to_neighbor:
             for addr in self.int_to_ip4[intf]:
@@ -119,7 +130,7 @@ class Host(object):
                     addr = addr[:slash]
                 fh.write(f'{addr} {self.hostname}\n')
 
-    def start(self, hosts_file, comm_sock):
+    def start(self, comm_sock):
         assert self.config_file is not None, \
                 "create_config() must be called before start()"
 
@@ -140,7 +151,7 @@ class Host(object):
             cmd += [f'--net=/run/netns/{self.hostname}']
         cmd += ['--uts', sys.executable, '-m', f'{HOSTPREP_MODULE}',
                     '--comm-sock', comm_sock, '--hosts-file',
-                    hosts_file, '--user', os.environ.get("USER")]
+                    self.hosts_file, '--user', os.environ.get("USER")]
 
         if self.prog is not None:
             cmd += ['--prog', self.prog]
@@ -227,6 +238,10 @@ class Host(object):
 
         if self.config_file is not None and os.path.exists(self.config_file):
             cmd = ['rm', self.config_file]
+            subprocess.run(cmd)
+
+        if self.hosts_file is not None and os.path.exists(self.hosts_file):
+            cmd = ['sudo', 'rm', self.hosts_file]
             subprocess.run(cmd)
 
     def label_for_int(self, intf):
@@ -530,8 +545,6 @@ class VirtualNetwork(object):
         fd, self.hosts_file = tempfile.mkstemp(prefix=f'hosts-', dir=TMPDIR)
 
         with os.fdopen(fd, 'w') as fh:
-            fh.write('127.0.0.1 localhost\n')
-
             for hostname, host in self.host_by_name.items():
                 host.create_hosts_file_entries(fh)
 
@@ -547,6 +560,7 @@ class VirtualNetwork(object):
         self.create_hosts_file()
         for hostname, host in self.host_by_name.items():
             host.create_config()
+            host.create_hosts_file(self.hosts_file)
 
     def signal_hosts(self, signal):
         for hostname, host in self.host_by_name.items():
@@ -571,7 +585,7 @@ class VirtualNetwork(object):
 
     def start(self, wireshark_host=None):
         for hostname, host in self.host_by_name.items():
-            host.start(self.hosts_file, self.commsock_file)
+            host.start(self.commsock_file)
 
         self.apply_links()
         self.signal_hosts('HUP')
