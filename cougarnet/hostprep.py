@@ -32,6 +32,10 @@ def _apply_config(fh):
         cmd = ['ip6tables', '-t', 'filter', '-I', 'INPUT', '-j', 'DROP']
         subprocess.run(cmd, check=True)
 
+    # bring lo up
+    cmd = ['ip', 'link', 'set', 'lo', 'up']
+    subprocess.run(cmd, check=True)
+
     for intf in info.get('interfaces', []):
         int_info = info['interfaces'][intf]
         if int_info.get('mac', None):
