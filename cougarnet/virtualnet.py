@@ -247,19 +247,18 @@ class Host(object):
             subprocess.run(cmd)
 
     def label_for_int(self, intf):
-        label = ''
-        m = re.search(r'\d+$', intf)
-        if m is not None:
-            label += m.group(0)
+        s = f'<TR><TD COLSPAN="2" ALIGN="left"><B>{intf}:</B></TD></TR>'
+        if self.int_to_mac[intf] is not None:
+            s += f'<TR><TD ALIGN="right">  </TD><TD>{self.int_to_mac[intf]}</TD></TR>'
         if self.int_to_ip4[intf]:
-            if label:
-                label += '<BR/>'
-            label += '<BR/>'.join(self.int_to_ip4[intf])
+            s += '<TR><TD ALIGN="RIGHT">  </TD><TD>'
+            s += '</TD></TR><TR><TD ALIGN="right">'.join(self.int_to_ip4[intf])
+            s += '</TD></TR>'
         if self.int_to_ip6[intf]:
-            if label:
-                label += '<BR/>'
-            label += '<BR/>\n'.join(self.int_to_ip6[intf])
-        return label
+            s += '<TR><TD ALIGN="RIGHT">  </TD><TD>'
+            s += '</TD></TR><TR><TD ALIGN="right">'.join(self.int_to_ip6[intf])
+            s += '</TD></TR>'
+        return s
 
 class VirtualNetwork(object):
     def __init__(self, native_apps, terminal):
@@ -607,6 +606,13 @@ class VirtualNetwork(object):
         cmd = ['rm', self.commsock_file]
         subprocess.run(cmd)
 
+    def label_for_link(self, host1, int1, host2, int2):
+        s = '<<TABLE BORDER="0">' + host1.label_for_int(int1) + \
+                '<TR><TD COLSPAN="2"></TD></TR>' + \
+                host2.label_for_int(int2) + \
+                '</TABLE>>'
+        return s
+
     def display(self, to_screen, output_file):
         try:
             from pygraphviz import AGraph
@@ -629,8 +635,7 @@ class VirtualNetwork(object):
                 done.add((host1, host2, int1, int2))
                 done.add((host2, host1, int2, int1))
                 G.add_edge(host1.hostname, host2.hostname,
-                        headlabel=f'<{host1.label_for_int(int1)}>',
-                        taillabel=f'<{host2.label_for_int(int2)}>')
+                        label=self.label_for_link(host1, int1, host2, int2))
         img = G.draw(prog='dot')
         if to_screen:
             subprocess.run(['graph-easy', '--from', 'graphviz'], input=img,
