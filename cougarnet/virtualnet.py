@@ -171,7 +171,8 @@ class Host(object):
             # because of a signal--linger a little longer, so any error message
             # can be read.
             subcmd += '; if [ $? -gt 0 -a $? -lt 128 ]; then sleep 10; fi'
-            cmd = [TERM, '-e', subcmd]
+
+            cmd = [TERM, '-t', f'{self.type.capitalize()}: {self.hostname}', '-e', subcmd]
 
         p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
