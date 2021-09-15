@@ -508,6 +508,7 @@ Note that for a given switch, one of the following must be true:
  - all interfaces must be either trunked (i.e., `trunk=true`) or have a
    designated VLAN (e.g., `vlan=10`); or
  - no interfaces must be trunked or have a designated VLAN.
+
 The former case is a more modern example of a switch, where VLANs are the norm,
 and the latter is an example of a simple switch.
 
