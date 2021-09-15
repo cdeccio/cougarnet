@@ -22,6 +22,12 @@ class BaseFrameHandler:
             sock.bind((intf, 0))
             self.int_to_sock[intf] = sock
 
+    def get_first_interface(self):
+        try:
+            return [i for i in self.int_to_sock][0]
+        except IndexError:
+            return None
+
     def send_frame(self, frame, intf):
         self.int_to_sock[intf].send(frame)
 
