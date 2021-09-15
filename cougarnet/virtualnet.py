@@ -613,7 +613,7 @@ class VirtualNetwork(object):
                 '</TABLE>>'
         return s
 
-    def display(self, to_screen, output_file):
+    def display_to_file(self, output_file):
         try:
             from pygraphviz import AGraph
         except ImportError:
@@ -637,11 +637,33 @@ class VirtualNetwork(object):
                 G.add_edge(host1.hostname, host2.hostname,
                         label=self.label_for_link(host1, int1, host2, int2))
         img = G.draw(prog='dot')
-        if to_screen:
-            subprocess.run(['graph-easy', '--from', 'graphviz'], input=img,
-                    stderr=subprocess.DEVNULL)
-        if output_file:
-            G.draw(output_file, format='png', prog='dot')
+        G.draw(output_file, format='png', prog='dot')
+
+    def display_to_screen(self):
+        try:
+            from pygraphviz import AGraph
+        except ImportError:
+            sys.stderr.write('Pygraphviz is not installed, ' + \
+                    'so the network cannot be displayed\n')
+            return
+
+        G = AGraph()
+
+        done = set()
+        for hostname, host in self.host_by_name.items():
+            for intf, neighbor in host.int_to_neighbor.items():
+                host1 = host
+                host2 = neighbor
+                int1 = intf
+                int2 = host2.neighbor_to_int[host]
+                if (host1, host2, int1, int2) in done:
+                    continue
+                done.add((host1, host2, int1, int2))
+                done.add((host2, host1, int2, int1))
+                G.add_edge(host1.hostname, host2.hostname)
+        img = G.draw(prog='dot')
+        subprocess.run(['graph-easy', '--from', 'graphviz'], input=img,
+                stderr=subprocess.DEVNULL)
 
     def start_wireshark(self, host):
         if host.type == 'switch' and host.native_apps:
@@ -708,8 +730,10 @@ def main():
                 f'({args.wireshark}) does not exist.\n')
         sys.exit(1)
 
-    if args.display or args.display_file is not None:
-        net.display(args.display, args.display_file)
+    if args.display:
+        net.display_to_screen()
+    if args.display_file:
+        net.display_to_file(args.display_file)
 
     try:
         net.config()
