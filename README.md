@@ -24,7 +24,7 @@ $ python3 setup.py build
 $ sudo python3 setup.py install
 ```
 
-TODO: dependencies, `sudo`, `wireshark`, `lxde-terminal`, `socat`, `openvswitch-switch`, `python3-pygraphviz`, `libgraph-easy-perl`
+TODO: dependencies, `sudo`, `wireshark`, `lxterminal`, `socat`, `openvswitch-switch`, `python3-pygraphviz`, `libgraph-easy-perl`
 
 
 # Getting Started
