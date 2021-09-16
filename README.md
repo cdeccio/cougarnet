@@ -354,13 +354,13 @@ environment.  All environment variables start with `COUGARNET_`.  The
 environment variables currently defined are:
 
  - `COUGARNET_COMM_SOCK`:
-   [description](#communicating-with-the-calling-process)
+   described [here](#communicating-with-the-calling-process)
  - `COUGARNET_VLAN_H1_H2`, etc.:
-   [description](#vlan-attributes) and [description](#interface-names)
+   described [here](#vlan-attributes) and [here](#interface-names)
  - `COUGARNET_TRUNK_H1`, etc.:
-   [description](#vlan-attributes) and [description](#interface-names)
+   described [here](#vlan-attributes) and [here](#interface-names)
  - `COUGARNET_DEFAULT_GATEWAY_IPV4`, `COUGARNET_DEFAULT_GATEWAY_IPV6`:
-   [description](#default-gateway)
+   described [here](#default-gateway)
 
 They can be retrieved from a running process in the standard way.  For example,
 from command line:
