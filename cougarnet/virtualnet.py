@@ -614,13 +614,7 @@ class VirtualNetwork(object):
         return s
 
     def display_to_file(self, output_file):
-        try:
-            from pygraphviz import AGraph
-        except ImportError:
-            sys.stderr.write('Pygraphviz is not installed, ' + \
-                    'so the network cannot be displayed\n')
-            return
-
+        from pygraphviz import AGraph
         G = AGraph()
 
         done = set()
@@ -640,13 +634,7 @@ class VirtualNetwork(object):
         G.draw(output_file, format='png', prog='dot')
 
     def display_to_screen(self):
-        try:
-            from pygraphviz import AGraph
-        except ImportError:
-            sys.stderr.write('Pygraphviz is not installed, ' + \
-                    'so the network cannot be displayed\n')
-            return
-
+        from pygraphviz import AGraph
         G = AGraph()
 
         done = set()
@@ -685,6 +673,51 @@ class VirtualNetwork(object):
             ts = time.time() - start_time
             print('%000.3f \033[1m%4s\033[0m  %s' % (ts, hostname, msg))
 
+def check_requirements(args):
+    try:
+        subprocess.run(['sudo', '-k'], check=True)
+        subprocess.run(['sudo', '-n', '-v'], check=True)
+    except subprocess.CalledProcessError as e:
+        sys.stderr.write(f'Please run visudo to allow your user to run ' + \
+                'sudo without a password, using the NOPASSWD option.\n')
+        sys.exit(1)
+
+    if args.display or args.display_file:
+        try:
+            from pygraphviz import AGraph
+        except ImportError:
+            sys.stderr.write('Pygraphviz is required for the --display and ' + \
+                    '--display-file options\n')
+            sys.exit(1)
+
+        if args.display:
+            try:
+                subprocess.run(['graph-easy', '--help'], stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL, check=True)
+            except subprocess.CalledProcessError:
+                pass
+            except OSError as e:
+                sys.stderr.write('graph-easy is required with the ' + \
+                        f'--display: {str(e)}.\n')
+                sys.exit(1)
+
+
+    if args.wireshark is not None:
+        try:
+            subprocess.run(['wireshark', '-h'], stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL, check=True)
+        except OSError as e:
+            sys.stderr.write('wireshark is required with the ' + \
+                    f'--wireshark/-w option: {str(e)}.\n')
+            sys.exit(1)
+
+    try:
+        subprocess.run(['sudo', 'ovs-vsctl', '-V'], stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL, check=True)
+    except subprocess.CalledProcessError as e:
+        sys.stderr.write(f'Open vSwitch is required: {str(e)}\n')
+        sys.exit(1)
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--wireshark', '-w',
@@ -708,6 +741,8 @@ def main():
             help='File containing the network configuration')
     args = parser.parse_args(sys.argv[1:])
 
+    check_requirements(args)
+
     if args.native_apps == 'all':
         native_apps = True
     elif args.native_apps == 'none':
@@ -726,8 +761,8 @@ def main():
 
     if args.wireshark is not None and \
             args.wireshark not in net.host_by_name:
-        sys.stderr.write(f'The host specified for wireshark ' + \
-                f'({args.wireshark}) does not exist.\n')
+        sys.stderr.write(f'The host specified for wireshark with the ' + \
+                f'--wireshark/-w option ({args.wireshark}) does not exist.\n')
         sys.exit(1)
 
     if args.display:
