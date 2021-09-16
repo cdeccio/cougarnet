@@ -746,7 +746,10 @@ def main():
     except Exception:
         traceback.print_exc()
     finally:
-        net.cleanup()
+        try:
+            net.cleanup()
+        except Exception:
+            pass
 
 if __name__ == '__main__':
     main()
