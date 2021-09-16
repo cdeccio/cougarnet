@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import traceback
 
 
 MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
@@ -742,6 +743,8 @@ def main():
         net.message_loop()
     except KeyboardInterrupt:
         pass
+    except Exception:
+        traceback.print_exc()
     finally:
         net.cleanup()
 
