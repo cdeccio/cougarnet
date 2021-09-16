@@ -1,3 +1,4 @@
+
 # Cougarnet
 
 Cougarnet creates a virtual network for learning network configuration and
@@ -13,6 +14,30 @@ for configuring and using a network with built-in tools (e.g., `ping`,
 `traceroute`), while the latter is useful for implementing the protocol stack in
 software.  Additionally, there can be a mixture--some hosts that use native
 stack and some that do not.
+
+
+# Table of Contents
+ - [Installation](#installation)
+ - [Getting Started](#getting-started)
+ - [Virtual Hosts](#virtual-hosts)
+   - [Configuration](#configuration)
+   - [Hostnames](#hostnames)
+   - [Interface Names](#interface-names)
+   - [Communicating with the Calling Process](#communicating-with-the-calling-process)
+   - [Name Resolution](#name-resolution)
+   - [Host Types](#host-types)
+   - [Default Gateway](#default-gateway)
+   - [Environment](#environment)
+   - [Running Programs](#running-programs)
+ - [Virtual Links](#virtual-links)
+   - [Configuration](#configuration-1)
+   - [Bi-Directionality of Link Attributes](#bi-directionality-of-link-attributes)
+   - [VLAN Attributes](#vlan-attributes)
+ - [Network Configuration File](#network-configuration-file)
+ - [Sending and Receiving Frames](#sending-and-receiving-frames)
+   - [`BaseFrameHandler`](#baseframehandler)
+   - [`NetworkEventLoop`](#networkeventloop)
+ - [Command-Line Usage](#command-line-usage)
 
 
 # Installation
