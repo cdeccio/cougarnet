@@ -29,14 +29,12 @@ stack and some that do not.
    - [Default Gateway](#default-gateway)
    - [Environment](#environment)
    - [Running Programs](#running-programs)
+   - [Sending and Receiving Frames](#sending-and-receiving-frames)
  - [Virtual Links](#virtual-links)
    - [Configuration](#configuration-1)
    - [Bi-Directionality of Link Attributes](#bi-directionality-of-link-attributes)
    - [VLAN Attributes](#vlan-attributes)
  - [Network Configuration File](#network-configuration-file)
- - [Sending and Receiving Frames](#sending-and-receiving-frames)
-   - [`BaseFrameHandler`](#baseframehandler)
-   - [`NetworkEventLoop`](#networkeventloop)
  - [Command-Line Usage](#command-line-usage)
 
 
@@ -443,6 +441,162 @@ for i in range(1, 4):
 The output is the same as the previous output.
 
 
+## Sending and Receiving Frames
+
+When Cougarnet is used for protocol development, it is desirable to send and
+receive raw Ethernet frames, rather than using the native network stack, i.e.,
+with the socket API.  Two classes are useful for sending and receiving frames
+in Cougarnet: `rawpkt.BaseFrameHandler` and `networksched.NetworkEventLoop`.
+
+
+### `BaseFrameHandler`
+
+The `BaseFrameHandler` class provides functionality to a virtual host to
+facilitate frame sending and receiving.  The key components are the following:
+
+ - `int_to_sock` - a `dict` containing a mapping of
+   [interface names](#interface-names) to raw sockets (i.e., for sending
+   frames).
+ - `hostname` - a `str` whose value is the [hostname](#hostnames) of the virtual host.
+ - `comm_sock` - a socket (`socket.socket`) that is connected to the
+   [communications socket](#communicating-with-the-calling-process) on which
+   the calling `cougarnet` process is listening (i.e., for logging).
+ - `get_first_interface()` - returns the name of one of the interfaces on the
+   virtual host.  This is useful when the device really has just one interface,
+   to make it easily retrievable.  Note that `first` is probably a misnomer.
+ - `send_frame(frame, intf)` - send frame (type `bytes`) out on the interface
+   designated by name `intf`, a `str`.  Generally calling this method is
+   preferred over calling `sendto()` on a socket  directly.
+ - `log(msg)` - send message `msg` (type `str`) to the communications socket.
+   Generally calling this method is preferred over calling `sendto()` on the
+   communications socket (i.e., `comm_sock`) directly.
+
+This is designed to provide a base class, which can be subclassed, such that
+the inherited functionality is accessible to the child class.  For example,
+
+```python
+class FramePrinter(BaseFrameHandler):
+    def print_frame_repr(self, intf, frame):
+        self.log(f'Received frame: {repr(frame)}')
+```
+
+
+### `NetworkEventLoop`
+
+The `NetworkEventLoop` class provides a way for a process to handle incoming
+frames and scheduled events to be handled by an event loop.  In short, the
+`NetworkEventLoop` is instantiated with a function or bound method that is to
+be called when a frame is received, such as:
+
+```python
+def print_frame_repr(intf, frame):
+    print(f'Received frame: {repr(frame)}')
+
+event_loop = NetworkEventLoop(print_frame_repr)
+event_loop.run()
+```
+
+or, using a subclass of `BaseFrameHandler`:
+
+```python
+class FramePrinter(BaseFrameHandler):
+    def print_frame_repr(self, intf, frame):
+        self.log(f'Received frame: {repr(frame)}')
+
+frame_printer = FramePrinter()
+event_loop = NetworkEventLoop(frame_printer.print_frame_repr)
+event_loop.run()
+```
+
+In both examples the argument used in the instantiation and initialization
+of a `NetworkEventLoop` instance is a function (or bound method) that takes
+two arguments:
+
+ - `frame` (type `bytes`) - the frame received; and
+ - `intf` (type `str`) - the name of the interface out which it should be sent.
+
+Thus, when an incoming frame `frame` arrives on interface `intf`, the
+following is called by the `NetworkEventLoop` instance:
+
+```python
+handle_frame(frame, intf)
+```
+
+where `handle_frame()` represents the function that was passed.
+
+
+#### Scheduling Events
+
+Events (besides incoming packets) are added to the event loop by calling
+`schedule_event()` method, which is defined thus:
+
+```python
+def schedule_event(self, seconds, action, args=None, kwargs=None):
+```
+
+The arguments are as follows:
+ - `seconds` (type `float`) - a time relative to the current time (i.e., to
+   designate that something should happen `seconds` seconds from now).
+ - `action` (type `callable`) - the function or bound method that should be
+   called at the designated time.
+ - `args` (type `tuple` or `None`) - one or more arguments that should be
+   passed to the function or bound method when it is called.
+ - `kwargs` (type `dict` or `None`) - one or more keyword arguments that should
+   be passed to the function or bound method when it is called.
+
+For example, consider the following:
+
+```python
+event_loop = NetworkEventLoop(handle_frame)
+
+def say_hello(arg):
+    print(f'hello {arg}')
+
+event_loop.schedule_event(2, say_hello, ('world',))
+event_loop.run()
+```
+
+This would result in "hello world" being printed two seconds after
+`event_loop.run()` was called.  A perpetual event could happen by running the
+following:
+
+```python
+event_loop = NetworkEventLoop(handle_frame)
+
+def say_hello(arg):
+    print(f'hello {arg}')
+    event_loop.schedule_event(2, say_hello, ('world',))
+
+event_loop.schedule_event(2, say_hello, ('world',))
+event_loop.run()
+```
+
+This would result in `say_hello()` being called every two seconds.  Note that
+is not a recursive call because `say_hello()` is not calling `say_hello()`; it
+is simply scheduling `say_hello()` to be called later.
+
+
+#### Canceling Events
+
+Canceling a scheduled event is done with the `cancel_event()` method.  When an
+event is scheduled by calling `schedule_event()`, an `Event` instance is
+returned.  That instance is passed to `cancel_event()`.  Consider the previous
+example:
+
+```python
+event_loop = NetworkEventLoop(handle_frame)
+
+def say_hello(arg):
+    print(f'hello {arg}')
+
+event = event_loop.schedule_event(2, say_hello, ('world',))
+event_loop.cancel_event(event)
+event_loop.run()
+```
+
+The call to `say_hello()` is cancelled before it ever gets run!
+
+
 # Virtual Links
 
 Virtual links are created between two virtual interfaces with the `ip link`
@@ -653,136 +807,6 @@ Blank links and lines beginning with `#` (i.e., comments) are ignored.
 
 See specifics in the [virtual host](#configuration) and [virtual
 link](#configuration-1) configuration sections.
-
-
-# Sending and Receiving Frames
-
-Two classes are useful for doing protocol development (i.e., sending and
-receiving frames) in Cougarnet: `rawpkt.BaseFrameHandler` and
-`networksched.NetworkEventLoop`.
-
-
-## `BaseFrameHandler`
-
-The `BaseFrameHandler` class provides functionality to a virtual host to
-facilitate frame sending and receiving.  The key components are the following:
-
- - `int_to_sock` - a `dict` containing a mapping of
-   [interface names](#interface-names) to raw sockets (i.e., for sending
-   frames).
- - `hostname` - a `str` whose value is the [hostname](#hostnames) of the virtual host.
- - `comm_sock` - a socket (`socket.socket`) that is connected to the
-   [communications socket](#communicating-with-the-calling-process) on which
-   the calling `cougarnet` process is listening (i.e., for logging).
- - `get_first_interface()` - returns the name of one of the interfaces on the
-   virtual host.  This is useful when the device really has just one interface,
-   to make it easily retrievable.  Note that `first` is probably a misnomer.
- - `send_frame(frame, intf)` - send frame (type `bytes`) out on the interface
-   designated by name `intf`, a `str`.  Generally calling this method is
-   preferred over calling `sendto()` on a socket  directly.
- - `log(msg)` - send message `msg` (type `str`) to the communications socket.
-   Generally calling this method is preferred over calling `sendto()` on the
-   communications socket (i.e., `comm_sock`) directly.
-
-This is designed to provide a base class, which can be subclassed, such that
-the inherited functionality is accessible to the child class.
-
-
-## `NetworkEventLoop`
-
-The `NetworkEventLoop` provides a way for a process to handle incoming frames
-and scheduled events to be handled by an event loop.  In short, the
-`NetworkEventLoop` is instantiated with a function or bound method that is to
-be called when a frame is received, such as:
-
-```python
-event_loop = NetworkEventLoop(handle_frame)
-event_loop.run()
-```
-
-In the example above `handle_frame` is a function (or bound method) that takes
-two arguments:
-
- - `frame` (type `bytes`) - the frame received; and
- - `intf` (type `str`) - the name of the interface out which it should be sent.
-
-Thus, when an incoming frame arrives, the following is by the
-`NetworkEventLoop` instance:
-
-```python
-handle_frame(frame, intf)
-```
-
-### Scheduling Events
-
-Events (besides incoming packets) are added to the event loop by calling
-`schedule_event()` method, which is defined thus:
-
-```python
-def schedule_event(self, seconds, action, args=None, kwargs=None):
-```
-
-The arguments are as follows:
- - `seconds` (type `float`) - a time relative to the current time (i.e., to
-   designate that something should happen `seconds` seconds from now).
- - `action` (type `callable`) - the function or bound method that should be
-   called at the designated time.
- - `args` (type `tuple` or `None`) - one or more arguments that should be
-   passed to the function or bound method when it is called.
- - `kwargs` (type `dict` or `None`) - one or more keyword arguments that should
-   be passed to the function or bound method when it is called.
-
-For example, consider the following:
-
-```python
-event_loop = NetworkEventLoop(handle_frame)
-
-def say_hello(arg):
-    print(f'hello {arg}')
-
-event_loop.schedule_event(2, say_hello, ('world',))
-event_loop.run()
-```
-
-This would result in `hello world' being printed two seconds after
-`event_loop.run()` was called.  A perpetual event could happen by running the
-following:
-
-```python
-event_loop = NetworkEventLoop(handle_frame)
-
-def say_hello(arg):
-    print(f'hello {arg}')
-    event_loop.schedule_event(2, say_hello, ('world',))
-
-event_loop.schedule_event(2, say_hello, ('world',))
-event_loop.run()
-```
-
-This would result in `say_hello()` being called every two seconds.  Note that
-is not a recursive call because `say_hello()` is not calling `say_hello()`; it
-is simply scheduling `say_hello()` to be called later.
-
-
-### Canceling Events
-
-Canceling a scheduled event is done with the `cancel_event()` method.  When an
-event is scheduled by calling `schedule_event()`, an `Event` instance is
-returned.  That instance is passed to `cancel_event()`.  Consider the previous
-example:
-
-```python
-event_loop = NetworkEventLoop(handle_frame)
-
-def say_hello(arg):
-    print(f'hello {arg}')
-
-event = event_loop.schedule_event(2, say_hello, ('world',))
-event_loop.cancel_event(event)
-event_loop.run()
-```
-
-The call to `say_hello()` is cancelled before it ever gets run!
 
 
 # Command-Line Usage
