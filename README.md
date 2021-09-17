@@ -66,6 +66,7 @@ be installed next.
 To install Cougarnet, run the following:
 
 ```bash
+$ python3 -m pip install --user -r requirements.txt
 $ python3 setup.py build
 $ sudo python3 setup.py install
 ```
