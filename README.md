@@ -40,14 +40,35 @@ stack and some that do not.
 
 # Installation
 
+The following are dependencies for Cougarnet:
+
+ - [sudo](https://www.sudo.ws/)
+ - [Open vSwitch](https://www.openvswitch.org/)
+ - [LXTerminal](https://wiki.lxde.org/en/LXTerminal)
+ - [PyGraphviz](https://pygraphviz.github.io/)
+ - [Graph::Easy](https://metacpan.org/pod/Graph::Easy)
+ - [Wireshark](https://www.wireshark.org/) - (optional, but recommended)
+ - [socat](http://www.dest-unreach.org/socat/) - (used only in examples in the documentation)
+
+To install these on a Debian system, run the following:
+
+```
+$ sudo apt install openvswitch-switch lxterminal python3-pygraphviz libgraph-easy-perl wireshark socat
+```
+
+Of course, this assumes that you already have `sudo` installed and that your user is
+allowed to call it.
+
+Additionally, `sudo` should be configured such that your user can call it without requiring a
+password (i.e., with the `NOPASSWD` option)--at least for the `cougarnet` script, which will
+be installed next.
+
 To install Cougarnet, run the following:
 
 ```bash
 $ python3 setup.py build
 $ sudo python3 setup.py install
 ```
-
-TODO: dependencies, `sudo`, `wireshark`, `lxterminal`, `socat`, `openvswitch-switch`, `python3-pygraphviz`, `libgraph-easy-perl`
 
 
 # Getting Started
