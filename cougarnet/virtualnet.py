@@ -674,6 +674,11 @@ class VirtualNetwork(object):
             print('%000.3f \033[1m%4s\033[0m  %s' % (ts, hostname, msg))
 
 def check_requirements(args):
+
+    if os.geteuid() == 0:
+        sys.stderr.write(f'Please run this program as a non-privileged user.\n')
+        sys.exit(1)
+
     try:
         subprocess.run(['sudo', '-k'], check=True)
         subprocess.run(['sudo', '-n', '-v'], check=True)
