@@ -100,16 +100,12 @@ class Host(object):
 
         host_config = self._host_config()
 
-        cmd = ['mkdir', '-p', TMPDIR]
-        subprocess.run(cmd)
         fd, self.config_file = tempfile.mkstemp(suffix='.cfg',
                 prefix=f'{self.hostname}-', dir=TMPDIR)
         with os.fdopen(fd, 'w') as fh:
             fh.write(json.dumps(host_config))
 
     def create_hosts_file(self, other_hosts):
-        cmd = ['mkdir', '-p', TMPDIR]
-        subprocess.run(cmd)
         fd, self.hosts_file = tempfile.mkstemp(prefix=f'hosts-{self.hostname}-', dir=TMPDIR)
 
         with os.fdopen(fd, 'w') as write_fh:
@@ -134,14 +130,9 @@ class Host(object):
         assert self.config_file is not None, \
                 "create_config() must be called before start()"
 
-        cmd = ['sudo', 'mkdir', '-p', '/run/netns']
-        subprocess.run(cmd, check=True)
-
         cmd = ['sudo', 'touch', f'/run/netns/{self.hostname}']
         subprocess.run(cmd)
 
-        cmd = ['mkdir', '-p', TMPDIR]
-        subprocess.run(cmd)
         fd, self.pidfile = tempfile.mkstemp(suffix='.pid',
                 prefix=f'{self.hostname}-', dir=TMPDIR)
         os.close(fd)
@@ -541,8 +532,6 @@ class VirtualNetwork(object):
 
 
     def create_hosts_file(self):
-        cmd = ['mkdir', '-p', TMPDIR]
-        subprocess.run(cmd)
         fd, self.hosts_file = tempfile.mkstemp(prefix=f'hosts-', dir=TMPDIR)
 
         with os.fdopen(fd, 'w') as fh:
@@ -550,8 +539,6 @@ class VirtualNetwork(object):
                 host.create_hosts_file_entries(fh)
 
     def config(self):
-        cmd = ['mkdir', '-p', TMPDIR]
-        subprocess.run(cmd)
         fd, self.commsock_file = tempfile.mkstemp(suffix='.sock', dir=TMPDIR)
         os.close(fd)
         subprocess.run(['rm', self.commsock_file])
@@ -686,6 +673,12 @@ def check_requirements(args):
         sys.stderr.write(f'Please run visudo to allow your user to run ' + \
                 'sudo without a password, using the NOPASSWD option.\n')
         sys.exit(1)
+
+    # make sure working directories exist
+    cmd = ['sudo', 'mkdir', '-p', '/run/netns']
+    subprocess.run(cmd, check=True)
+    cmd = ['mkdir', '-p', TMPDIR]
+    subprocess.run(cmd, check=True)
 
     if args.display or args.display_file:
         try:
