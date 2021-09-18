@@ -24,6 +24,18 @@ TMPDIR="./tmp"
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 
+
+def remove_if_exists(file, as_root=False):
+    if os.path.exists(file):
+        try:
+            os.remove(file)
+        except PermissionError as e:
+            if as_root:
+                cmd = ["sudo", "rm", file]
+                subprocess.run(cmd)
+            else:
+                raise e
+
 class HostNotStarted(Exception):
     pass
 
@@ -187,8 +199,7 @@ class Host(object):
                     pass
 
                 if time.time() - t > 3:
-                    cmd = ['rm', self.pidfile]
-                    subprocess.run(cmd)
+                    remove_if_exists(self.pidfile)
                     raise HostNotStarted(f'{self.hostname} did not start properly.')
                 time.sleep(0.1)
 
@@ -221,8 +232,7 @@ class Host(object):
             except subprocess.CalledProcessError:
                 break
 
-        cmd = ['sudo', 'rm', f'/run/netns/{self.hostname}']
-        subprocess.run(cmd)
+        remove_if_exists(f'/run/netns/{self.hostname}', as_root=True)
 
         if self.type == 'switch' and self.native_apps:
             cmd = ['sudo', 'ovs-vsctl', 'del-br', self.hostname]
@@ -234,17 +244,14 @@ class Host(object):
                     cmd = ['sudo', 'ip', 'link', 'del', intf]
                     subprocess.run(cmd)
 
-        if self.pidfile is not None and os.path.exists(self.pidfile):
-            cmd = ['sudo', 'rm', self.pidfile]
-            subprocess.run(cmd)
+        if self.pidfile is not None:
+            remove_if_exists(self.pidfile, as_root=True)
 
-        if self.config_file is not None and os.path.exists(self.config_file):
-            cmd = ['rm', self.config_file]
-            subprocess.run(cmd)
+        if self.config_file is not None:
+            remove_if_exists(self.pidfile)
 
-        if self.hosts_file is not None and os.path.exists(self.hosts_file):
-            cmd = ['sudo', 'rm', self.hosts_file]
-            subprocess.run(cmd)
+        if self.hosts_file is not None:
+            remove_if_exists(self.hosts_file, as_root=True)
 
     def label_for_int(self, intf):
         s = f'<TR><TD COLSPAN="2" ALIGN="left"><B>{intf}:</B></TD></TR>'
@@ -554,7 +561,7 @@ class VirtualNetwork(object):
         subprocess.run(cmd)
         fd, self.commsock_file = tempfile.mkstemp(suffix='.sock', dir=TMPDIR)
         os.close(fd)
-        subprocess.run(['rm', self.commsock_file])
+        remove_if_exists(self.commsock_file)
         self.commsock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
         self.commsock.bind(self.commsock_file)
 
@@ -576,8 +583,7 @@ class VirtualNetwork(object):
                     cmd = ['ps', '-p', pid]
                     p = subprocess.run(cmd, stdout=subprocess.DEVNULL)
                     if p.returncode != 0:
-                        cmd = ['rm', host.pidfile]
-                        subprocess.run(cmd)
+                        remove_if_exists(host.pidfile)
                         raise HostNotStarted(f'{hostname} did not start properly.')
                     none_exists = False
             if none_exists:
@@ -599,12 +605,10 @@ class VirtualNetwork(object):
         for hostname, host in self.host_by_name.items():
             host.cleanup()
 
-        cmd = ['rm', self.hosts_file]
-        subprocess.run(cmd)
+        remove_if_exists(self.hosts_file)
 
         self.commsock.close()
-        cmd = ['rm', self.commsock_file]
-        subprocess.run(cmd)
+        remove_if_exists(self.commsock_file)
 
     def label_for_link(self, host1, int1, host2, int2):
         s = '<<TABLE BORDER="0">' + host1.label_for_int(int1) + \
