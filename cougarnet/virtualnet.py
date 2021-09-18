@@ -21,6 +21,8 @@ MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
 TERM="lxterminal"
 HOSTPREP_MODULE="cougarnet.hostprep"
 TMPDIR=os.path.join(os.environ.get('HOME', '.'), 'cougarnet-tmp')
+COMM_SOCK_FILENAME='comm.sock'
+HOSTS_FILENAME='hosts'
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 
@@ -96,19 +98,18 @@ class Host(object):
                 'trunk': self.int_to_trunk[intf]
                 }
 
-    def create_config(self):
+    def create_config(self, config_file):
 
         host_config = self._host_config()
 
-        fd, self.config_file = tempfile.mkstemp(suffix='.cfg',
-                prefix=f'{self.hostname}-', dir=TMPDIR)
-        with os.fdopen(fd, 'w') as fh:
+        self.config_file = config_file
+        with open(self.config_file, 'w') as fh:
             fh.write(json.dumps(host_config))
 
-    def create_hosts_file(self, other_hosts):
-        fd, self.hosts_file = tempfile.mkstemp(prefix=f'hosts-{self.hostname}-', dir=TMPDIR)
+    def create_hosts_file(self, other_hosts, hosts_file):
+        self.hosts_file = hosts_file
 
-        with os.fdopen(fd, 'w') as write_fh:
+        with open(self.hosts_file, 'w') as write_fh:
             write_fh.write(f'127.0.0.1 localhost {self.hostname}\n')
             with open(other_hosts, 'r') as read_fh:
                 write_fh.write(read_fh.read())
@@ -126,16 +127,16 @@ class Host(object):
                     addr = addr[:slash]
                 fh.write(f'{addr} {self.hostname}\n')
 
-    def start(self, comm_sock):
+    def start(self, comm_sock, pid_file):
         assert self.config_file is not None, \
                 "create_config() must be called before start()"
 
         cmd = ['sudo', 'touch', f'/run/netns/{self.hostname}']
         subprocess.run(cmd)
 
-        fd, self.pidfile = tempfile.mkstemp(suffix='.pid',
-                prefix=f'{self.hostname}-', dir=TMPDIR)
-        os.close(fd)
+        self.pidfile = pid_file
+        cmd = ['touch', self.pidfile]
+        subprocess.run(cmd, check=True)
 
         cmd = ['sudo', '-E', 'unshare', '--mount']
         if not (self.type == 'switch' and self.native_apps):
@@ -252,11 +253,12 @@ class Host(object):
         return s
 
 class VirtualNetwork(object):
-    def __init__(self, native_apps, terminal):
+    def __init__(self, native_apps, terminal, tmpdir):
         self.host_by_name = {}
         self.hosts_file = None
         self.native_apps = native_apps
         self.terminal = terminal
+        self.tmpdir = tmpdir
 
     def import_int(self, hostname_addr):
         parts = hostname_addr.split(',')
@@ -349,8 +351,8 @@ class VirtualNetwork(object):
         host2.int_to_ip6[host2.neighbor_to_int[host1]] = addrs62
 
     @classmethod
-    def from_file(cls, fh, native_apps, terminal):
-        net = cls(native_apps, terminal)
+    def from_file(cls, fh, native_apps, terminal, tmpdir):
+        net = cls(native_apps, terminal, tmpdir)
         mode = None
         for line in fh:
             line = line.strip()
@@ -532,23 +534,23 @@ class VirtualNetwork(object):
 
 
     def create_hosts_file(self):
-        fd, self.hosts_file = tempfile.mkstemp(prefix=f'hosts-', dir=TMPDIR)
+        self.hosts_file = os.path.join(self.tmpdir, HOSTS_FILENAME)
 
-        with os.fdopen(fd, 'w') as fh:
+        with open(self.hosts_file, 'w') as fh:
             for hostname, host in self.host_by_name.items():
                 host.create_hosts_file_entries(fh)
 
     def config(self):
-        fd, self.commsock_file = tempfile.mkstemp(suffix='.sock', dir=TMPDIR)
-        os.close(fd)
-        subprocess.run(['rm', self.commsock_file])
+        self.commsock_file = os.path.join(self.tmpdir, COMM_SOCK_FILENAME)
         self.commsock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
         self.commsock.bind(self.commsock_file)
 
         self.create_hosts_file()
         for hostname, host in self.host_by_name.items():
-            host.create_config()
-            host.create_hosts_file(self.hosts_file)
+            config_file = os.path.join(self.tmpdir, f'{hostname}.cfg')
+            hosts_file = os.path.join(self.tmpdir, f'{hostname}-{HOSTS_FILENAME}')
+            host.create_config(config_file)
+            host.create_hosts_file(self.hosts_file, hosts_file)
 
     def signal_hosts(self, signal):
         for hostname, host in self.host_by_name.items():
@@ -573,7 +575,8 @@ class VirtualNetwork(object):
 
     def start(self, wireshark_host=None):
         for hostname, host in self.host_by_name.items():
-            host.start(self.commsock_file)
+            pid_file = os.path.join(self.tmpdir, f'{hostname}.pid')
+            host.start(self.commsock_file, pid_file)
 
         self.apply_links()
         self.signal_hosts('HUP')
@@ -741,6 +744,12 @@ def main():
 
     check_requirements(args)
 
+    try:
+        tmpdir = tempfile.TemporaryDirectory(dir=TMPDIR)
+    except PermissionError:
+        sys.stderr.write(f'Unable to create working directory.  Check permissions of {TMPDIR}.\n')
+        sys.exit(1)
+
     if args.native_apps == 'all':
         native_apps = True
     elif args.native_apps == 'none':
@@ -755,7 +764,7 @@ def main():
     else:
         terminal = None
 
-    net = VirtualNetwork.from_file(args.config_file, native_apps, terminal)
+    net = VirtualNetwork.from_file(args.config_file, native_apps, terminal, tmpdir.name)
 
     if args.wireshark is not None and \
             args.wireshark not in net.host_by_name:
