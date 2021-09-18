@@ -213,8 +213,9 @@ class Host(object):
             except subprocess.CalledProcessError:
                 break
 
-        cmd = ['sudo', 'rm', f'/run/netns/{self.hostname}']
-        subprocess.run(cmd)
+        if os.path.exists(f'/run/netns/{self.hostname}'):
+            cmd = ['sudo', 'rm', f'/run/netns/{self.hostname}']
+            subprocess.run(cmd)
 
         if self.type == 'switch' and self.native_apps:
             cmd = ['sudo', 'ovs-vsctl', 'del-br', self.hostname]
