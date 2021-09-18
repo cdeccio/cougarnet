@@ -20,7 +20,7 @@ MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
 #TERM="xfce4-terminal"
 TERM="lxterminal"
 HOSTPREP_MODULE="cougarnet.hostprep"
-TMPDIR="./tmp"
+TMPDIR=os.path.join(os.environ.get('HOME', '.'), 'cougarnet-tmp')
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 
