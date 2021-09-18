@@ -248,7 +248,7 @@ class Host(object):
             remove_if_exists(self.pidfile, as_root=True)
 
         if self.config_file is not None:
-            remove_if_exists(self.pidfile)
+            remove_if_exists(self.config_file)
 
         if self.hosts_file is not None:
             remove_if_exists(self.hosts_file, as_root=True)
