@@ -60,8 +60,7 @@ Of course, this assumes that you already have `sudo` installed and that your use
 allowed to call it.
 
 Additionally, `sudo` should be configured such that your user can call it without requiring a
-password (i.e., with the `NOPASSWD` option)--at least for the `cougarnet` script, which will
-be installed next.
+password (i.e., with the `NOPASSWD` option).
 
 To install Cougarnet, run the following:
 
