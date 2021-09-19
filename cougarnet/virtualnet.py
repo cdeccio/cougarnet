@@ -6,6 +6,7 @@ import io
 import ipaddress
 import json
 import os
+import psutil
 import re
 import signal
 import socket
@@ -720,6 +721,27 @@ def check_requirements(args):
         sys.stderr.write(f'Open vSwitch is required: {str(e)}\n')
         sys.exit(1)
 
+
+class AlreadyRunningError(Exception):
+    pass
+
+def check_if_running(proc_name):
+    '''Allows 1 because  
+    Checks if more than one instance is running
+    '''
+    first_inst = False
+    for proc in psutil.process_iter():
+        try:
+            if proc_name.lower() in proc.name().lower():
+                if not first_inst:
+                    first_inst = True
+                else:
+                    raise AlreadyRunningError("Cougarnet is already running.")
+        except psutil.NoSuchProcess:
+            pass
+
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--wireshark', '-w',
@@ -779,6 +801,7 @@ def main():
         net.display_to_file(args.display_file)
 
     try:
+        check_if_running('cougarnet')
         net.config()
         net.start(args.wireshark)
         sys.stdout.write('Ctrl-c to quit\n')
