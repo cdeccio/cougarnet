@@ -736,7 +736,8 @@ def check_if_running(proc_name):
                 if not first_inst:
                     first_inst = True
                 else:
-                    raise AlreadyRunningError("Cougarnet is already running.")
+                    print("Cougarnet already running. Please cleanup the other instance before starting a new one.")
+                    raise AlreadyRunningError
         except psutil.NoSuchProcess:
             pass
 
