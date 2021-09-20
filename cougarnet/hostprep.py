@@ -12,9 +12,7 @@ import subprocess
 import sys
 import tempfile
 
-def _apply_config(fh):
-    info = json.loads(fh.read())
-
+def _apply_config(info):
     if info.get('hostname', None) is not None:
         cmd = ['hostname', info['hostname']]
         subprocess.run(cmd, check=True)
@@ -104,10 +102,6 @@ def main():
     parser.add_argument('--hosts-file', '-f',
             action='store', type=str, default=None,
             help='Specify the hosts file')
-    parser.add_argument('--comm-sock', '-s',
-            action='store', type=str, default=None,
-            help='Path to UNIX socket with which we communicate with the' + \
-                    'coordinating process')
     parser.add_argument('--prog', '-p',
             action='store', type=str, default=None,
             help='Path to program that should be executed at start')
@@ -117,27 +111,46 @@ def main():
     parser.add_argument('--user', '-u',
             type=str, action='store', default=None,
             help='Change effective user')
-    parser.add_argument('pid_file',
-            type=argparse.FileType('w'), action='store',
-            help='File to which the PID should be written')
     parser.add_argument('config_file',
             type=argparse.FileType('r'), action='store',
             help='File containing the network configuration for host')
+    parser.add_argument('comm_sock',
+            action='store', type=str, default=None,
+            help='Path to UNIX socket with which we communicate with the' + \
+                    'coordinating process')
+    parser.add_argument('my_sock',
+            action='store', type=str, default=None,
+            help='Path to UNIX socket with which with coordinating process' + \
+                    'communicattes with us')
 
     signal.signal(signal.SIGHUP, sighup_handler)
 
     try:
         args = parser.parse_args(sys.argv[1:])
-        args.pid_file.write(f'{os.getpid()}')
-        args.pid_file.close()
 
-        # wait for SIGHUP to let us know that the interfaces have been added
-        signal.pause()
+        os.environ['COUGARNET_MY_SOCK'] = args.my_sock
+        os.environ['COUGARNET_COMM_SOCK'] = args.comm_sock
 
-        if args.comm_sock:
-            os.environ['COUGARNET_COMM_SOCK'] = args.comm_sock
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
+        sock.bind(os.environ['COUGARNET_MY_SOCK'])
 
-        _apply_config(args.config_file)
+        # make the socket file readable by everyone, so the other process can
+        # communicate back to us
+        cmd = ['chmod', '777', os.environ['COUGARNET_MY_SOCK']]
+        subprocess.run(cmd, check=True)
+
+        # Tell the coordinating process that the the process has started--and
+        # thus that the namespaces have been created
+        sock.connect(os.environ['COUGARNET_COMM_SOCK'])
+        pid = os.getpid()
+        sock.send(f'{pid}'.encode('utf-8'))
+
+        # wait for UDP datagram from coordinating process to let us know that
+        # interfaces have been added and configured
+        sock.recv(1)
+
+        config = json.loads(args.config_file.read())
+        _apply_config(config)
 
         if args.mount_sys:
             cmd = ['mount', '-t', 'sysfs', '/sys', '/sys']
@@ -150,15 +163,22 @@ def main():
         if args.user is not None:
             uid, groups = user_group_info(args.user)
 
-        cmd = ['rm', args.pid_file.name]
-        subprocess.run(cmd, check=True)
+        #TODO close all file descriptors
+
+        # tell the coordinating process that everything is ready to go
+        sock.send(b'\x00')
+
+        # wait for return packet indicating that we can start
+        sock.recv(1)
+
+        # close socket and remove the associated file
+        sock.close()
+        cmd = ['rm', os.environ['COUGARNET_MY_SOCK']]
+        subprocess.run(cmd)
 
         if args.user is not None:
             os.setgroups(groups)
             os.setuid(uid)
-
-        # wait for SIGHUP to synchronize
-        signal.pause()
 
         if args.prog is not None:
             prog_args = args.prog.split('|')
