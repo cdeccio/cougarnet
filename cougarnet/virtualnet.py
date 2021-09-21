@@ -745,6 +745,9 @@ def check_requirements(args):
         sys.stderr.write(f'Open vSwitch is required: {str(e)}\n')
         sys.exit(1)
 
+def warn_on_sigttin(sig, frame):
+    sys.stderr.write('Warning: SIGTTIN received\n')
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--wireshark', '-w',
@@ -769,6 +772,8 @@ def main():
     args = parser.parse_args(sys.argv[1:])
 
     check_requirements(args)
+
+    signal.signal(21, warn_on_sigttin)
 
     try:
         tmpdir = tempfile.TemporaryDirectory(dir=TMPDIR)
