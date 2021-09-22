@@ -167,8 +167,6 @@ def main():
         if args.user is not None:
             uid, groups = user_group_info(args.user)
 
-        #TODO close all file descriptors
-
         # tell the coordinating process that everything is ready to go
         sock.send(b'\x00')
 
@@ -177,8 +175,7 @@ def main():
 
         # close socket and remove the associated file
         sock.close()
-        cmd = ['rm', os.environ['COUGARNET_MY_SOCK']]
-        subprocess.run(cmd)
+        os.unlink(os.environ['COUGARNET_MY_SOCK'])
 
         if args.user is not None:
             os.setgroups(groups)

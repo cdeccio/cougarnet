@@ -210,8 +210,7 @@ class Host(object):
                     subprocess.run(cmd)
 
         if self.config_file is not None and os.path.exists(self.config_file):
-            cmd = ['rm', self.config_file]
-            subprocess.run(cmd)
+            os.unlink(self.config_file)
 
         if self.hosts_file is not None and os.path.exists(self.hosts_file):
             cmd = ['sudo', 'rm', self.hosts_file]
@@ -616,12 +615,10 @@ class VirtualNetwork(object):
         for hostname, host in self.host_by_name.items():
             host.cleanup()
 
-        cmd = ['rm', self.hosts_file]
-        subprocess.run(cmd)
+        os.unlink(self.hosts_file)
 
         self.commsock.close()
-        cmd = ['rm', self.commsock_file]
-        subprocess.run(cmd)
+        os.unlink(self.commsock_file)
 
     def label_for_link(self, host1, int1, host2, int2):
         s = '<<TABLE BORDER="0">' + host1.label_for_int(int1) + \
