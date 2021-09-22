@@ -186,7 +186,10 @@ def main():
             print(' '.join(prog_args))
             os.execvp(prog_args[0], prog_args)
         else:
-            os.execvp(os.environ.get('SHELL'), [os.environ.get('SHELL'), '-i'])
+            cmd = [os.environ.get('SHELL')]
+            if sys.stdin.isatty():
+                cmd.append('-i')
+            os.execvp(cmd[0], cmd)
 
     except:
         import traceback
