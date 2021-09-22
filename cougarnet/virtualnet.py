@@ -581,8 +581,7 @@ class VirtualNetwork(object):
             hostname = sock_file_to_hostname[sock_file]
             host = self.host_by_name[hostname]
             cmd = ['ps', '-p', str(host.pid)]
-            p = subprocess.run(cmd)
-            #p = subprocess.run(cmd, stdout=subprocess.DEVNULL)
+            p = subprocess.run(cmd, stdout=subprocess.DEVNULL)
             if p.returncode != 0:
                 raise HostNotStarted(f'{hostname} did not start properly.')
             else:
