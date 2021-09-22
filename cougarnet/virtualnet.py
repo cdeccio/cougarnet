@@ -671,6 +671,8 @@ class VirtualNetwork(object):
         if host.type == 'switch' and host.native_apps:
             cmd = ['sudo', 'wireshark']
         else:
+            sys.stderr.write('Sorry, at the moment wireshark can only be run on switches using "native app".\n')
+            return
             cmd = ['sudo', '-E', 'ip', 'netns', 'exec', host.hostname, 'wireshark']
         subprocess.Popen(cmd)
 
