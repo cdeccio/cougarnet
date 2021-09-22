@@ -154,6 +154,7 @@ def main():
         sock.recv(1)
 
         config = json.loads(args.config_file.read())
+        args.config_file.close()
         _apply_config(config)
 
         if args.mount_sys:
