@@ -30,6 +30,10 @@ def _apply_config(info):
         cmd = ['ip6tables', '-t', 'filter', '-I', 'INPUT', '-j', 'DROP']
         subprocess.run(cmd, check=True)
 
+    if info.get('ip_forwarding', False):
+        cmd = ['sysctl', 'net.ipv4.ip_forward=1']
+        subprocess.run(cmd, check=True)
+
     # bring lo up
     cmd = ['ip', 'link', 'set', 'lo', 'up']
     subprocess.run(cmd, check=True)

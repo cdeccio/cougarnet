@@ -79,6 +79,7 @@ class Host(object):
                 'native_apps': self.native_apps,
                 'type': self.type
                 }
+        host_info['ip_forwarding'] = self.type == 'router' and self.native_apps
         int_infos = {}
         for intf in self.int_to_neighbor:
             int_infos[intf] = self._int_config(intf)
