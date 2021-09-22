@@ -20,7 +20,9 @@ MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
 #TERM="xfce4-terminal"
 TERM="lxterminal"
 HOSTPREP_MODULE="cougarnet.hostprep"
-TMPDIR="./tmp"
+TMPDIR=os.path.join(os.environ.get('HOME', '.'), 'cougarnet-tmp')
+COMM_SOCK_FILENAME='comm.sock'
+HOSTS_FILENAME='hosts'
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 
@@ -43,11 +45,11 @@ class InconsistentConfiguration(Exception):
     pass
 
 class Host(object):
-    def __init__(self, hostname, gw4=None, gw6=None, type='host', \
+    def __init__(self, hostname, sock_file, gw4=None, gw6=None, type='host', \
             native_apps=True, terminal=True, prog=None):
         self.hostname = hostname
+        self.sock_file = sock_file
         self.pid = None
-        self.pidfile = None
         self.config_file = None
         self.next_int_num = 0
         self.int_to_neighbor = {}
@@ -89,6 +91,7 @@ class Host(object):
                 'native_apps': self.native_apps,
                 'type': self.type
                 }
+        host_info['ip_forwarding'] = self.type == 'router' and self.native_apps
         int_infos = {}
         for intf in self.int_to_neighbor:
             int_infos[intf] = self._int_config(intf)
@@ -108,23 +111,18 @@ class Host(object):
                 'trunk': self.int_to_trunk[intf]
                 }
 
-    def create_config(self):
+    def create_config(self, config_file):
 
         host_config = self._host_config()
 
-        cmd = ['mkdir', '-p', TMPDIR]
-        subprocess.run(cmd)
-        fd, self.config_file = tempfile.mkstemp(suffix='.cfg',
-                prefix=f'{self.hostname}-', dir=TMPDIR)
-        with os.fdopen(fd, 'w') as fh:
+        self.config_file = config_file
+        with open(self.config_file, 'w') as fh:
             fh.write(json.dumps(host_config))
 
-    def create_hosts_file(self, other_hosts):
-        cmd = ['mkdir', '-p', TMPDIR]
-        subprocess.run(cmd)
-        fd, self.hosts_file = tempfile.mkstemp(prefix=f'hosts-{self.hostname}-', dir=TMPDIR)
+    def create_hosts_file(self, other_hosts, hosts_file):
+        self.hosts_file = hosts_file
 
-        with os.fdopen(fd, 'w') as write_fh:
+        with open(self.hosts_file, 'w') as write_fh:
             write_fh.write(f'127.0.0.1 localhost {self.hostname}\n')
             with open(other_hosts, 'r') as read_fh:
                 write_fh.write(read_fh.read())
@@ -142,35 +140,26 @@ class Host(object):
                     addr = addr[:slash]
                 fh.write(f'{addr} {self.hostname}\n')
 
-    def start(self, comm_sock):
+    def start(self, commsock_file):
         assert self.config_file is not None, \
                 "create_config() must be called before start()"
 
-        cmd = ['sudo', 'mkdir', '-p', '/run/netns']
-        subprocess.run(cmd, check=True)
-
         cmd = ['sudo', 'touch', f'/run/netns/{self.hostname}']
         subprocess.run(cmd)
-
-        cmd = ['mkdir', '-p', TMPDIR]
-        subprocess.run(cmd)
-        fd, self.pidfile = tempfile.mkstemp(suffix='.pid',
-                prefix=f'{self.hostname}-', dir=TMPDIR)
-        os.close(fd)
 
         cmd = ['sudo', '-E', 'unshare', '--mount']
         if not (self.type == 'switch' and self.native_apps):
             cmd += [f'--net=/run/netns/{self.hostname}']
         cmd += ['--uts', sys.executable, '-m', f'{HOSTPREP_MODULE}',
-                    '--comm-sock', comm_sock, '--hosts-file',
-                    self.hosts_file, '--user', os.environ.get("USER")]
+                    '--hosts-file', self.hosts_file,
+                    '--user', os.environ.get("USER")]
 
         if self.prog is not None:
             cmd += ['--prog', self.prog]
         if not (self.type == 'switch' and self.native_apps):
             cmd += ['--mount-sys']
 
-        cmd += [self.pidfile, self.config_file]
+        cmd += [self.config_file, commsock_file, self.sock_file]
 
         if self.terminal:
             cmd_quoted = []
@@ -188,20 +177,6 @@ class Host(object):
 
         p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-        t = time.time()
-        while True:
-            with open(self.pidfile, 'r') as fh:
-                try:
-                    self.pid = int(fh.read())
-                    break
-                except ValueError:
-                    pass
-
-                if time.time() - t > 3:
-                    remove_if_exists(self.pidfile)
-                    raise HostNotStarted(f'{self.hostname} did not start properly.')
-                time.sleep(0.1)
 
     def add_int(self, intf, host):
         self.int_to_neighbor[intf] = host
@@ -232,7 +207,9 @@ class Host(object):
             except subprocess.CalledProcessError:
                 break
 
-        remove_if_exists(f'/run/netns/{self.hostname}', as_root=True)
+        if os.path.exists(f'/run/netns/{self.hostname}'):
+            cmd = ['sudo', 'rm', f'/run/netns/{self.hostname}']
+            subprocess.run(cmd)
 
         if self.type == 'switch' and self.native_apps:
             cmd = ['sudo', 'ovs-vsctl', 'del-br', self.hostname]
@@ -244,11 +221,8 @@ class Host(object):
                     cmd = ['sudo', 'ip', 'link', 'del', intf]
                     subprocess.run(cmd)
 
-        if self.pidfile is not None:
-            remove_if_exists(self.pidfile, as_root=True)
-
-        if self.config_file is not None:
-            remove_if_exists(self.config_file)
+        if self.config_file is not None and os.path.exists(self.config_file):
+            os.unlink(self.config_file)
 
         if self.hosts_file is not None:
             remove_if_exists(self.hosts_file, as_root=True)
@@ -268,11 +242,12 @@ class Host(object):
         return s
 
 class VirtualNetwork(object):
-    def __init__(self, native_apps, terminal):
+    def __init__(self, native_apps, terminal, tmpdir):
         self.host_by_name = {}
         self.hosts_file = None
         self.native_apps = native_apps
         self.terminal = terminal
+        self.tmpdir = tmpdir
 
     def import_int(self, hostname_addr):
         parts = hostname_addr.split(',')
@@ -318,7 +293,7 @@ class VirtualNetwork(object):
                 addrs4.append(addr)
 
         if hostname not in self.host_by_name:
-            self.host_by_name[hostname] = Host(hostname)
+            raise ValueError(f'Host not defined: {hostname}')
         host = self.host_by_name[hostname]
         return host, mac, addrs4, addrs6, subnet4, subnet6
 
@@ -365,8 +340,8 @@ class VirtualNetwork(object):
         host2.int_to_ip6[host2.neighbor_to_int[host1]] = addrs62
 
     @classmethod
-    def from_file(cls, fh, native_apps, terminal):
-        net = cls(native_apps, terminal)
+    def from_file(cls, fh, native_apps, terminal, tmpdir):
+        net = cls(native_apps, terminal, tmpdir)
         mode = None
         for line in fh:
             line = line.strip()
@@ -397,6 +372,7 @@ class VirtualNetwork(object):
             raise ValueError(f'Invalid node format.')
 
         hostname = parts[0]
+        sock_file = os.path.join(self.tmpdir, f'{hostname}.sock')
         if len(parts) > 1:
             s = io.StringIO(parts[1])
             csv_reader = csv.reader(s)
@@ -410,7 +386,7 @@ class VirtualNetwork(object):
         if self.terminal is not None:
             attrs['terminal'] = str(self.terminal)
 
-        self.host_by_name[hostname] = Host(hostname, **attrs)
+        self.host_by_name[hostname] = Host(hostname, sock_file, **attrs)
 
     def add_link(self, host1, host2, bw=None, delay=None, loss=None,
             mtu=None, vlan=None, trunk=None):
@@ -548,67 +524,111 @@ class VirtualNetwork(object):
 
 
     def create_hosts_file(self):
-        cmd = ['mkdir', '-p', TMPDIR]
-        subprocess.run(cmd)
-        fd, self.hosts_file = tempfile.mkstemp(prefix=f'hosts-', dir=TMPDIR)
+        self.hosts_file = os.path.join(self.tmpdir, HOSTS_FILENAME)
 
-        with os.fdopen(fd, 'w') as fh:
+        with open(self.hosts_file, 'w') as fh:
             for hostname, host in self.host_by_name.items():
                 host.create_hosts_file_entries(fh)
 
     def config(self):
-        cmd = ['mkdir', '-p', TMPDIR]
-        subprocess.run(cmd)
-        fd, self.commsock_file = tempfile.mkstemp(suffix='.sock', dir=TMPDIR)
-        os.close(fd)
-        remove_if_exists(self.commsock_file)
+        self.commsock_file = os.path.join(self.tmpdir, COMM_SOCK_FILENAME)
         self.commsock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
         self.commsock.bind(self.commsock_file)
 
         self.create_hosts_file()
         for hostname, host in self.host_by_name.items():
-            host.create_config()
-            host.create_hosts_file(self.hosts_file)
+            config_file = os.path.join(self.tmpdir, f'{hostname}.cfg')
+            hosts_file = os.path.join(self.tmpdir, f'{hostname}-{HOSTS_FILENAME}')
+            host.create_config(config_file)
+            host.create_hosts_file(self.hosts_file, hosts_file)
 
     def signal_hosts(self, signal):
         for hostname, host in self.host_by_name.items():
             host.signal(signal)
 
-    def wait_for_startup(self):
-        while True:
-            none_exists = True
-            for hostname, host in self.host_by_name.items():
-                if os.path.exists(host.pidfile):
-                    pid = open(host.pidfile, 'r').read()
-                    cmd = ['ps', '-p', pid]
-                    p = subprocess.run(cmd, stdout=subprocess.DEVNULL)
-                    if p.returncode != 0:
-                        remove_if_exists(host.pidfile)
-                        raise HostNotStarted(f'{hostname} did not start properly.')
-                    none_exists = False
-            if none_exists:
-                break
-            time.sleep(0.1)
+    def wait_for_phase1_startup(self, host):
+        # set to non-bocking with timeout 3
+        self.commsock.settimeout(3)
+        try:
+            data, peer = self.commsock.recvfrom(16)
+            if peer != host.sock_file:
+                raise Exception('Received packet from someone else!')
+            host.pid = int(data.decode('utf-8'))
+        except socket.timeout:
+            raise HostNotStarted(f'{host.hostname} did not start properly.')
+        finally:
+            # revert to non-blocking
+            self.commsock.settimeout(None)
+
+    def wait_for_phase2_startup(self):
+        # set to non-bocking with timeout 3
+        self.commsock.settimeout(3)
+        try:
+            sock_files = set([host.sock_file \
+                    for hostname, host in self.host_by_name.items()])
+            start_time = time.time()
+            end_time = start_time + 3
+            while sock_files and time.time() < end_time:
+                data, peer = self.commsock.recvfrom(1)
+                if peer in sock_files:
+                    sock_files.remove(peer)
+        except socket.timeout:
+            pass
+        finally:
+            # revert to blocking
+            self.commsock.settimeout(None)
+
+        if not sock_files:
+            # we're done!
+            return
+
+        # if there were some sock_files left over, map the file to its host,
+        # and raise an error
+        sock_file_to_hostname = {}
+        for hostname, host in self.host_by_name.items():
+            sock_file_to_hostname[host.sock_file] = hostname
+
+        for sock_file in sock_files:
+            hostname = sock_file_to_hostname[sock_file]
+            host = self.host_by_name[hostname]
+            cmd = ['ps', '-p', str(host.pid)]
+            p = subprocess.run(cmd, stdout=subprocess.DEVNULL)
+            if p.returncode != 0:
+                raise HostNotStarted(f'{hostname} did not start properly.')
+            else:
+                raise HostNotStarted(f'{hostname} is taking too long.')
 
     def start(self, wireshark_host=None):
+        # start the hosts and wait for each to write its PID to the
         for hostname, host in self.host_by_name.items():
             host.start(self.commsock_file)
+            self.wait_for_phase1_startup(host)
 
+        # we have to wait to apply the links until the namespace is created
+        # i.e., process has to start, as evidenced by pid file
         self.apply_links()
-        self.signal_hosts('HUP')
-        self.wait_for_startup()
+
+        # let hosts know that virtual interfaces have been
+        # created, so they can proceed with network configuration
+        for hostname, host in self.host_by_name.items():
+            self.commsock.sendto(b'\x00', host.sock_file)
+
+        self.wait_for_phase2_startup()
         if wireshark_host is not None:
             self.start_wireshark(self.host_by_name[wireshark_host])
-        self.signal_hosts('HUP')
+
+        # let hosts know that they can start now
+        for hostname, host in self.host_by_name.items():
+            self.commsock.sendto(b'\x00', host.sock_file)
 
     def cleanup(self):
         for hostname, host in self.host_by_name.items():
             host.cleanup()
 
-        remove_if_exists(self.hosts_file)
+        os.unlink(self.hosts_file)
 
         self.commsock.close()
-        remove_if_exists(self.commsock_file)
+        os.unlink(self.commsock_file)
 
     def label_for_link(self, host1, int1, host2, int2):
         s = '<<TABLE BORDER="0">' + host1.label_for_int(int1) + \
@@ -661,6 +681,8 @@ class VirtualNetwork(object):
         if host.type == 'switch' and host.native_apps:
             cmd = ['sudo', 'wireshark']
         else:
+            sys.stderr.write('Sorry, at the moment wireshark can only be run on switches using "native app".\n')
+            return
             cmd = ['sudo', '-E', 'ip', 'netns', 'exec', host.hostname, 'wireshark']
         subprocess.Popen(cmd)
 
@@ -678,6 +700,11 @@ class VirtualNetwork(object):
             print('%000.3f \033[1m%4s\033[0m  %s' % (ts, hostname, msg))
 
 def check_requirements(args):
+
+    if os.geteuid() == 0:
+        sys.stderr.write(f'Please run this program as a non-privileged user.\n')
+        sys.exit(1)
+
     try:
         subprocess.run(['sudo', '-k'], check=True)
         subprocess.run(['sudo', '-n', '-v'], check=True)
@@ -685,6 +712,12 @@ def check_requirements(args):
         sys.stderr.write(f'Please run visudo to allow your user to run ' + \
                 'sudo without a password, using the NOPASSWD option.\n')
         sys.exit(1)
+
+    # make sure working directories exist
+    cmd = ['sudo', 'mkdir', '-p', '/run/netns']
+    subprocess.run(cmd, check=True)
+    cmd = ['mkdir', '-p', TMPDIR]
+    subprocess.run(cmd, check=True)
 
     if args.display or args.display_file:
         try:
@@ -722,6 +755,9 @@ def check_requirements(args):
         sys.stderr.write(f'Open vSwitch is required: {str(e)}\n')
         sys.exit(1)
 
+def warn_on_sigttin(sig, frame):
+    sys.stderr.write('Warning: SIGTTIN received\n')
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--wireshark', '-w',
@@ -733,10 +769,10 @@ def main():
             help='Display the network configuration as text')
     parser.add_argument('--terminal',
             action='store', type=str, choices=('all', 'none'), default=None,
-            help='Specify that all virtual hosts should launch (all) or not launch (none) a terminal.') 
+            help='Specify that all virtual hosts should launch (all) or not launch (none) a terminal.')
     parser.add_argument('--native-apps',
             action='store', type=str, choices=('all', 'none'), default=None,
-            help='Specify that all virtual hosts should enable (all) or disable (none) native apps.') 
+            help='Specify that all virtual hosts should enable (all) or disable (none) native apps.')
     parser.add_argument('--display-file',
             type=argparse.FileType('wb'), action='store',
             help='Print the network configuration to a file (.png)')
@@ -746,6 +782,14 @@ def main():
     args = parser.parse_args(sys.argv[1:])
 
     check_requirements(args)
+
+    signal.signal(21, warn_on_sigttin)
+
+    try:
+        tmpdir = tempfile.TemporaryDirectory(dir=TMPDIR)
+    except PermissionError:
+        sys.stderr.write(f'Unable to create working directory.  Check permissions of {TMPDIR}.\n')
+        sys.exit(1)
 
     if args.native_apps == 'all':
         native_apps = True
@@ -761,7 +805,7 @@ def main():
     else:
         terminal = None
 
-    net = VirtualNetwork.from_file(args.config_file, native_apps, terminal)
+    net = VirtualNetwork.from_file(args.config_file, native_apps, terminal, tmpdir.name)
 
     if args.wireshark is not None and \
             args.wireshark not in net.host_by_name:
