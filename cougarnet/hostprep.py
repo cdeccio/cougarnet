@@ -98,6 +98,15 @@ def user_group_info(user):
 
     return uid, groups
 
+def close_file_descriptors(exceptions):
+    fds = [int(fd) for fd in os.listdir(f'/proc/{os.getpid()}/fd')]
+    for fd in fds:
+        if fd not in exceptions:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+
 def sighup_handler(signum, frame):
     pass
 
@@ -181,6 +190,10 @@ def main():
         if args.user is not None:
             os.setgroups(groups)
             os.setuid(uid)
+
+        # close all file descriptors, except stdin, stdout, stderr, and
+        # sock.fileno()
+        close_file_descriptors([0, 1, 2])
 
         if args.prog is not None:
             prog_args = args.prog.split('|')
