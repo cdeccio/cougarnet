@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 
+import cougarnet.util
+
 import argparse
 import grp
 import io
@@ -11,6 +13,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+
 
 def _apply_config(info):
     if info.get('hostname', None) is not None:
@@ -185,7 +188,7 @@ def main():
 
         # close socket and remove the associated file
         sock.close()
-        os.unlink(os.environ['COUGARNET_MY_SOCK'])
+        cougarnet.util.remove_if_exists(os.environ['COUGARNET_MY_SOCK'])
 
         if args.user is not None:
             os.setgroups(groups)
