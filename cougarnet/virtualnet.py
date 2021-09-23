@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import cougarnet.util
+from . import util
 
 import argparse
 import csv
@@ -198,7 +198,7 @@ class Host(object):
             except subprocess.CalledProcessError:
                 break
 
-        cougarnet.util.remove_if_exists(f'/run/netns/{self.hostname}', allow_root=True)
+        util.remove_if_exists(f'/run/netns/{self.hostname}', allow_root=True)
 
         if self.type == 'switch' and self.native_apps:
             cmd = ['sudo', 'ovs-vsctl', 'del-br', self.hostname]
@@ -211,10 +211,10 @@ class Host(object):
                     subprocess.run(cmd)
 
         if self.config_file is not None and os.path.exists(self.config_file):
-            cougarnet.util.remove_if_exists(self.config_file)
+            util.remove_if_exists(self.config_file)
 
         if self.hosts_file is not None:
-            cougarnet.util.remove_if_exists(self.hosts_file, as_root=True)
+            util.remove_if_exists(self.hosts_file, allow_root=True)
 
     def label_for_int(self, intf):
         s = f'<TR><TD COLSPAN="2" ALIGN="left"><B>{intf}:</B></TD></TR>'
@@ -614,10 +614,10 @@ class VirtualNetwork(object):
         for hostname, host in self.host_by_name.items():
             host.cleanup()
 
-        cougarnet.util.remove_if_exists(self.hosts_file)
+        util.remove_if_exists(self.hosts_file)
 
         self.commsock.close()
-        cougarnet.util.remove_if_exists(self.commsock_file)
+        util.remove_if_exists(self.commsock_file)
 
     def label_for_link(self, host1, int1, host2, int2):
         s = '<<TABLE BORDER="0">' + host1.label_for_int(int1) + \

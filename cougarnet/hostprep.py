@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import cougarnet.util
+from . import util
 
 import argparse
 import grp
@@ -188,7 +188,7 @@ def main():
 
         # close socket and remove the associated file
         sock.close()
-        cougarnet.util.remove_if_exists(os.environ['COUGARNET_MY_SOCK'])
+        util.remove_if_exists(os.environ['COUGARNET_MY_SOCK'])
 
         if args.user is not None:
             os.setgroups(groups)
