@@ -34,7 +34,7 @@ class InconsistentConfiguration(Exception):
 
 class Host(object):
     def __init__(self, hostname, sock_file, gw4=None, gw6=None, type='host', \
-            native_apps=True, terminal=True, prog=None):
+            native_apps=True, terminal=True, prog=None, ipv6=True):
         self.hostname = hostname
         self.sock_file = sock_file
         self.pid = None
@@ -67,6 +67,10 @@ class Host(object):
             self.terminal = False
         else:
             self.terminal = True
+        if not ipv6 or str(ipv6).lower() in FALSE_STRINGS:
+            self.ipv6 = False
+        else:
+            self.ipv6 = True
 
     def __str__(self):
         return self.hostname
@@ -77,7 +81,8 @@ class Host(object):
                 'gw4': self.gw4,
                 'gw6': self.gw6,
                 'native_apps': self.native_apps,
-                'type': self.type
+                'type': self.type,
+                'ipv6': self.ipv6
                 }
         host_info['ip_forwarding'] = self.type == 'router' and self.native_apps
         int_infos = {}
@@ -231,12 +236,13 @@ class Host(object):
         return s
 
 class VirtualNetwork(object):
-    def __init__(self, native_apps, terminal, tmpdir):
+    def __init__(self, native_apps, terminal, tmpdir, ipv6):
         self.host_by_name = {}
         self.hosts_file = None
         self.native_apps = native_apps
         self.terminal = terminal
         self.tmpdir = tmpdir
+        self.ipv6 = ipv6
 
     def import_int(self, hostname_addr):
         parts = hostname_addr.split(',')
@@ -329,8 +335,8 @@ class VirtualNetwork(object):
         host2.int_to_ip6[host2.neighbor_to_int[host1]] = addrs62
 
     @classmethod
-    def from_file(cls, fh, native_apps, terminal, tmpdir):
-        net = cls(native_apps, terminal, tmpdir)
+    def from_file(cls, fh, native_apps, terminal, tmpdir, ipv6):
+        net = cls(native_apps, terminal, tmpdir, ipv6)
         mode = None
         for line in fh:
             line = line.strip()
@@ -374,6 +380,7 @@ class VirtualNetwork(object):
             attrs['native_apps'] = str(self.native_apps)
         if self.terminal is not None:
             attrs['terminal'] = str(self.terminal)
+        attrs['ipv6'] = str(self.ipv6)
 
         self.host_by_name[hostname] = Host(hostname, sock_file, **attrs)
 
@@ -759,6 +766,9 @@ def main():
     parser.add_argument('--terminal',
             action='store', type=str, choices=('all', 'none'), default=None,
             help='Specify that all virtual hosts should launch (all) or not launch (none) a terminal.')
+    parser.add_argument('--disable-ipv6',
+            action='store_const', const=True, default=False,
+            help='Disable IPv6')
     parser.add_argument('--native-apps',
             action='store', type=str, choices=('all', 'none'), default=None,
             help='Specify that all virtual hosts should enable (all) or disable (none) native apps.')
@@ -794,7 +804,10 @@ def main():
     else:
         terminal = None
 
-    net = VirtualNetwork.from_file(args.config_file, native_apps, terminal, tmpdir.name)
+    ipv6 = not args.disable_ipv6
+
+    net = VirtualNetwork.from_file(args.config_file, native_apps, \
+            terminal, tmpdir.name, ipv6)
 
     if args.wireshark is not None and \
             args.wireshark not in net.host_by_name:

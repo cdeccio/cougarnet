@@ -32,7 +32,7 @@ def _apply_config(info):
 
     if info.get('ip_forwarding', False):
         cmd = ['sysctl', 'net.ipv4.ip_forward=1']
-        subprocess.run(cmd, check=True)
+        subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
 
     # bring lo up
     cmd = ['ip', 'link', 'set', 'lo', 'up']
@@ -53,6 +53,10 @@ def _apply_config(info):
             # disable ARP
             cmd = ['ip', 'link', 'set', intf, 'arp', 'off']
             subprocess.run(cmd, check=True)
+
+        if not info.get('ipv6', True):
+            cmd = ['sysctl', f'net.ipv6.conf.{intf}.disable_ipv6=1']
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
 
         # disable router solicitations
         cmd = ['sysctl', f'net.ipv6.conf.{intf}.router_solicitations=0']
