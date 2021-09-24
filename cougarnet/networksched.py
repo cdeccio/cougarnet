@@ -1,4 +1,5 @@
 import bisect
+import ctypes
 import errno
 import fcntl
 import os
@@ -16,6 +17,26 @@ ETH_P_ALL = 0x0003
 ETH_P_IP = 0x0800
 ETH_P_IPV6 = 0x86DD
 ETH_P_ARP = 0x0806
+
+# From bits/socket.h
+SOL_PACKET = 263
+
+# From asm/socket.h
+SO_ATTACH_FILTER = 26
+ETH_P_8021Q = 0x8100
+PACKET_AUXDATA = 8
+TP_STATUS_VLAN_VALID = 1 << 4
+
+class tpacket_auxdata(ctypes.Structure):
+    _fields_ = [
+        ("tp_status", ctypes.c_uint),
+        ("tp_len", ctypes.c_uint),
+        ("tp_snaplen", ctypes.c_uint),
+        ("tp_mac", ctypes.c_ushort),
+        ("tp_net", ctypes.c_ushort),
+        ("tp_vlan_tci", ctypes.c_ushort),
+        ("tp_padding", ctypes.c_ushort),
+    ]
 
 class EndRun(Exception):
     pass
@@ -88,6 +109,7 @@ class NetworkEventLoop(object):
             # For receiving...
             sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_ALL))
             sock.bind((intf, 0))
+            sock.setsockopt(SOL_PACKET, PACKET_AUXDATA, 1)
 
             sock.setblocking(False)
             self.epoll.register(sock.fileno(), select.EPOLLIN)
@@ -111,6 +133,35 @@ class NetworkEventLoop(object):
             sock = self.fd_to_sock[fd]
             sock.recvfrom(4096)
 
+    def _recv_raw(self, sock, bufsize):
+        """Internal function to receive a Packet,
+        and process ancillary data.
+
+        From: https://github.com/secdev/scapy/pull/2091/files
+        """
+
+        flags_len = socket.CMSG_LEN(4096)
+        pkt, ancdata, flags, sa_ll = sock.recvmsg(bufsize, flags_len)
+
+        if not pkt:
+            return pkt, sa_ll
+
+        for cmsg_lvl, cmsg_type, cmsg_data in ancdata:
+            # Check available ancillary data
+            if (cmsg_lvl == SOL_PACKET and cmsg_type == PACKET_AUXDATA):
+                # Parse AUXDATA
+                auxdata = tpacket_auxdata.from_buffer_copy(cmsg_data)
+                if auxdata.tp_vlan_tci != 0 or \
+                        auxdata.tp_status & TP_STATUS_VLAN_VALID:
+                    # Insert VLAN tag
+                    tag = struct.pack(
+                        "!HH",
+                        ETH_P_8021Q,
+                        auxdata.tp_vlan_tci
+                    )
+                    pkt = pkt[:12] + tag + pkt[12:]
+        return pkt, sa_ll
+
     def _handle_epoll_events(self):
         try:
             events = self.epoll.poll()
@@ -123,7 +174,7 @@ class NetworkEventLoop(object):
                 continue
             intf = self.sock_to_int[fd]
             sock = self.fd_to_sock[fd]
-            frame, info = sock.recvfrom(4096)
+            frame, info = self._recv_raw(sock, 4096)
             (ifname, proto, pkttype, hatype, addr) = info
             if pkttype == socket.PACKET_OUTGOING:
                 continue
