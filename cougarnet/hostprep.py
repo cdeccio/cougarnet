@@ -38,6 +38,10 @@ def _apply_config(info):
     cmd = ['ip', 'link', 'set', 'lo', 'up']
     subprocess.run(cmd, check=True)
 
+    if not info.get('ipv6', True):
+        cmd = ['sysctl', f'net.ipv6.conf.lo.disable_ipv6=1']
+        subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
+
     for intf in info.get('interfaces', []):
         int_info = info['interfaces'][intf]
         if int_info.get('mac', None):
@@ -63,8 +67,11 @@ def _apply_config(info):
         subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
 
         # add each IP address
-        for addr in int_info.get('addrs4', []) + \
-                int_info.get('addrs6', []):
+        addrs = int_info.get('addrs4', [])[:]
+        if info.get('ipv6', True):
+            addrs += int_info.get('addrs6', [])
+
+        for addr in addrs:
             cmd = ['ip', 'addr', 'add', addr, 'dev', intf]
             subprocess.run(cmd, check=True)
 
