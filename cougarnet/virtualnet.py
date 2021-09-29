@@ -34,7 +34,7 @@ class InconsistentConfiguration(Exception):
 
 class Host(object):
     def __init__(self, hostname, sock_file, gw4=None, gw6=None, type='host', \
-            native_apps=True, terminal=True, prog=None, ipv6=True):
+            native_apps=True, terminal=True, prog=None, ipv6=True, routes=None):
         self.hostname = hostname
         self.sock_file = sock_file
         self.pid = None
@@ -42,6 +42,7 @@ class Host(object):
         self.next_int_num = 0
         self.int_to_neighbor = {}
         self.neighbor_to_int = {}
+        self.neighbor_by_hostname = {}
         self.int_to_mac = {}
         self.int_to_ip4 = {}
         self.int_to_ip6 = {}
@@ -58,6 +59,8 @@ class Host(object):
         self.has_bridge = False
         self.has_vlans = None
         self.hosts_file = None
+        self.routes_pre_processed = routes
+        self.routes = None
 
         if not native_apps or str(native_apps).lower() in FALSE_STRINGS:
             self.native_apps = False
@@ -75,11 +78,30 @@ class Host(object):
     def __str__(self):
         return self.hostname
 
+    def process_routes(self):
+        self.routes = []
+
+        if self.routes_pre_processed is None:
+            return
+
+        routes = self.routes_pre_processed.split(';')
+        for route in routes:
+            prefix, neighbor, next_hop = route.split('|')
+            if not next_hop:
+                next_hop = None
+            try:
+                intf = self.neighbor_to_int[self.neighbor_by_hostname[neighbor]]
+            except KeyError:
+                raise ValueError(f"The interface connected to {neighbor} " + \
+                        f"is designated as a next hop for one of " + \
+                        f"{self.hostname}'s routes, but {neighbor} " + \
+                        f"is not directly connected to {self.hostname}.")
+            self.routes.append((prefix, intf, next_hop))
+
     def _host_config(self):
         host_info = {
                 'hostname': self.hostname,
-                'gw4': self.gw4,
-                'gw6': self.gw6,
+                'routes': self.routes,
                 'native_apps': self.native_apps,
                 'type': self.type,
                 'ipv6': self.ipv6
@@ -176,6 +198,7 @@ class Host(object):
         if host in self.neighbor_to_int:
             raise ValueError('Only one link can exist between two hosts')
         self.neighbor_to_int[host] = intf
+        self.neighbor_by_hostname[host.hostname] = host
 
     def next_int(self):
         int_next = self.next_int_num
@@ -334,6 +357,10 @@ class VirtualNetwork(object):
         host1.int_to_ip6[host1.neighbor_to_int[host2]] = addrs61
         host2.int_to_ip6[host2.neighbor_to_int[host1]] = addrs62
 
+    def process_routes(self):
+        for hostname, host in self.host_by_name.items():
+            host.process_routes()
+
     @classmethod
     def from_file(cls, fh, native_apps, terminal, tmpdir, ipv6):
         net = cls(native_apps, terminal, tmpdir, ipv6)
@@ -358,6 +385,8 @@ class VirtualNetwork(object):
                 net.import_link(line)
             else:
                 pass
+
+        net.process_routes()
 
         return net
 
