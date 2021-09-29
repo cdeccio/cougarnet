@@ -440,11 +440,14 @@ environment variables currently defined are:
 
  - `COUGARNET_COMM_SOCK`:
    described [here](#communicating-with-the-calling-process)
+ - `COUGARNET_MY_SOCK`: not yet described
  - `COUGARNET_VLAN`:
    described [here](#vlan-attributes)
- - `COUGARNET_VLAN_H1_H2`, etc. (legacy):
+ - `COUGARNET_ROUTES`:
+   described [here](#routes)
+ - (legacy) `COUGARNET_VLAN_H1_H2`, etc.:
    described [here](#vlan-attributes) and [here](#interface-names)
- - `COUGARNET_TRUNK_H1`, etc. (legacy):
+ - (legacy) `COUGARNET_TRUNK_H1`, etc.:
    described [here](#vlan-attributes) and [here](#interface-names)
 
 They can be retrieved from a running process in the standard way.  For example,
