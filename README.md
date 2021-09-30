@@ -547,6 +547,18 @@ facilitate frame sending and receiving.  The key components are the following:
  - `int_to_sock` - a `dict` containing a mapping of
    [interface names](#interface-names) to raw sockets (i.e., for sending
    frames).
+ - `int_to_info` - a `dict` containing a mapping of
+   [interface names](#interface-names) to `InterfaceInfo` instances.  An
+   `InterfaceInfo` instance has the following attributes:
+   - `macaddr` - the MAC address for the interface.
+   - `ipv4addrs` - a list of IPv4 addresses with which the interface has been
+     configured.
+   - `ipv4prefix` - the length of the IPv4 prefix(es) on this interface.
+   - `ipv6addrs` - a list of IPv6 addresses with which the interface has been
+     configured.
+   - `ipv6lladdr` - the link-local IPv6 address with which the interface has
+     been configured.
+   - `ipv6prefix` - the length of the IPv6 prefix(es) on this interface.
  - `hostname` - a `str` whose value is the [hostname](#hostnames) of the virtual host.
  - `comm_sock` - a socket (`socket.socket`) that is connected to the
    [communications socket](#communicating-with-the-calling-process) on which
