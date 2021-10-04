@@ -857,6 +857,11 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        # sometimes ctrl-c gets sent twice, interrupting with SIGINT a second
+        # time, and cleanup does not happen.  So here we tell the code to
+        # ignore SIGINT, so cleanup can finish.  If you really want to kill it,
+        # then use SIGTERM or (gasp!) SIGKILL.
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
         net.cleanup()
 
 if __name__ == '__main__':
