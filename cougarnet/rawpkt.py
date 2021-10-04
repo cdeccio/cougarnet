@@ -65,7 +65,7 @@ class BaseFrameHandler:
             if m is not None:
                 # IPv4 address
                 ipv4addrs.append(m.group(1))
-                ipv4prefix = m.group(3)
+                ipv4prefix = int(m.group(3))
                 continue
 
             m = IP_ADDR_IPV6_RE.match(line)
@@ -74,7 +74,7 @@ class BaseFrameHandler:
                 if m.group(3) == 'global':
                     # IPv6 global address
                     ipv6addrs.append(m.group(1))
-                    ipv6prefix = m.group(2)
+                    ipv6prefix = int(m.group(2))
                 elif m.group(3) == 'link':
                     # IPv6 link-local address
                     ipv6lladdr = m.group(1)
@@ -82,7 +82,7 @@ class BaseFrameHandler:
 
             m = IP_ADDR_MTU_RE.match(line)
             if m is not None:
-                mtu = m.group(1)
+                mtu = int(m.group(1))
 
         return InterfaceInfo(macaddr, ipv4addrs, ipv4prefix,
                         ipv6addrs, ipv6lladdr, ipv6prefix, mtu)
