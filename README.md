@@ -552,10 +552,13 @@ facilitate frame sending and receiving.  The key components are the following:
    `InterfaceInfo` instance has the following attributes:
    - `macaddr` - the MAC address for the interface.
    - `ipv4addrs` - a list of IPv4 addresses with which the interface has been
-     configured.
+     configured.  Please note that _typically_ an interface will just be configured
+     with a single IP address.  Thus, usually `ipv4addrs[0]` will work just fine.
    - `ipv4prefix` - the length of the IPv4 prefix(es) on this interface.
    - `ipv6addrs` - a list of IPv6 addresses with which the interface has been
-     configured.
+     configured.  Please note that just as with IPv4, an interface will typically
+     just be configured with a single IP address.  Thus, usually `ipv6addrs[0]`
+     will work just fine.
    - `ipv6lladdr` - the link-local IPv6 address with which the interface has
      been configured.
    - `ipv6prefix` - the length of the IPv6 prefix(es) on this interface.
