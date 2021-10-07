@@ -53,7 +53,7 @@ The following are dependencies for Cougarnet:
 To install these on a Debian system, run the following:
 
 ```
-$ sudo apt install openvswitch-switch lxterminal python3-pygraphviz libgraph-easy-perl wireshark socat
+$ make install-deps
 ```
 
 Of course, this assumes that you already have `sudo` installed and that your user is
@@ -65,8 +65,7 @@ password (i.e., with the `NOPASSWD` option).
 To install Cougarnet, run the following:
 
 ```bash
-$ python3 setup.py build
-$ sudo python3 setup.py install
+$ make && make install
 ```
 
 
