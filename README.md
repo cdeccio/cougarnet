@@ -88,8 +88,7 @@ This simple configuration results in a network composed of two nodes, named
 `h1` and `h2`.  There is a single link between them.  For the link between `h1`
 and `h2`, `h1`'s interface will have an IPv4 address of 10.0.0.1, and `h2` will
 have an IPv4 address of 10.0.0.2.  The `/24` indicates that the length of the
-IPv4 prefix associated with that link is 24 bit associated with that link is 24
-bits, i.e., 10.0.0.0/24.
+IPv4 prefix associated with that link is 24 bits, i.e., 10.0.0.0/24.
 
 Start Cougarnet with this configuration by running the following command:
 
@@ -406,7 +405,7 @@ default route for both IPv4 (`0.0.0.0/0`) and IPv6 (`::/0`).  The entries for
 the `COUGARNET_ROUTES` for `h1` will be the following:
 
 ```bash
-COUGARNET_VLAN=[["0.0.0.0/0", "h1-s1", "10.0.0.1"], ["10.0.2.0/24", "h1-s1", null], ["::/0", "h1-s1", "2001:db8::1"], ["2001:db8:f00d::/64", "h1-s1", null]]
+COUGARNET_ROUTES=[["0.0.0.0/0", "h1-s1", "10.0.0.1"], ["10.0.2.0/24", "h1-s1", null], ["::/0", "h1-s1", "2001:db8::1"], ["2001:db8:f00d::/64", "h1-s1", null]]
 ```
 
 These IP forwarding entries can be parsed using a JSON parser, such as with the
