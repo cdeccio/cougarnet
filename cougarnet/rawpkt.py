@@ -8,15 +8,16 @@ ETH_P_ALL = 0x0003
 
 IP_ADDR_MTU_RE = re.compile(r'^\d:\s+.*\smtu\s+(\d+)(\s|$)')
 IP_ADDR_MAC_RE = re.compile(r'^\s+link/ether\s+([0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5})(\s|$)')
-IP_ADDR_IPV4_RE = re.compile(r'^\s+inet\s+([0-9]{1,3}(\.[0-9]{1,3}){3})\/(\d{1,2})(\s|$)')
+IP_ADDR_IPV4_RE = re.compile(r'^\s+inet\s+([0-9]{1,3}(\.[0-9]{1,3}){3})\/(\d{1,2})\s+brd\s+([0-9]{1,3}(\.[0-9]{1,3}){3})(\s|$)')
 IP_ADDR_IPV6_RE = re.compile(r'^\s+inet6\s+([0-9a-f:]+)\/(\d{1,3})\s.*scope\s+(link|global)(\s|$)')
 
 class InterfaceInfo:
-    def __init__(self, macaddr, ipv4addrs, ipv4prefix, \
+    def __init__(self, macaddr, ipv4addrs, ipv4prefix, ipv4broadcast, \
             ipv6addrs, ipv6lladdr, ipv6prefix, mtu):
         self.macaddr = macaddr
         self.ipv4addrs = ipv4addrs
         self.ipv4prefix = ipv4prefix
+        self.ipv4broadcast = ipv4broadcast
         self.ipv6addrs = ipv6addrs
         self.ipv6lladdr = ipv6lladdr
         self.ipv6prefix = ipv6prefix
@@ -47,6 +48,7 @@ class BaseFrameHandler:
         macaddr = None
         mtu = None
         ipv4prefix = None
+        ipv4broadcast = None
         ipv4addrs = []
         ipv6prefix = None
         ipv6addrs = []
@@ -66,6 +68,7 @@ class BaseFrameHandler:
                 # IPv4 address
                 ipv4addrs.append(m.group(1))
                 ipv4prefix = int(m.group(3))
+                ipv4broadcast = m.group(4)
                 continue
 
             m = IP_ADDR_IPV6_RE.match(line)
@@ -84,7 +87,7 @@ class BaseFrameHandler:
             if m is not None:
                 mtu = int(m.group(1))
 
-        return InterfaceInfo(macaddr, ipv4addrs, ipv4prefix,
+        return InterfaceInfo(macaddr, ipv4addrs, ipv4prefix, ipv4broadcast,
                         ipv6addrs, ipv6lladdr, ipv6prefix, mtu)
 
     def _set_interface_info(self):
