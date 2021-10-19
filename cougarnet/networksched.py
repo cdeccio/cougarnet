@@ -80,6 +80,7 @@ class NetworkEventLoop(object):
         self._setup_receive_sockets()
         self._register_wake_pipe()
         self._ref_time = None
+        self._handlers = {}
 
     def _set_wakeup_fd(self, fd):
         def _send_sig(sig, stack_frame):
@@ -115,6 +116,12 @@ class NetworkEventLoop(object):
             self.epoll.register(sock.fileno(), select.EPOLLIN)
             self.sock_to_int[sock.fileno()] = intf
             self.fd_to_sock[sock.fileno()] = sock
+
+    def register_socket(self, sock, handler):
+        sock.setblocking(False)
+        self.epoll.register(sock.fileno(), select.EPOLLIN)
+        self._handlers[sock.fileno()] = handler
+        self.fd_to_sock[sock.fileno()] = sock
 
     def _handle_wake_event(self):
         while True:
@@ -170,10 +177,21 @@ class NetworkEventLoop(object):
             return
         for fd, event in events:
             if fd == self.wake_fh_read.fileno():
+                # this is the "wake" socket, which just breaks us out of
+                # epoll.poll(), so we can handle scheduled events
                 self._handle_wake_event()
                 continue
-            intf = self.sock_to_int[fd]
+
             sock = self.fd_to_sock[fd]
+
+            if fd in self._handlers:
+                # this is not the raw socket, but another socket that has been
+                # registered
+                self._handlers[fd](sock)
+                continue
+
+            # this is the raw socket
+            intf = self.sock_to_int[fd]
             frame, info = self._recv_raw(sock, 4096)
             (ifname, proto, pkttype, hatype, addr) = info
             if pkttype == socket.PACKET_OUTGOING:
