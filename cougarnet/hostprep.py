@@ -70,7 +70,7 @@ def _apply_config(info):
             addrs += int_info.get('addrs6', [])
 
         for addr in addrs:
-            cmd = ['ip', 'addr', 'add', addr, 'dev', intf]
+            cmd = ['ip', 'addr', 'add', addr, 'broadcast', '+', 'dev', intf]
             subprocess.run(cmd, check=True)
 
         cmd_suffix = []
