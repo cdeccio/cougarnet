@@ -20,11 +20,9 @@ def _apply_config(info):
         cmd = ['hostname', info['hostname']]
         subprocess.run(cmd, check=True)
 
-    if info.get('gw4', None) is not None:
-        os.environ['COUGARNET_DEFAULT_GATEWAY_IPV4'] = info['gw4']
-    if info.get('gw6', None) is not None:
-        os.environ['COUGARNET_DEFAULT_GATEWAY_IPV6'] = info['gw6']
     native_apps = info.get('native_apps', True)
+
+    vlan_info = {}
 
     if not native_apps:
         # enable iptables
@@ -35,11 +33,15 @@ def _apply_config(info):
 
     if info.get('ip_forwarding', False):
         cmd = ['sysctl', 'net.ipv4.ip_forward=1']
-        subprocess.run(cmd, check=True)
+        subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
 
     # bring lo up
     cmd = ['ip', 'link', 'set', 'lo', 'up']
     subprocess.run(cmd, check=True)
+
+    if not info.get('ipv6', True):
+        cmd = ['sysctl', f'net.ipv6.conf.lo.disable_ipv6=1']
+        subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
 
     for intf in info.get('interfaces', []):
         int_info = info['interfaces'][intf]
@@ -57,14 +59,21 @@ def _apply_config(info):
             cmd = ['ip', 'link', 'set', intf, 'arp', 'off']
             subprocess.run(cmd, check=True)
 
+        if not info.get('ipv6', True):
+            cmd = ['sysctl', f'net.ipv6.conf.{intf}.disable_ipv6=1']
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
+
         # disable router solicitations
         cmd = ['sysctl', f'net.ipv6.conf.{intf}.router_solicitations=0']
         subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
 
         # add each IP address
-        for addr in int_info.get('addrs4', []) + \
-                int_info.get('addrs6', []):
-            cmd = ['ip', 'addr', 'add', addr, 'dev', intf]
+        addrs = int_info.get('addrs4', [])[:]
+        if info.get('ipv6', True):
+            addrs += int_info.get('addrs6', [])
+
+        for addr in addrs:
+            cmd = ['ip', 'addr', 'add', addr, 'broadcast', '+', 'dev', intf]
             subprocess.run(cmd, check=True)
 
         cmd_suffix = []
@@ -83,12 +92,35 @@ def _apply_config(info):
             cmd = ['ip', 'link', 'set', intf, 'mtu', int_info['mtu']]
             subprocess.run(cmd, check=True)
 
+        #XXX Legacy
         myintf = intf.replace('-', '_').upper()
         if int_info.get('vlan', None) is not None:
             os.environ[f'COUGARNET_VLAN_{myintf}'] = str(int_info['vlan'])
         if int_info.get('trunk', None) is not None:
-            myintf = intf.replace('-', '_').upper()
             os.environ[f'COUGARNET_TRUNK_{myintf}'] = str(int_info['trunk']).upper()
+
+        if int_info.get('vlan', None) is not None:
+            vlan_info[intf] = f"vlan{int_info['vlan']}"
+        elif int_info.get('trunk', None):
+            vlan_info[intf] = 'trunk'
+        else:
+            pass
+
+    if vlan_info:
+        os.environ['COUGARNET_VLAN'] = json.dumps(vlan_info)
+
+    routes = info.get('routes', [])
+    if not info.get('ipv6', True):
+        routes = [r for r in routes if ':' not in r[0]]
+    os.environ['COUGARNET_ROUTES'] = json.dumps(routes)
+
+    if native_apps:
+        for prefix, intf, next_hop in routes:
+            cmd = ['ip', 'route', 'add', prefix]
+            if next_hop is not None:
+                cmd += ['via', next_hop]
+            cmd += ['dev', intf]
+            subprocess.run(cmd, check=True)
 
 def user_group_info(user):
     pwinfo = pwd.getpwnam(user)

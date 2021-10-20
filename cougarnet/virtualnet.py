@@ -37,7 +37,7 @@ class InconsistentConfiguration(Exception):
 
 class Host(object):
     def __init__(self, hostname, sock_file, gw4=None, gw6=None, type='host', \
-            native_apps=True, terminal=True, prog=None):
+            native_apps=True, terminal=True, prog=None, ipv6=True, routes=None):
         self.hostname = hostname
         self.sock_file = sock_file
         self.pid = None
@@ -45,6 +45,7 @@ class Host(object):
         self.next_int_num = 0
         self.int_to_neighbor = {}
         self.neighbor_to_int = {}
+        self.neighbor_by_hostname = {}
         self.int_to_mac = {}
         self.int_to_ip4 = {}
         self.int_to_ip6 = {}
@@ -61,6 +62,8 @@ class Host(object):
         self.has_bridge = False
         self.has_vlans = None
         self.hosts_file = None
+        self.routes_pre_processed = routes
+        self.routes = None
 
         if not native_apps or str(native_apps).lower() in FALSE_STRINGS:
             self.native_apps = False
@@ -70,17 +73,41 @@ class Host(object):
             self.terminal = False
         else:
             self.terminal = True
+        if not ipv6 or str(ipv6).lower() in FALSE_STRINGS:
+            self.ipv6 = False
+        else:
+            self.ipv6 = True
 
     def __str__(self):
         return self.hostname
 
+    def process_routes(self):
+        self.routes = []
+
+        if self.routes_pre_processed is None:
+            return
+
+        routes = self.routes_pre_processed.split(';')
+        for route in routes:
+            prefix, neighbor, next_hop = route.split('|')
+            if not next_hop:
+                next_hop = None
+            try:
+                intf = self.neighbor_to_int[self.neighbor_by_hostname[neighbor]]
+            except KeyError:
+                raise ValueError(f"The interface connected to {neighbor} " + \
+                        f"is designated as a next hop for one of " + \
+                        f"{self.hostname}'s routes, but {neighbor} " + \
+                        f"is not directly connected to {self.hostname}.")
+            self.routes.append((prefix, intf, next_hop))
+
     def _host_config(self):
         host_info = {
                 'hostname': self.hostname,
-                'gw4': self.gw4,
-                'gw6': self.gw6,
+                'routes': self.routes,
                 'native_apps': self.native_apps,
-                'type': self.type
+                'type': self.type,
+                'ipv6': self.ipv6
                 }
         host_info['ip_forwarding'] = self.type == 'router' and self.native_apps
         int_infos = {}
@@ -174,6 +201,7 @@ class Host(object):
         if host in self.neighbor_to_int:
             raise ValueError('Only one link can exist between two hosts')
         self.neighbor_to_int[host] = intf
+        self.neighbor_by_hostname[host.hostname] = host
 
     def next_int(self):
         int_next = self.next_int_num
@@ -231,12 +259,13 @@ class Host(object):
         return s
 
 class VirtualNetwork(object):
-    def __init__(self, native_apps, terminal, tmpdir):
+    def __init__(self, native_apps, terminal, tmpdir, ipv6):
         self.host_by_name = {}
         self.hosts_file = None
         self.native_apps = native_apps
         self.terminal = terminal
         self.tmpdir = tmpdir
+        self.ipv6 = ipv6
 
     def import_int(self, hostname_addr):
         parts = hostname_addr.split(',')
@@ -328,9 +357,13 @@ class VirtualNetwork(object):
         host1.int_to_ip6[host1.neighbor_to_int[host2]] = addrs61
         host2.int_to_ip6[host2.neighbor_to_int[host1]] = addrs62
 
+    def process_routes(self):
+        for hostname, host in self.host_by_name.items():
+            host.process_routes()
+
     @classmethod
-    def from_file(cls, fh, native_apps, terminal, tmpdir):
-        net = cls(native_apps, terminal, tmpdir)
+    def from_file(cls, fh, native_apps, terminal, tmpdir, ipv6):
+        net = cls(native_apps, terminal, tmpdir, ipv6)
         mode = None
         for line in fh:
             line = line.strip()
@@ -353,6 +386,8 @@ class VirtualNetwork(object):
             else:
                 pass
 
+        net.process_routes()
+
         return net
 
     def import_node(self, line):
@@ -374,6 +409,7 @@ class VirtualNetwork(object):
             attrs['native_apps'] = str(self.native_apps)
         if self.terminal is not None:
             attrs['terminal'] = str(self.terminal)
+        attrs['ipv6'] = str(self.ipv6)
 
         self.host_by_name[hostname] = Host(hostname, sock_file, **attrs)
 
@@ -759,6 +795,9 @@ def main():
     parser.add_argument('--terminal',
             action='store', type=str, choices=('all', 'none'), default=None,
             help='Specify that all virtual hosts should launch (all) or not launch (none) a terminal.')
+    parser.add_argument('--disable-ipv6',
+            action='store_const', const=True, default=False,
+            help='Disable IPv6')
     parser.add_argument('--native-apps',
             action='store', type=str, choices=('all', 'none'), default=None,
             help='Specify that all virtual hosts should enable (all) or disable (none) native apps.')
@@ -794,7 +833,10 @@ def main():
     else:
         terminal = None
 
-    net = VirtualNetwork.from_file(args.config_file, native_apps, terminal, tmpdir.name)
+    ipv6 = not args.disable_ipv6
+
+    net = VirtualNetwork.from_file(args.config_file, native_apps, \
+            terminal, tmpdir.name, ipv6)
 
     if args.wireshark is not None and \
             args.wireshark not in net.host_by_name:
@@ -815,6 +857,11 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        # sometimes ctrl-c gets sent twice, interrupting with SIGINT a second
+        # time, and cleanup does not happen.  So here we tell the code to
+        # ignore SIGINT, so cleanup can finish.  If you really want to kill it,
+        # then use SIGTERM or (gasp!) SIGKILL.
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
         net.cleanup()
 
 if __name__ == '__main__':

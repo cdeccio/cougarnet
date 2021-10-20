@@ -26,7 +26,7 @@ stack and some that do not.
    - [Communicating with the Calling Process](#communicating-with-the-calling-process)
    - [Name Resolution](#name-resolution)
    - [Host Types](#host-types)
-   - [Default Gateway](#default-gateway)
+   - [Routes](#routes)
    - [Environment](#environment)
    - [Running Programs](#running-programs)
    - [Sending and Receiving Frames](#sending-and-receiving-frames)
@@ -88,8 +88,7 @@ This simple configuration results in a network composed of two nodes, named
 `h1` and `h2`.  There is a single link between them.  For the link between `h1`
 and `h2`, `h1`'s interface will have an IPv4 address of 10.0.0.1, and `h2` will
 have an IPv4 address of 10.0.0.2.  The `/24` indicates that the length of the
-IPv4 prefix associated with that link is 24 bit associated with that link is 24
-bits, i.e., 10.0.0.0/24.
+IPv4 prefix associated with that link is 24 bits, i.e., 10.0.0.0/24.
 
 Start Cougarnet with this configuration by running the following command:
 
@@ -190,12 +189,12 @@ to provide `h1` with additional configuration, such as the following:
 
 ```
 NODES
-h1 gw4=10.0.0.4,terminal=false
+h1 type=switch,terminal=false
 h2
 ```
 
-In this case, 10.0.0.4 has been designated as the default IPv4 gateway for
-`h1`, and no terminal will be started for `h1` as would normally be the case.
+In this case, h1 is desginated as a switch, and no terminal will be started for
+`h1` as would normally be the case.
 
 In general, the syntax for a host is:
 
@@ -207,10 +206,6 @@ That is, if there are additional options, there is a space after the hostname,
 and those options come after the space. The options consist a comma-delimited
 list of name-value pairs, each name-value connected by `=`.  The defined host
 option names are the following, accompanied by the expected value:
- - `gw4`: an IPv4 address representing the gateway or default router.  Example:
-   `10.0.0.4`.  Default: no IPv4 gateway.
- - `gw6`: an IPv6 address representing the gateway or default router.  Example:
-   `fd00::4`.  Default: no IPv6 gateway.
  - `native_apps`: a boolean (i.e., `true` or `false`) indicating whether or not
    the native network stack should be used.  Default: `true`.
  - `terminal`: a boolean (i.e., `true` or `false`) indicating whether or not a
@@ -219,11 +214,24 @@ option names are the following, accompanied by the expected value:
    be appropriate.  An example of this is if a script is designated to be run
    automatically with the host using the `prog` attribute.  Default: `true`.
  - `type`: a string representing the type of node.  The supported types are:
-   `host`, `switch`, `router`.  Default: `host`.
+   `host`, `switch`, `router`.  Default: `host`. See [VLAN
+   Attributes](#vlan-attributes) and [Routes](#routes) for more information on
+   behavior specific to switches and routers, respectively.
+ - `routes`: a string containing one or more IP forwarding rules for the host.
+   Each route consists of a three-tuple specifying IP prefix, outgoing
+   interface (designated by neighboring node on that interface), and next hop
+   IP address, delimited with a pipe (`|`).  If there is no next hop, then the
+   third element is simply blank.  Multiple forwarding rules are delimited with
+   a semi-colon.  For example, the following would create a single, default
+   route, for `h2`, using the interface `h1` as the outgoing interface and
+   `10.0.0.6` as the next hop (i.e., the router).
+   `0.0.0.0/0|h1|10.0.0.6`.  Default: no routes except for those corresponding
+   to local subnets.  See [Routes](#routes) for more information.
  - `prog`: a string representing a program and its arguments, which are to be
    run, instead of an interactive shell.  The program path and its arguments
    are delimited by `|`.  For example, `echo|foo|bar` would execute
-   `echo foo bar`.  Default: execute an interactive shell.
+   `echo foo bar`.  Default: execute an interactive shell.  See [Running
+   Programs](#running-programs) for more information.
 
 
 ## Hostnames
@@ -356,12 +364,70 @@ hosts of type `switch` have special meaning.  See [VLAN
 Attributes](#vlan-attributes) for more.
 
 
-## Default Gateway
+## Routes
 
-The default IPv4 or IPv6 gateway can be set using the `gw4` or `gw6` options,
-respectively.  At the moment, the only result is that the following environment
-variables are set in the virtual host:
-`COUGARNET_DEFAULT_GATEWAY_IPV4` and `COUGARNET_DEFAULT_GATEWAY_IPV6`.
+The behavior resulting from setting the `routes` attributes depends on whether
+a host or router has been configured for native apps (i.e., with the
+`native_apps` configuration option or the `--native-apps` command-line option).
+
+A subtle behavior related to configuration is that only when the type is
+`router` is IP forwarding through the router for native apps.
+
+
+### Native Apps
+In native apps mode, a [virtual host](#virtual-hosts) is created, the
+forwarding rules are added using the `ip route` command.  Thus any packets sent
+using the native network stack will use the table entries to determine which
+interface should be used for an outgoing packet.
+
+
+### Non-Native Apps
+If forwarding rules are specified using the `routes` option for a host, then
+the router is made aware of these rules via the environment variable
+`COUGARNET_ROUTES`.  The value of this variable is a JSON list of three-tuples
+(lists), each representing the prefix, outgoing interface, and next hop.  If
+there is no next hop, then its value is `null`.
+
+For example, consider the following configuration.
+
+```
+NODES
+h1 routes=0.0.0.0/0|s1|10.0.0.1;10.0.2.0/24|s1|;::/0|s1|2001:db8::1;2001:db8:f00d::/64|s1|
+s1
+
+LINKS
+h1,10.0.0.2/24,2001:db8::2/64 s1
+```
+
+In this case, `h1` has two IPv4 entries and two IPv6 entries, including a
+default route for both IPv4 (`0.0.0.0/0`) and IPv6 (`::/0`).  The entries for
+`10.0.2.0/24` and `2001:db8:f00d::/64` have no next hop value.  The value of
+the `COUGARNET_ROUTES` for `h1` will be the following:
+
+```bash
+COUGARNET_ROUTES=[["0.0.0.0/0", "h1-s1", "10.0.0.1"], ["10.0.2.0/24", "h1-s1", null], ["::/0", "h1-s1", "2001:db8::1"], ["2001:db8:f00d::/64", "h1-s1", null]]
+```
+
+These IP forwarding entries can be parsed using a JSON parser, such as with the
+following Python code:
+
+```python
+import json
+import os
+import pprint
+
+routes = json.loads(os.environ['COUGARNET_ROUTES'])
+pprint.pprint(routes)
+```
+
+The corresponding output would be:
+
+```
+[['0.0.0.0/0', 'h1-s1', '10.0.0.1'],
+ ['10.0.2.0/24', 'h1-s1', None],
+ ['::/0', 'h1-s1', '2001:db8::1'],
+ ['2001:db8:f00d::/64', 'h1-s1', None]]
+```
 
 
 ## Environment
@@ -373,12 +439,15 @@ environment variables currently defined are:
 
  - `COUGARNET_COMM_SOCK`:
    described [here](#communicating-with-the-calling-process)
- - `COUGARNET_VLAN_H1_H2`, etc.:
+ - `COUGARNET_MY_SOCK`: not yet described
+ - `COUGARNET_VLAN`:
+   described [here](#vlan-attributes)
+ - `COUGARNET_ROUTES`:
+   described [here](#routes)
+ - (legacy) `COUGARNET_VLAN_H1_H2`, etc.:
    described [here](#vlan-attributes) and [here](#interface-names)
- - `COUGARNET_TRUNK_H1`, etc.:
+ - (legacy) `COUGARNET_TRUNK_H1`, etc.:
    described [here](#vlan-attributes) and [here](#interface-names)
- - `COUGARNET_DEFAULT_GATEWAY_IPV4`, `COUGARNET_DEFAULT_GATEWAY_IPV6`:
-   described [here](#default-gateway)
 
 They can be retrieved from a running process in the standard way.  For example,
 from command line:
@@ -477,6 +546,23 @@ facilitate frame sending and receiving.  The key components are the following:
  - `int_to_sock` - a `dict` containing a mapping of
    [interface names](#interface-names) to raw sockets (i.e., for sending
    frames).
+ - `int_to_info` - a `dict` containing a mapping of
+   [interface names](#interface-names) to `InterfaceInfo` instances.  An
+   `InterfaceInfo` instance has the following attributes:
+   - `macaddr` - the MAC address for the interface.
+   - `ipv4addrs` - a list of IPv4 addresses with which the interface has been
+     configured.  Please note that _typically_ an interface will just be configured
+     with a single IP address.  Thus, usually `ipv4addrs[0]` will work just fine.
+   - `ipv4prefix` - the length of the IPv4 prefix(es) on this interface.
+   - `ipv4broadcast` - the IPv4 broadcast address for the IPv4 subnet on this
+     interface.
+   - `ipv6addrs` - a list of IPv6 addresses with which the interface has been
+     configured.  Please note that just as with IPv4, an interface will typically
+     just be configured with a single IP address.  Thus, usually `ipv6addrs[0]`
+     will work just fine.
+   - `ipv6lladdr` - the link-local IPv6 address with which the interface has
+     been configured.
+   - `ipv6prefix` - the length of the IPv6 prefix(es) on this interface.
  - `hostname` - a `str` whose value is the [hostname](#hostnames) of the virtual host.
  - `comm_sock` - a socket (`socket.socket`) that is connected to the
    [communications socket](#communicating-with-the-calling-process) on which
@@ -698,10 +784,12 @@ by the expected value:
  - `mtu`: the number of bytes associated with the maximum transmission unit
    (MTU).  Example: `500`.  Default: `1500`.
  - `vlan`: the VLAN id (integer with value 0 through 1023) associated with the
-   link.  Example: `20`.  Default: no VLAN id.
+   link.  Example: `20`.  Default: no VLAN id.  See [VLAN
+   Attributes](#vlan-attributes) for more information.
  - `trunk`: a boolean (i.e., `true` or `false`) indicating whether this link
    should be a trunk link between two switches, such that 802.1Q frames are
-   passed on that link.  Default: `false`.
+   passed on that link.  Default: `false`.  See [VLAN
+   Attributes](#vlan-attributes) for more information.
 
 Note that for a given switch, one of the following must be true:
  - all interfaces must be either trunked (i.e., `trunk=true`) or have a
@@ -710,6 +798,9 @@ Note that for a given switch, one of the following must be true:
 
 The former case is a more modern example of a switch, where VLANs are the norm,
 and the latter is an example of a simple switch.
+
+Additionally, a switch interface cannot be assigned to both a VLAN and to a
+trunk.
 
 
 ## Bi-Directionality of Link Attributes
@@ -808,6 +899,42 @@ variables set:
 COUGARNET_TRUNK_H4_H2=true
 ```
 
+In the latest version, per-interface VLAN and trunk assignments are contained
+as a JSON object in single environment variable, `COUGARNET_VLAN`.  Each
+interface name maps to a value.  The value for an interface assigned to a VLAN
+has the form `vlan<id>` where `<id>` is the numerical VLAN id.  The value for
+an interface that corresponds to a trunk links is simply `trunk`.  The above
+configuration would result in the following environment variables being set for
+`h2`:
+
+```bash
+COUGARNET_VLAN={"h2-h1": "vlan25", "h2-h3": "vlan32", "h2-h4": "trunk"}
+```
+
+and the following set for `h4`:
+
+```bash
+COUGARNET_VLAN={"h4-h2": "trunk"}
+```
+
+These VLAN assignments can be parsed using a JSON parser, such as with the
+following Python code:
+
+```python
+import json
+import os
+import pprint
+
+vlan_info = json.loads(os.environ['COUGARNET_VLAN'])
+pprint.pprint(vlan_info)
+```
+
+The corresponding output would be:
+
+```
+{'s1-a': 'vlan25', 's1-b': 'vlan25', 's1-c': 'vlan30', 's1-s2': 'trunk'}
+```
+
 
 # Network Configuration File
 
@@ -833,8 +960,9 @@ link](#configuration-1) configuration sections.
 
 ```
 $ cougarnet --help
-usage: cougarnet [-h] [--wireshark NODE] [--display] [--terminal {all,none}] [--native-apps {all,none}]
-                 [--display-file DISPLAY_FILE]
+usage: cougarnet [-h] [--wireshark NODE] [--display]
+                 [--terminal {all,none}] [--disable-ipv6]
+                 [--native-apps {all,none}] [--display-file DISPLAY_FILE]
                  config_file
 
 positional arguments:
@@ -846,12 +974,14 @@ optional arguments:
                         Start wireshark for the specified node
   --display             Display the network configuration as text
   --terminal {all,none}
-                        Specify that all virtual hosts should launch (all) or not launch (none) a terminal.
+                        Specify that all virtual hosts should launch (all)
+                        or not launch (none) a terminal.
+  --disable-ipv6        Disable IPv6
   --native-apps {all,none}
-                        Specify that all virtual hosts should enable (all) or disable (none) native apps.
+                        Specify that all virtual hosts should enable (all)
+                        or disable (none) native apps.
   --display-file DISPLAY_FILE
                         Print the network configuration to a file (.png)
-
 ```
 
 Note that `--terminal` and `--native-apps` options override all per-host
