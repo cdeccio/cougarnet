@@ -62,12 +62,19 @@ allowed to call it.
 Additionally, `sudo` should be configured such that your user can call it without requiring a
 password (i.e., with the `NOPASSWD` option).
 
-To install Cougarnet, run the following:
+To install a static copy of Cougarnet, run the following:
 
 ```bash
-$ python3 setup.py build
-$ sudo python3 setup.py install
+pip install .
 ```
+
+To install a Cougarnet in an easy-to-update manner, use the following:
+
+```bash
+pip install -e .
+```
+
+Then, when you want to update Cougarnet, just do a `git pull` and you are good to go!
 
 
 # Getting Started
