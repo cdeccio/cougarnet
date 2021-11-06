@@ -623,7 +623,7 @@ class VirtualNetwork(object):
             else:
                 raise HostNotStarted(f'{hostname} is taking too long.')
 
-    def start(self, wireshark_host=None):
+    def start(self, wireshark_host=None, wireshark_interfaces=None):
         # start the hosts and wait for each to write its PID to the
         for hostname, host in self.host_by_name.items():
             host.start(self.commsock_file)
@@ -640,7 +640,7 @@ class VirtualNetwork(object):
 
         self.wait_for_phase2_startup()
         if wireshark_host is not None:
-            self.start_wireshark(self.host_by_name[wireshark_host])
+            self.start_wireshark(self.host_by_name[wireshark_host], interfaces=wireshark_interfaces)
 
         # let hosts know that they can start now
         for hostname, host in self.host_by_name.items():
@@ -702,13 +702,17 @@ class VirtualNetwork(object):
         subprocess.run(['graph-easy', '--from', 'graphviz'], input=img,
                 stderr=subprocess.DEVNULL)
 
-    def start_wireshark(self, host):
+    def start_wireshark(self, host, interfaces=None):
         if host.type == 'switch' and host.native_apps:
             cmd = ['sudo', 'wireshark']
         else:
             sys.stderr.write('Sorry, at the moment wireshark can only be run on switches using "native app".\n')
             return
             cmd = ['sudo', '-E', 'ip', 'netns', 'exec', host.hostname, 'wireshark']
+        if interfaces is not None and type(interfaces) is list and len(interfaces):
+            for interface in interfaces:
+                cmd += ['-i', interface]
+            cmd += ['-k']
         subprocess.Popen(cmd)
 
     def message_loop(self):
@@ -789,6 +793,10 @@ def main():
             action='store', type=str, default=None,
             metavar='NODE',
             help='Start wireshark for the specified node')
+    parser.add_argument('--wireshark-interfaces',
+            type=str, nargs="+",
+            metavar='INTERFACE',
+            help='Start wireshark capturing on the specified interface(s)')
     parser.add_argument('--display',
             action='store_const', const=True, default=False,
             help='Display the network configuration as text')
@@ -851,7 +859,10 @@ def main():
 
     try:
         net.config()
-        net.start(args.wireshark)
+        if args.wireshark_interfaces and len(args.wireshark_interfaces):
+            net.start(args.wireshark, wireshark_interfaces=args.wireshark_interfaces)
+        else:
+            net.start(args.wireshark)
         sys.stdout.write('Ctrl-c to quit\n')
         net.message_loop()
     except KeyboardInterrupt:
