@@ -362,11 +362,15 @@ class VirtualNetwork(object):
             host.process_routes()
 
     @classmethod
-    def from_file(cls, fh, native_apps, terminal, tmpdir, ipv6):
+    def from_file(cls, fh, native_apps, terminal, config_vars, tmpdir, ipv6):
         net = cls(native_apps, terminal, tmpdir, ipv6)
         mode = None
         for line in fh:
             line = line.strip()
+
+            for name, val in config_vars.items():
+                var_re = re.compile(fr'\${name}(\W|$)')
+                line = var_re.sub(fr'{val}\1', line)
 
             if line == 'NODES':
                 mode = 'node'
@@ -800,6 +804,9 @@ def main():
     parser.add_argument('--display',
             action='store_const', const=True, default=False,
             help='Display the network configuration as text')
+    parser.add_argument('--vars',
+            action='store', type=str, default=None,
+            help='Variables to be replaced in the configuration file (name=value[,name=value...])')
     parser.add_argument('--terminal',
             action='store', type=str, choices=('all', 'none'), default=None,
             help='Specify that all virtual hosts should launch (all) or not launch (none) a terminal.')
@@ -841,10 +848,16 @@ def main():
     else:
         terminal = None
 
+    if args.vars:
+        config_vars = dict([p.split('=', maxsplit=1) \
+                for p in args.vars.split(',')])
+    else:
+        config_vars = {}
+
     ipv6 = not args.disable_ipv6
 
     net = VirtualNetwork.from_file(args.config_file, native_apps, \
-            terminal, tmpdir.name, ipv6)
+            terminal, config_vars, tmpdir.name, ipv6)
 
     if args.wireshark is not None and \
             args.wireshark not in net.host_by_name:
