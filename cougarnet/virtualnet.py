@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 
+from . import util
+
 import argparse
 import csv
 import io
@@ -25,6 +27,7 @@ COMM_SOCK_FILENAME='comm.sock'
 HOSTS_FILENAME='hosts'
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
+
 
 class HostNotStarted(Exception):
     pass
@@ -223,9 +226,7 @@ class Host(object):
             except subprocess.CalledProcessError:
                 break
 
-        if os.path.exists(f'/run/netns/{self.hostname}'):
-            cmd = ['sudo', 'rm', f'/run/netns/{self.hostname}']
-            subprocess.run(cmd)
+        util.remove_if_exists(f'/run/netns/{self.hostname}', allow_root=True)
 
         if self.type == 'switch' and self.native_apps:
             cmd = ['sudo', 'ovs-vsctl', 'del-br', self.hostname]
@@ -238,11 +239,10 @@ class Host(object):
                     subprocess.run(cmd)
 
         if self.config_file is not None and os.path.exists(self.config_file):
-            os.unlink(self.config_file)
+            util.remove_if_exists(self.config_file)
 
-        if self.hosts_file is not None and os.path.exists(self.hosts_file):
-            cmd = ['sudo', 'rm', self.hosts_file]
-            subprocess.run(cmd)
+        if self.hosts_file is not None:
+            util.remove_if_exists(self.hosts_file, allow_root=True)
 
     def label_for_int(self, intf):
         s = f'<TR><TD COLSPAN="2" ALIGN="left"><B>{intf}:</B></TD></TR>'
@@ -654,10 +654,10 @@ class VirtualNetwork(object):
         for hostname, host in self.host_by_name.items():
             host.cleanup()
 
-        os.unlink(self.hosts_file)
+        util.remove_if_exists(self.hosts_file)
 
         self.commsock.close()
-        os.unlink(self.commsock_file)
+        util.remove_if_exists(self.commsock_file)
 
     def label_for_link(self, host1, int1, host2, int2):
         s = '<<TABLE BORDER="0">' + host1.label_for_int(int1) + \
