@@ -17,6 +17,7 @@ import time
 from cougarnet import util
 
 
+HOST_RE = re.compile(r'^[a-z]([a-z0-9-]*[a-z0-9])?$')
 MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
 
 #TERM="xfce4-terminal"
@@ -458,12 +459,22 @@ class VirtualNetwork(object):
 
         return net
 
+    def is_valid_hostname(self, hostname):
+        if not hostname[0].isalpha():
+            return False
+        if HOST_RE.search(hostname) is None:
+            return False
+        return True
+
     def import_node(self, line):
         parts = line.split()
         if len(parts) < 1 or len(parts) > 2:
             raise ValueError(f'Invalid node format.')
 
         hostname = parts[0]
+        if not self.is_valid_hostname(hostname):
+            raise ValueError(f'Invalid hostname: {hostname}')
+
         sock_file = os.path.join(self.tmpdir, f'{hostname}.{COMM_SOCK_EXTENSION}')
         script_file = os.path.join(self.tmpdir, f'{hostname}.{SCRIPT_EXTENSION}')
         tmux_file = os.path.join(self.tmux_dir, hostname)
