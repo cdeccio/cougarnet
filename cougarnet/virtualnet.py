@@ -298,8 +298,7 @@ class Host(object):
             os.unlink(self.script_file)
 
         if self.hosts_file is not None and os.path.exists(self.hosts_file):
-            cmd = ['sudo', 'rm', self.hosts_file]
-            subprocess.run(cmd)
+            os.unlink(self.hosts_file)
 
         if self.tmux_file is not None and os.path.exists(self.tmux_file):
             os.unlink(self.tmux_file)
