@@ -25,6 +25,8 @@ HOSTPREP_MODULE="cougarnet.hostprep"
 TMPDIR=os.path.join(os.environ.get('HOME', '.'), 'cougarnet-tmp')
 COMM_SOCK_FILENAME='comm.sock'
 HOSTS_FILENAME='hosts'
+SCRIPT_EXTENSION='sh'
+TMUX_DIR='tmux'
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 
@@ -35,10 +37,13 @@ class InconsistentConfiguration(Exception):
     pass
 
 class Host(object):
-    def __init__(self, hostname, sock_file, type='host', \
+    def __init__(self, hostname, sock_file, tmux_file, script_file, type='host',
             native_apps=True, terminal=True, prog=None, ipv6=True, routes=None):
+
         self.hostname = hostname
         self.sock_file = sock_file
+        self.tmux_file = tmux_file
+        self.script_file = script_file
         self.pid = None
         self.config_file = None
         self.next_int_num = 0
@@ -75,8 +80,21 @@ class Host(object):
         else:
             self.ipv6 = True
 
+        self.create_script_file()
+
     def __str__(self):
         return self.hostname
+
+    def _get_tmux_server_pid(self):
+        if self.tmux_file is None:
+            return
+        cmd = ['tmux', '-S', self.tmux_file,
+                'display-message', '-pF', '#{pid}']
+        output = subprocess.run(cmd, stderr=subprocess.DEVNULL, stdout=subprocess.PIPE).stdout
+        if output:
+            return int(output.decode('utf-8').strip())
+        else:
+            return None
 
     def process_routes(self):
         self.routes = []
@@ -134,6 +152,28 @@ class Host(object):
         with open(self.config_file, 'w') as fh:
             fh.write(json.dumps(host_config))
 
+    def create_script_file(self):
+
+        with open(self.script_file, 'w') as fh:
+            fh.write('#!/bin/bash\n')
+            if self.terminal:
+                fh.write(f'exec tmux -S {self.tmux_file} new-session \\; \\\n')
+                fh.write(f'    set exit-unattached on \\; \\\n')
+                if self.prog is not None:
+                    prog = self.prog.replace('|', ' ').replace('"', r'\"')
+                    fh.write(f'    send-keys "{prog}" C-m \\; \\\n')
+                    fh.write(f'    split-window -v \\;\n')
+
+            else:
+                if self.prog is not None:
+                    prog = self.prog.replace('|', ' ')
+                    fh.write(f'exec {prog}')
+                else:
+                    fh.write(f'exec bash')
+
+        cmd = ['chmod', '755', self.script_file]
+        subprocess.run(cmd, check=True)
+
     def create_hosts_file(self, other_hosts, hosts_file):
         self.hosts_file = hosts_file
 
@@ -169,8 +209,7 @@ class Host(object):
                     '--hosts-file', self.hosts_file,
                     '--user', os.environ.get("USER")]
 
-        if self.prog is not None:
-            cmd += ['--prog', self.prog]
+        cmd += ['--prog', self.script_file]
         if not (self.type == 'switch' and self.native_apps):
             cmd += ['--mount-sys']
 
@@ -183,10 +222,6 @@ class Host(object):
                 c = f'"{c}"'
                 cmd_quoted.append(c)
             subcmd = ' '.join(cmd_quoted)
-            # let the terminal of processes that ended unsuccessfully--but not
-            # because of a signal--linger a little longer, so any error message
-            # can be read.
-            subcmd += '; if [ $? -gt 0 -a $? -lt 128 ]; then sleep 10; fi'
 
             cmd = [TERM, '-t', f'{self.type.capitalize()}: {self.hostname}', '-e', subcmd]
 
@@ -215,6 +250,20 @@ class Host(object):
                 if util.pid_is_running(self.pid):
                     cmd = ['kill', f'-KILL', str(self.pid)]
                     subprocess.run(cmd, stderr=subprocess.DEVNULL)
+
+        if self.tmux_file is not None:
+            tmux_pid = self._get_tmux_server_pid()
+            if tmux_pid is not None and \
+                    util.pid_is_running(tmux_pid):
+                cmd = ['kill', f'-TERM', str(tmux_pid)]
+                subprocess.run(cmd, stderr=subprocess.DEVNULL)
+
+                if util.pid_is_running(tmux_pid):
+                    time.sleep(0.2)
+                    if util.pid_is_running(tmux_pid):
+                        cmd = ['kill', f'-KILL', str(tmux_pid)]
+                        subprocess.run(cmd, stderr=subprocess.DEVNULL)
+
 
     def cleanup(self):
         self.kill()
@@ -245,9 +294,15 @@ class Host(object):
         if self.config_file is not None and os.path.exists(self.config_file):
             os.unlink(self.config_file)
 
+        if self.script_file is not None and os.path.exists(self.script_file):
+            os.unlink(self.script_file)
+
         if self.hosts_file is not None and os.path.exists(self.hosts_file):
             cmd = ['sudo', 'rm', self.hosts_file]
             subprocess.run(cmd)
+
+        if self.tmux_file is not None and os.path.exists(self.tmux_file):
+            os.unlink(self.tmux_file)
 
     def label_for_int(self, intf):
         s = f'<TR><TD COLSPAN="2" ALIGN="left"><B>{intf}:</B></TD></TR>'
@@ -270,7 +325,11 @@ class VirtualNetwork(object):
         self.native_apps = native_apps
         self.terminal = terminal
         self.tmpdir = tmpdir
+        self.tmux_dir = os.path.join(self.tmpdir, TMUX_DIR)
         self.ipv6 = ipv6
+
+        cmd = ['mkdir', '-p', self.tmux_dir]
+        subprocess.run(cmd, check=True)
 
     def import_int(self, hostname_addr):
         parts = hostname_addr.split(',')
@@ -406,6 +465,8 @@ class VirtualNetwork(object):
 
         hostname = parts[0]
         sock_file = os.path.join(self.tmpdir, f'{hostname}.sock')
+        script_file = os.path.join(self.tmpdir, f'{hostname}.{SCRIPT_EXTENSION}')
+        tmux_file = os.path.join(self.tmux_dir, hostname)
         if len(parts) > 1:
             s = io.StringIO(parts[1])
             csv_reader = csv.reader(s)
@@ -420,7 +481,8 @@ class VirtualNetwork(object):
             attrs['terminal'] = str(self.terminal)
         attrs['ipv6'] = str(self.ipv6)
 
-        self.host_by_name[hostname] = Host(hostname, sock_file, **attrs)
+        self.host_by_name[hostname] = \
+                Host(hostname, sock_file, tmux_file, script_file, **attrs)
 
     def add_link(self, host1, host2, bw=None, delay=None, loss=None,
             mtu=None, vlan=None, trunk=None):
@@ -656,6 +718,7 @@ class VirtualNetwork(object):
             host.cleanup()
 
         os.unlink(self.hosts_file)
+        os.rmdir(self.tmux_dir)
 
         self.commsock.close()
         os.unlink(self.commsock_file)
