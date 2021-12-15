@@ -205,14 +205,19 @@ class Host(object):
         self.next_int_num += 1
         return int_next
 
-    def signal(self, signal_type):
-        if self.pid is None:
-            return
-        cmd = ['sudo', 'kill', f'-{signal_type}', str(self.pid)]
-        subprocess.run(cmd, stderr=subprocess.DEVNULL)
+    def kill(self):
+        if self.pid is not None:
+            cmd = ['kill', f'-TERM', str(self.pid)]
+            subprocess.run(cmd, stderr=subprocess.DEVNULL)
+
+            if util.pid_is_running(self.pid):
+                time.sleep(0.2)
+                if util.pid_is_running(self.pid):
+                    cmd = ['kill', f'-KILL', str(self.pid)]
+                    subprocess.run(cmd, stderr=subprocess.DEVNULL)
 
     def cleanup(self):
-        self.signal('KILL')
+        self.kill()
 
         #XXX not sure why this while loop is necessary (i.e., why we need to
         #XXX umount several times)
@@ -570,10 +575,6 @@ class VirtualNetwork(object):
             hosts_file = os.path.join(self.tmpdir, f'{hostname}-{HOSTS_FILENAME}')
             host.create_config(config_file)
             host.create_hosts_file(self.hosts_file, hosts_file)
-
-    def signal_hosts(self, signal):
-        for hostname, host in self.host_by_name.items():
-            host.signal(signal)
 
     def wait_for_phase1_startup(self, host):
         # set to non-bocking with timeout 3
