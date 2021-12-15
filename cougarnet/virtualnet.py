@@ -24,11 +24,13 @@ MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
 TERM="lxterminal"
 HOSTPREP_MODULE="cougarnet.hostprep"
 TMPDIR=os.path.join(os.environ.get('HOME', '.'), 'cougarnet-tmp')
-COMM_SOCK_EXTENSION='sock'
-COMM_SOCK_FILENAME=f'comm.{COMM_SOCK_EXTENSION}'
-HOSTS_FILENAME='hosts'
-SCRIPT_EXTENSION='sh'
+MAIN_FILENAME='_main'
+COMM_DIR='comm'
+CONFIG_DIR='config'
+HOSTS_DIR='hosts'
+SCRIPT_DIR='scripts'
 TMUX_DIR='tmux'
+SCRIPT_EXTENSION='sh'
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 
@@ -293,17 +295,10 @@ class Host(object):
                     cmd = ['sudo', 'ip', 'link', 'del', intf]
                     subprocess.run(cmd)
 
-        if self.config_file is not None and os.path.exists(self.config_file):
-            os.unlink(self.config_file)
-
-        if self.script_file is not None and os.path.exists(self.script_file):
-            os.unlink(self.script_file)
-
-        if self.hosts_file is not None and os.path.exists(self.hosts_file):
-            os.unlink(self.hosts_file)
-
-        if self.tmux_file is not None and os.path.exists(self.tmux_file):
-            os.unlink(self.tmux_file)
+        for f in self.sock_file, self.config_file, self.script_file, \
+                self.hosts_file, self.tmux_file:
+            if f is not None and os.path.exists(f):
+                os.unlink(f)
 
     def label_for_int(self, intf):
         s = f'<TR><TD COLSPAN="2" ALIGN="left"><B>{intf}:</B></TD></TR>'
@@ -326,11 +321,18 @@ class VirtualNetwork(object):
         self.native_apps = native_apps
         self.terminal = terminal
         self.tmpdir = tmpdir
-        self.tmux_dir = os.path.join(self.tmpdir, TMUX_DIR)
         self.ipv6 = ipv6
 
-        cmd = ['mkdir', '-p', self.tmux_dir]
-        subprocess.run(cmd, check=True)
+        self.comm_dir = os.path.join(self.tmpdir, COMM_DIR)
+        self.config_dir = os.path.join(self.tmpdir, CONFIG_DIR)
+        self.hosts_dir = os.path.join(self.tmpdir, HOSTS_DIR)
+        self.script_dir = os.path.join(self.tmpdir, SCRIPT_DIR)
+        self.tmux_dir = os.path.join(self.tmpdir, TMUX_DIR)
+
+        for d in self.comm_dir, self.config_dir, self.hosts_dir, \
+                self.script_dir, self.tmux_dir:
+            cmd = ['mkdir', '-p', d]
+            subprocess.run(cmd, check=True)
 
     def import_int(self, hostname_addr):
         parts = hostname_addr.split(',')
@@ -474,9 +476,11 @@ class VirtualNetwork(object):
         hostname = parts[0]
         if not self.is_valid_hostname(hostname):
             raise ValueError(f'Invalid hostname: {hostname}')
+        if hostname == MAIN_FILENAME:
+            raise ValueError(f'Hostname cannot be {hostname}')
 
-        sock_file = os.path.join(self.tmpdir, f'{hostname}.{COMM_SOCK_EXTENSION}')
-        script_file = os.path.join(self.tmpdir, f'{hostname}.{SCRIPT_EXTENSION}')
+        sock_file = os.path.join(self.comm_dir, hostname)
+        script_file = os.path.join(self.script_dir, f'{hostname}.sh')
         tmux_file = os.path.join(self.tmux_dir, hostname)
         if len(parts) > 1:
             s = io.StringIO(parts[1])
@@ -631,21 +635,21 @@ class VirtualNetwork(object):
 
 
     def create_hosts_file(self):
-        self.hosts_file = os.path.join(self.tmpdir, HOSTS_FILENAME)
+        self.hosts_file = os.path.join(self.hosts_dir, MAIN_FILENAME)
 
         with open(self.hosts_file, 'w') as fh:
             for hostname, host in self.host_by_name.items():
                 host.create_hosts_file_entries(fh)
 
     def config(self):
-        self.commsock_file = os.path.join(self.tmpdir, COMM_SOCK_FILENAME)
+        self.commsock_file = os.path.join(self.comm_dir, MAIN_FILENAME)
         self.commsock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
         self.commsock.bind(self.commsock_file)
 
         self.create_hosts_file()
         for hostname, host in self.host_by_name.items():
-            config_file = os.path.join(self.tmpdir, f'{hostname}.cfg')
-            hosts_file = os.path.join(self.tmpdir, f'{hostname}-{HOSTS_FILENAME}')
+            config_file = os.path.join(self.config_dir, f'{hostname}.cfg')
+            hosts_file = os.path.join(self.hosts_dir, hostname)
             host.create_config(config_file)
             host.create_hosts_file(self.hosts_file, hosts_file)
 
@@ -729,10 +733,13 @@ class VirtualNetwork(object):
             host.cleanup()
 
         os.unlink(self.hosts_file)
-        os.rmdir(self.tmux_dir)
 
         self.commsock.close()
         os.unlink(self.commsock_file)
+
+        for d in self.comm_dir, self.config_dir, self.hosts_dir, \
+                self.script_dir, self.tmux_dir:
+            os.rmdir(d)
 
     def label_for_link(self, host1, int1, host2, int2):
         s = '<<TABLE BORDER="0">' + host1.label_for_int(int1) + \
