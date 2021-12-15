@@ -391,18 +391,18 @@ class VirtualNetwork(object):
 
         if set(addrs41).intersection(set(addrs42)):
             raise ValueError(f'Addresses for {host1.hostname} and ' + \
-                    '{host2.hostname} cannot be the same!')
+                    f'{host2.hostname} cannot be the same!')
         if subnet41 is not None and subnet42 is not None and \
                 subnet41 != subnet42:
             raise ValueError(f'Addresses for {host1.hostname} and ' + \
-                    '{host2.hostname} must be in the same subnet!')
+                    f'{host2.hostname} must be in the same subnet!')
         if set(addrs61).intersection(set(addrs62)):
             raise ValueError(f'Addresses for {host1.hostname} and ' + \
-                    '{host2.hostname} cannot be the same!')
+                    f'{host2.hostname} cannot be the same!')
         if subnet61 is not None and subnet62 is not None and \
                 subnet61 != subnet62:
             raise ValueError(f'Addresses for {host1.hostname} and ' + \
-                    '{host2.hostname} must be in the same subnet!')
+                    f'{host2.hostname} must be in the same subnet!')
 
         if len(parts) > 2:
             s = io.StringIO(parts[2])
