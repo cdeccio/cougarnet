@@ -485,7 +485,7 @@ Suppose `loop.sh` (in the current directory) contains the following:
 ```bash
 #!/bin/bash
 hostname
-echo $COUGARNET_DEFAULT_GATEWAY_IPV4
+echo $COUGARNET_ROUTES
 echo $1
 for i in {1..3}; do
     echo $i
@@ -497,14 +497,15 @@ And `cougarnet` is run with the following configuration:
 
 ```
 NODES
-h1 prog=./loop.sh|hello,gw4=10.0.0.4
+h1 prog=./loop.sh|hello,routes=0.0.0.0/0|s1|10.0.0.4
 ```
 
 The result would be the following:
 
+
 ```
 h1
-10.0.0.4
+[["0.0.0.0/0", "h1-s1", "10.0.0.4"]]
 hello
 1
 2
@@ -520,7 +521,7 @@ import socket
 import sys
 import time
 print(socket.gethostname())
-print(os.environ['COUGARNET_DEFAULT_GATEWAY_IPV4'])
+print(os.environ['COUGARNET_ROUTES'])
 print(sys.argv[1])
 for i in range(1, 4):
     print(i)

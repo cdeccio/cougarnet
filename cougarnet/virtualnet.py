@@ -35,7 +35,7 @@ class InconsistentConfiguration(Exception):
     pass
 
 class Host(object):
-    def __init__(self, hostname, sock_file, gw4=None, gw6=None, type='host', \
+    def __init__(self, hostname, sock_file, type='host', \
             native_apps=True, terminal=True, prog=None, ipv6=True, routes=None):
         self.hostname = hostname
         self.sock_file = sock_file
@@ -54,8 +54,6 @@ class Host(object):
         self.int_to_mtu = {}
         self.int_to_vlan = {}
         self.int_to_trunk = {}
-        self.gw4 = gw4
-        self.gw6 = gw6
         self.type = type
         self.prog = prog
         self.has_bridge = False
