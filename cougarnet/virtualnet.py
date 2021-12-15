@@ -23,7 +23,8 @@ MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
 TERM="lxterminal"
 HOSTPREP_MODULE="cougarnet.hostprep"
 TMPDIR=os.path.join(os.environ.get('HOME', '.'), 'cougarnet-tmp')
-COMM_SOCK_FILENAME='comm.sock'
+COMM_SOCK_EXTENSION='sock'
+COMM_SOCK_FILENAME=f'comm.{COMM_SOCK_EXTENSION}'
 HOSTS_FILENAME='hosts'
 SCRIPT_EXTENSION='sh'
 TMUX_DIR='tmux'
@@ -463,7 +464,7 @@ class VirtualNetwork(object):
             raise ValueError(f'Invalid node format.')
 
         hostname = parts[0]
-        sock_file = os.path.join(self.tmpdir, f'{hostname}.sock')
+        sock_file = os.path.join(self.tmpdir, f'{hostname}.{COMM_SOCK_EXTENSION}')
         script_file = os.path.join(self.tmpdir, f'{hostname}.{SCRIPT_EXTENSION}')
         tmux_file = os.path.join(self.tmux_dir, hostname)
         if len(parts) > 1:
