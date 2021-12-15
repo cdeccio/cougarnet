@@ -14,6 +14,8 @@ import sys
 import tempfile
 import time
 
+from cougarnet import util
+
 
 MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
 

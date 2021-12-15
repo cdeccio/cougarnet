@@ -1,5 +1,7 @@
 import binascii
 import socket
+import subprocess
+
 def mac_str_to_binary(mac_str):
     return binascii.unhexlify(mac_str.replace(':', ''))
 
@@ -19,3 +21,8 @@ def ip_binary_to_str(ip_bin):
     else:
         af = socket.AF_INET
     return socket.inet_ntop(af, ip_bin)
+
+def pid_is_running(pid):
+    cmd = ['ps', '-p', str(pid)]
+    p = subprocess.run(cmd, stdout=subprocess.DEVNULL)
+    return p.returncode == 0
