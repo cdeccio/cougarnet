@@ -471,7 +471,7 @@ class VirtualNetwork(object):
     def import_node(self, line):
         parts = line.split()
         if len(parts) < 1 or len(parts) > 2:
-            raise ValueError(f'Invalid node format.')
+            raise ValueError(f'Invalid node format: {line}')
 
         hostname = parts[0]
         if not self.is_valid_hostname(hostname):
