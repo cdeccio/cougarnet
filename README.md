@@ -441,17 +441,12 @@ processes running within the virtual host have better context of their network
 environment.  All environment variables start with `COUGARNET_`.  The
 environment variables currently defined are:
 
- - `COUGARNET_COMM_SOCK`:
+ - `COUGARNET_COMM_SOCK` and `COUGARNET_MY_SOCK`:
    described [here](#communicating-with-the-calling-process)
- - `COUGARNET_MY_SOCK`: not yet described
  - `COUGARNET_VLAN`:
    described [here](#vlan-attributes)
  - `COUGARNET_ROUTES`:
    described [here](#routes)
- - (legacy) `COUGARNET_VLAN_H1_H2`, etc.:
-   described [here](#vlan-attributes) and [here](#interface-names)
- - (legacy) `COUGARNET_TRUNK_H1`, etc.:
-   described [here](#vlan-attributes) and [here](#interface-names)
 
 They can be retrieved from a running process in the standard way.  For example,
 from command line:
@@ -887,30 +882,15 @@ h2 h4 trunk=true
 
 In this case, `h2` and `h3` are each switches, connected by a trunk.  Both `h1`
 and `h3` are connected to `h2`, with their links having VLAN assignments 25 and
-32, respectively.  The link between `h2` and `h4` is a trunk.  In this case,
-the process associated with `h2` will have the following environment variables
-set:
+32, respectively.  The link between `h2` and `h4` is a trunk.
 
-```bash
-COUGARNET_VLAN_H2_H1=25
-COUGARNET_VLAN_H2_H3=32
-COUGARNET_TRUNK_H2_H4=true
-```
-
-Likewise, the process associated with `h4` will have the following environment
-variables set:
-
-```bash
-COUGARNET_TRUNK_H4_H2=true
-```
-
-In the latest version, per-interface VLAN and trunk assignments are contained
-as a JSON object in single environment variable, `COUGARNET_VLAN`.  Each
-interface name maps to a value.  The value for an interface assigned to a VLAN
-has the form `vlan<id>` where `<id>` is the numerical VLAN id.  The value for
-an interface that corresponds to a trunk links is simply `trunk`.  The above
-configuration would result in the following environment variables being set for
-`h2`:
+The process associated with `h2` is made aware of the VLAN configuration via the
+environment variable, `COUGARNET_VLAN`, which contains a JSON object mapping
+each interface to its VLAN or trunk assignment. The value for an interface
+assigned to a VLAN has the form `vlan<id>` where `<id>` is the numerical VLAN
+id.  The value for an interface that corresponds to a trunk link is simply
+`trunk`.  The above configuration wouldlresult in the following environment
+variables being set for `h2`:
 
 ```bash
 COUGARNET_VLAN={"h2-h1": "vlan25", "h2-h3": "vlan32", "h2-h4": "trunk"}
