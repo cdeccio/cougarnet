@@ -310,7 +310,7 @@ a UDP datagram being sent to the UNIX domain socket on which the `cougarnet`
 process is listening.
 
 ```bash
-$ echo -n `hostname`,hello world | socat - UNIX-SENDTO:$COUGARNET_COMM_SOCK,bind=$COUGARNET_MY_SOCK
+$ echo -n hello world | socat - UNIX-SENDTO:$COUGARNET_COMM_SOCK,bind=$COUGARNET_MY_SOCK
 ```
 
 The equivalent Python code is the following:
@@ -322,8 +322,7 @@ import socket
 sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
 s.bind((os.environ['COUGARNET_MY_SOCK']))
 sock.connect(os.environ['COUGARNET_COMM_SOCK'])
-hostname = socket.gethostname()
-sock.send(f'{hostname},hello world'.encode('utf-8'))
+sock.send('hello world'.encode('utf-8'))
 ```
 
 The `cougarnet` process will print a single line of output that will look
