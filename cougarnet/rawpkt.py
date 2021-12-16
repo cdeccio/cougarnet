@@ -29,6 +29,7 @@ class BaseFrameHandler:
         self.int_to_info = {}
         self.comm_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
         self.comm_sock.connect(os.environ['COUGARNET_COMM_SOCK'])
+        self.comm_sock.bind((os.environ['COUGARNET_MY_SOCK']))
         self.hostname = socket.gethostname()
         self._setup_send_sockets()
         self._set_interface_info()
@@ -104,4 +105,4 @@ class BaseFrameHandler:
         self.int_to_sock[intf].send(frame)
 
     def log(self, msg):
-        self.comm_sock.send(f'{self.hostname},{msg}'.encode('utf-8'))
+        self.comm_sock.send(msg.encode('utf-8'))

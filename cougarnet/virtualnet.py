@@ -317,6 +317,7 @@ class Host(object):
 class VirtualNetwork(object):
     def __init__(self, native_apps, terminal, tmpdir, ipv6):
         self.host_by_name = {}
+        self.hostname_by_sock = {}
         self.hosts_file = None
         self.native_apps = native_apps
         self.terminal = terminal
@@ -496,6 +497,7 @@ class VirtualNetwork(object):
             attrs['terminal'] = str(self.terminal)
         attrs['ipv6'] = str(self.ipv6)
 
+        self.hostname_by_sock[sock_file] = hostname
         self.host_by_name[hostname] = \
                 Host(hostname, sock_file, tmux_file, script_file, **attrs)
 
@@ -801,12 +803,11 @@ class VirtualNetwork(object):
         start_time = time.time()
         while True:
             data, peer = self.commsock.recvfrom(4096)
-            data = data.decode('utf-8')
-            try:
-                hostname, msg = data.split(',', maxsplit=1)
-            except ValueError:
-                hostname = ''
-                msg = data
+            msg = data.decode('utf-8')
+            if peer is not None:
+                hostname = self.hostname_by_sock[peer]
+            else:
+                hostname = '??'
             ts = time.time() - start_time
             print('%000.3f \033[1m%4s\033[0m  %s' % (ts, hostname, msg))
 
