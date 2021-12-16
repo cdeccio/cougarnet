@@ -44,6 +44,7 @@ The following are dependencies for Cougarnet:
 
  - [sudo](https://www.sudo.ws/)
  - [Open vSwitch](https://www.openvswitch.org/)
+ - [tmux](https://github.com/tmux/tmux/)
  - [LXTerminal](https://wiki.lxde.org/en/LXTerminal)
  - [PyGraphviz](https://pygraphviz.github.io/)
  - [Graph::Easy](https://metacpan.org/pod/Graph::Easy)
@@ -53,7 +54,7 @@ The following are dependencies for Cougarnet:
 To install these on a Debian system, run the following:
 
 ```
-$ sudo apt install openvswitch-switch lxterminal python3-pygraphviz libgraph-easy-perl wireshark socat
+$ sudo apt install openvswitch-switch tmux lxterminal python3-pygraphviz libgraph-easy-perl wireshark socat
 ```
 
 Of course, this assumes that you already have `sudo` installed and that your user is
