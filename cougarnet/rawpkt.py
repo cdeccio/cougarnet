@@ -34,6 +34,12 @@ class BaseFrameHandler:
         self._setup_send_sockets()
         self._set_interface_info()
 
+    def __del__(self):
+        try:
+            os.unlink(os.environ['COUGARNET_MY_SOCK'])
+        except FileNotFoundError:
+            pass
+
     def _setup_send_sockets(self):
         ints = os.listdir('/sys/class/net/')
         for intf in ints:
