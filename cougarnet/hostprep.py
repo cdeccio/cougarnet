@@ -89,13 +89,6 @@ def _apply_config(info):
             cmd = ['ip', 'link', 'set', intf, 'mtu', int_info['mtu']]
             subprocess.run(cmd, check=True)
 
-        #XXX Legacy
-        myintf = intf.replace('-', '_').upper()
-        if int_info.get('vlan', None) is not None:
-            os.environ[f'COUGARNET_VLAN_{myintf}'] = str(int_info['vlan'])
-        if int_info.get('trunk', None) is not None:
-            os.environ[f'COUGARNET_TRUNK_{myintf}'] = str(int_info['trunk']).upper()
-
         if int_info.get('vlan', None) is not None:
             vlan_info[intf] = f"vlan{int_info['vlan']}"
         elif int_info.get('trunk', None):

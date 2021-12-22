@@ -859,11 +859,8 @@ In native apps mode, a virtual switch is created (using Open vSwitch), and the
 links are assigned as designated VLAN or trunk links, respectively.
 
 ### Non-Native Apps
-If `vlan` is specified for a switch, then the virtual switch is made aware of
-the VLAN assignment via an environment variable.
-
-In this case, the virtual switches are both made aware of the trunked link via
-an environment variable.
+In non-native apps mode, the `COUGARNET_VLAN` environment variable contains the
+VLAN information for each switch interface.
 
 For example, consider the following configuration.
 
@@ -884,13 +881,12 @@ In this case, `h2` and `h3` are each switches, connected by a trunk.  Both `h1`
 and `h3` are connected to `h2`, with their links having VLAN assignments 25 and
 32, respectively.  The link between `h2` and `h4` is a trunk.
 
-The process associated with `h2` is made aware of the VLAN configuration via the
-environment variable, `COUGARNET_VLAN`, which contains a JSON object mapping
-each interface to its VLAN or trunk assignment. The value for an interface
-assigned to a VLAN has the form `vlan<id>` where `<id>` is the numerical VLAN
-id.  The value for an interface that corresponds to a trunk link is simply
-`trunk`.  The above configuration wouldlresult in the following environment
-variables being set for `h2`:
+In the process associated with `h2`, the environment variable `COUGARNET_VLAN`
+contains a JSON object mapping each interface to its VLAN or trunk assignment.
+The value for an interface assigned to a VLAN has the form `vlan<id>` where
+`<id>` is the numerical VLAN id.  The value for an interface that corresponds
+to a trunk link is simply `trunk`.  The above configuration wouldlresult in the
+following environment variables being set for `h2`:
 
 ```bash
 COUGARNET_VLAN={"h2-h1": "vlan25", "h2-h3": "vlan32", "h2-h4": "trunk"}
