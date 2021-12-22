@@ -1,5 +1,5 @@
 #!/usr/bin/python3
 
-from cougarnet.virtualnet import main
+from cougarnet.core.manager import main
 
 main()
