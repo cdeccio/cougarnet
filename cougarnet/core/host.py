@@ -9,6 +9,8 @@ from cougarnet import util
 #TERM="xfce4-terminal"
 TERM = "lxterminal"
 HOSTPREP_MODULE = "cougarnet.hostprep"
+MAIN_WINDOW_NAME = "main"
+CONTROL_WINDOW_NAME = "remote control"
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 
@@ -111,20 +113,35 @@ class Host(object):
 
         with open(self.script_file, 'w') as fh:
             fh.write('#!/bin/bash\n')
+            fh.write(f'exec tmux -S {self.tmux_file} ' + \
+                    f'new-session -s "{self.hostname}" -n "{MAIN_WINDOW_NAME}"')
+
             if self.terminal:
-                fh.write(f'exec tmux -S {self.tmux_file} new-session \\; \\\n')
+                # start attached
+                fh.write(f' \\; \\\n')
+                # have server terminate when client detaches
                 fh.write(f'    set exit-unattached on \\; \\\n')
                 if self.prog is not None:
+                    # start script in window
                     prog = self.prog.replace('|', ' ').replace('"', r'\"')
                     fh.write(f'    send-keys "{prog}" C-m \\; \\\n')
-                    fh.write(f'    split-window -v \\;\n')
+                    # split window, and make new pane the focus
+                    fh.write(f'    split-window -v \\;\\\n')
 
             else:
+                # start detached
+                fh.write(f' -d \\; \\\n')
                 if self.prog is not None:
-                    prog = self.prog.replace('|', ' ')
-                    fh.write(f'exec {prog}')
-                else:
-                    fh.write(f'exec bash')
+                    # start script
+                    prog = self.prog.replace('|', ' ').replace('"', r'\"')
+                    fh.write(f'    send-keys "{prog}" C-m \\; \\\n')
+                    # no need for split window; this session is not attached
+
+            # allow scrolling in window
+            fh.write(f'    setw -g mouse on \\; \\\n')
+            # create a new window for remote control
+            fh.write(f'    new-window -d -n "{CONTROL_WINDOW_NAME}" \\; \\\n')
+            fh.write(f'\n')
 
         cmd = ['chmod', '755', self.script_file]
         subprocess.run(cmd, check=True)
@@ -257,4 +274,3 @@ class Host(object):
             s += '</TD></TR><TR><TD ALIGN="right">'.join(intf.ipv6_addrs)
             s += '</TD></TR>'
         return s
-
