@@ -70,7 +70,11 @@ def _apply_config(info):
             addrs += int_info.get('ipv6_addrs', [])
 
         for addr in addrs:
-            cmd = ['ip', 'addr', 'add', addr, 'broadcast', '+', 'dev', intf]
+            if ':' in addr:
+                cmd = ['ip', 'addr', 'add', addr, 'dev', intf]
+            else:
+                # set broadcast for IPv4 only
+                cmd = ['ip', 'addr', 'add', addr, 'broadcast', '+', 'dev', intf]
             subprocess.run(cmd, check=True)
 
         cmd_suffix = []
