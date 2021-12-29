@@ -7,8 +7,8 @@ import time
 from cougarnet import util
 
 #TERM="xfce4-terminal"
-TERM="lxterminal"
-HOSTPREP_MODULE="cougarnet.hostprep"
+TERM = "lxterminal"
+HOSTPREP_MODULE = "cougarnet.hostprep"
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 
