@@ -155,6 +155,8 @@ class Host(object):
 
         with open(self.hosts_file, 'w') as write_fh:
             write_fh.write(f'127.0.0.1 localhost {self.hostname}\n')
+            if self.ipv6:
+                write_fh.write(f'::1 localhost {self.hostname}\n')
             with open(other_hosts, 'r') as read_fh:
                 write_fh.write(read_fh.read())
 
