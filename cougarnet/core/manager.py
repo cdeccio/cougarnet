@@ -58,7 +58,7 @@ class VirtualNetwork(object):
             cmd = ['mkdir', '-p', d]
             subprocess.run(cmd, check=True)
 
-    def import_int(self, hostname_addr):
+    def parse_int(self, hostname_addr):
         parts = hostname_addr.split(',')
         hostname = parts[0]
         mac = None
@@ -113,9 +113,9 @@ class VirtualNetwork(object):
 
         int1_info, int2_info = parts[:2]
         host1, mac1, addrs41, addrs61, subnet41, subnet61 = \
-                self.import_int(int1_info)
+                self.parse_int(int1_info)
         host2, mac2, addrs42, addrs62, subnet42, subnet62 = \
-                self.import_int(int2_info)
+                self.parse_int(int2_info)
 
         if set(addrs41).intersection(set(addrs42)):
             raise ValueError(f'Addresses for {host1.hostname} and ' + \
@@ -140,13 +140,9 @@ class VirtualNetwork(object):
         else:
             attrs = {}
 
-        self.add_link(host1, host2, **attrs)
-        host1.int_to_mac[host1.neighbor_to_int[host2]] = mac1
-        host2.int_to_mac[host2.neighbor_to_int[host1]] = mac2
-        host1.int_to_ip4[host1.neighbor_to_int[host2]] = addrs41
-        host2.int_to_ip4[host2.neighbor_to_int[host1]] = addrs42
-        host1.int_to_ip6[host1.neighbor_to_int[host2]] = addrs61
-        host2.int_to_ip6[host2.neighbor_to_int[host1]] = addrs62
+        int1, int2 = self.add_link(host1, host2, **attrs)
+        int1.update(mac_addr=mac1, ipv4_addrs=addrs41, ipv6_addrs=addrs61)
+        int2.update(mac_addr=mac2, ipv4_addrs=addrs42, ipv6_addrs=addrs62)
 
     def process_routes(self):
         for hostname, host in self.host_by_name.items():
@@ -235,45 +231,51 @@ class VirtualNetwork(object):
         num1 = host1.next_int()
         num2 = host2.next_int()
 
-        int1 = f'{host1.hostname}-{host2.hostname}'
-        int2 = f'{host2.hostname}-{host1.hostname}'
-        host1.add_int(int1, host2)
-        host2.add_int(int2, host1)
-        host1.int_to_bw[int1] = bw
-        host2.int_to_bw[int2] = bw
-        host1.int_to_delay[int1] = delay
-        host2.int_to_delay[int2] = delay
-        host1.int_to_loss[int1] = loss
-        host2.int_to_loss[int2] = loss
-        host1.int_to_mtu[int1] = mtu
-        host2.int_to_mtu[int2] = mtu
+        int1_name = f'{host1.hostname}-{host2.hostname}'
+        int2_name = f'{host2.hostname}-{host1.hostname}'
+
+        vlan1 = None
+        vlan2 = None
+        trunk1 = None
+        trunk2 = None
+
         if host1.type == 'switch':
-            host1.int_to_vlan[int1] = vlan
+            vlan1 = vlan
         else:
-            host1.int_to_vlan[int1] = None
+            vlan1 = None
         if host2.type == 'switch':
-            host2.int_to_vlan[int2] = vlan
+            vlan2 = vlan
         else:
-            host2.int_to_vlan[int2] = None
+            vlan2 = None
+
         if host1.type == 'switch' and host2.type == 'switch':
             if not trunk or str(trunk).lower() in FALSE_STRINGS:
-                host1.int_to_trunk[int1] = False
-                host2.int_to_trunk[int2] = False
+                trunk1 = False
+                trunk2 = False
             else:
-                host1.int_to_trunk[int1] = True
-                host2.int_to_trunk[int2] = True
+                trunk1 = True
+                trunk2 = True
         else:
-            host1.int_to_trunk[int1] = None
-            host2.int_to_trunk[int2] = None
+            trunk1 = None
+            trunk2 = None
+
+        intf1 = host1.add_int(int1_name, host2,
+                        bw=bw, delay=delay, loss=loss, mtu=mtu,
+                        vlan=vlan1, trunk=trunk1)
+        intf2 = host2.add_int(int2_name, host1,
+                        bw=bw, delay=delay, loss=loss, mtu=mtu,
+                        vlan=vlan2, trunk=trunk2)
+
+        return intf1, intf2
 
     def apply_links(self):
         done = set()
         for hostname, host in self.host_by_name.items():
-            for intf, neighbor in host.int_to_neighbor.items():
+            for intf, neighbor in host.neighbor_by_int.items():
                 host1 = host
                 host2 = neighbor
                 int1 = intf
-                int2 = host2.neighbor_to_int[host]
+                int2 = host2.int_by_neighbor[host]
                 if (host1, host2, int1, int2) in done:
                     continue
                 done.add((host1, host2, int1, int2))
@@ -281,8 +283,7 @@ class VirtualNetwork(object):
 
                 # Sanity check
                 if host1.type == 'switch':
-                    has_vlans = bool(host1.int_to_vlan[int1] is not None or \
-                            host1.int_to_trunk[int1])
+                    has_vlans = bool(int1.vlan is not None or int1.trunk)
                     if has_vlans and host1.has_vlans is False or \
                             not has_vlans and host1.has_vlans:
                         raise InconsistentConfiguration(
@@ -290,8 +291,7 @@ class VirtualNetwork(object):
                                         'VLANs while others do not!')
                     host1.has_vlans = has_vlans
                 if host2.type == 'switch':
-                    has_vlans = bool(host2.int_to_vlan[int2] is not None or \
-                            host2.int_to_trunk[int2])
+                    has_vlans = bool(int2.vlan is not None or int2.trunk)
                     if has_vlans and host2.has_vlans is False or \
                             not has_vlans and host2.has_vlans:
                         raise InconsistentConfiguration(
@@ -300,8 +300,8 @@ class VirtualNetwork(object):
                     host2.has_vlans = has_vlans
 
                 # create both interfaces
-                cmd = ['sudo', 'ip', 'link', 'add', int1,
-                        'type', 'veth', 'peer', 'name', int2]
+                cmd = ['sudo', 'ip', 'link', 'add', int1.name,
+                        'type', 'veth', 'peer', 'name', int2.name]
                 subprocess.run(cmd, check=True)
 
                 host1_bridge = False
@@ -314,11 +314,11 @@ class VirtualNetwork(object):
                         host1.has_bridge = True
 
                     cmd = ['sudo', 'ovs-vsctl', 'add-port',
-                            host1.hostname, int1]
+                            host1.hostname, int1.name]
                     if host1.type == 'switch':
-                        if host1.int_to_vlan[int1] is not None:
-                            cmd.append(f'tag={host1.int_to_vlan[int1]}')
-                        elif host1.int_to_trunk[int1]:
+                        if int1.vlan is not None:
+                            cmd.append(f'tag={int1.vlan}')
+                        elif int1.trunk:
                             pass
                         else:
                             cmd.append('tag=0')
@@ -334,11 +334,11 @@ class VirtualNetwork(object):
                         host2.has_bridge = True
 
                     cmd = ['sudo', 'ovs-vsctl', 'add-port',
-                            host2.hostname, int2]
+                            host2.hostname, int2.name]
                     if host2.type == 'switch':
-                        if host2.int_to_vlan[int2] is not None:
-                            cmd.append(f'tag={host2.int_to_vlan[int2]}')
-                        elif host2.int_to_trunk[int2]:
+                        if int2.vlan is not None:
+                            cmd.append(f'tag={int2.vlan}')
+                        elif int2.trunk:
                             pass
                         else:
                             cmd.append('tag=0')
@@ -346,17 +346,17 @@ class VirtualNetwork(object):
 
                 # Move interfaces to their appropriate namespaces
                 if host1_bridge:
-                    cmd = ['sudo', 'ip', 'link', 'set', int1, 'up']
+                    cmd = ['sudo', 'ip', 'link', 'set', int1.name, 'up']
                     subprocess.run(cmd, check=True)
                 else:
-                    cmd = ['sudo', 'ip', 'link', 'set', int1, 'netns',
+                    cmd = ['sudo', 'ip', 'link', 'set', int1.name, 'netns',
                             host1.hostname]
                     subprocess.run(cmd, check=True)
                 if host2_bridge:
-                    cmd = ['sudo', 'ip', 'link', 'set', int2, 'up']
+                    cmd = ['sudo', 'ip', 'link', 'set', int2.name, 'up']
                     subprocess.run(cmd, check=True)
                 else:
-                    cmd = ['sudo', 'ip', 'link', 'set', int2, 'netns',
+                    cmd = ['sudo', 'ip', 'link', 'set', int2.name, 'netns',
                             host2.hostname]
                     subprocess.run(cmd, check=True)
 
@@ -481,11 +481,11 @@ class VirtualNetwork(object):
 
         done = set()
         for hostname, host in self.host_by_name.items():
-            for intf, neighbor in host.int_to_neighbor.items():
+            for intf, neighbor in host.neighbor_by_int.items():
                 host1 = host
                 host2 = neighbor
                 int1 = intf
-                int2 = host2.neighbor_to_int[host]
+                int2 = host2.int_by_neighbor[host]
                 if (host1, host2, int1, int2) in done:
                     continue
                 done.add((host1, host2, int1, int2))
@@ -501,11 +501,11 @@ class VirtualNetwork(object):
 
         done = set()
         for hostname, host in self.host_by_name.items():
-            for intf, neighbor in host.int_to_neighbor.items():
+            for intf, neighbor in host.neighbor_by_int.items():
                 host1 = host
                 host2 = neighbor
                 int1 = intf
-                int2 = host2.neighbor_to_int[host]
+                int2 = host2.int_by_neighbor[host]
                 if (host1, host2, int1, int2) in done:
                     continue
                 done.add((host1, host2, int1, int2))

@@ -42,9 +42,9 @@ def _apply_config(info):
 
     for intf in info.get('interfaces', []):
         int_info = info['interfaces'][intf]
-        if int_info.get('mac', None):
+        if int_info.get('mac_addr', None):
             # set MAC address, if specified
-            cmd = ['ip', 'link', 'set', intf, 'address', int_info['mac']]
+            cmd = ['ip', 'link', 'set', intf, 'address', int_info['mac_addr']]
             subprocess.run(cmd, check=True)
 
         # bring link up
@@ -65,9 +65,9 @@ def _apply_config(info):
         subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
 
         # add each IP address
-        addrs = int_info.get('addrs4', [])[:]
+        addrs = int_info.get('ipv4_addrs', [])[:]
         if info.get('ipv6', True):
-            addrs += int_info.get('addrs6', [])
+            addrs += int_info.get('ipv6_addrs', [])
 
         for addr in addrs:
             cmd = ['ip', 'addr', 'add', addr, 'broadcast', '+', 'dev', intf]

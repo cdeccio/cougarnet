@@ -4,6 +4,7 @@ import subprocess
 import sys
 import time
 
+from .interface import InterfaceConfig
 from cougarnet import util
 
 #TERM="xfce4-terminal"
@@ -23,18 +24,10 @@ class Host(object):
         self.pid = None
         self.config_file = None
         self.next_int_num = 0
-        self.int_to_neighbor = {}
-        self.neighbor_to_int = {}
+        self.int_by_name = {}
+        self.int_by_neighbor = {}
+        self.neighbor_by_int = {}
         self.neighbor_by_hostname = {}
-        self.int_to_mac = {}
-        self.int_to_ip4 = {}
-        self.int_to_ip6 = {}
-        self.int_to_bw = {}
-        self.int_to_delay = {}
-        self.int_to_loss = {}
-        self.int_to_mtu = {}
-        self.int_to_vlan = {}
-        self.int_to_trunk = {}
         self.type = type
         self.prog = prog
         self.has_bridge = False
@@ -84,13 +77,13 @@ class Host(object):
             if not next_hop:
                 next_hop = None
             try:
-                intf = self.neighbor_to_int[self.neighbor_by_hostname[neighbor]]
+                intf = self.int_by_neighbor[self.neighbor_by_hostname[neighbor]]
             except KeyError:
                 raise ValueError(f"The interface connected to {neighbor} " + \
                         f"is designated as a next hop for one of " + \
                         f"{self.hostname}'s routes, but {neighbor} " + \
                         f"is not directly connected to {self.hostname}.")
-            self.routes.append((prefix, intf, next_hop))
+            self.routes.append((prefix, intf.name, next_hop))
 
     def _host_config(self):
         host_info = {
@@ -102,23 +95,10 @@ class Host(object):
                 }
         host_info['ip_forwarding'] = self.type == 'router' and self.native_apps
         int_infos = {}
-        for intf in self.int_to_neighbor:
-            int_infos[intf] = self._int_config(intf)
+        for intf in self.neighbor_by_int:
+            int_infos[intf.name] = intf.as_dict()
         host_info['interfaces'] = int_infos
         return host_info
-
-    def _int_config(self, intf):
-        return {
-                'mac': self.int_to_mac[intf],
-                'addrs4': self.int_to_ip4[intf][:],
-                'addrs6': self.int_to_ip6[intf][:],
-                'bw': self.int_to_bw[intf],
-                'delay': self.int_to_delay[intf],
-                'loss': self.int_to_loss[intf],
-                'mtu': self.int_to_mtu[intf],
-                'vlan': self.int_to_vlan[intf],
-                'trunk': self.int_to_trunk[intf]
-                }
 
     def create_config(self, config_file):
 
@@ -161,13 +141,13 @@ class Host(object):
                 write_fh.write(read_fh.read())
 
     def create_hosts_file_entries(self, fh):
-        for intf in self.int_to_neighbor:
-            for addr in self.int_to_ip4[intf]:
+        for intf in self.neighbor_by_int:
+            for addr in intf.ipv4_addrs:
                 slash = addr.find('/')
                 if slash >= 0:
                     addr = addr[:slash]
                 fh.write(f'{addr} {self.hostname}\n')
-            for addr in self.int_to_ip6[intf]:
+            for addr in intf.ipv6_addrs:
                 slash = addr.find('/')
                 if slash >= 0:
                     addr = addr[:slash]
@@ -206,12 +186,19 @@ class Host(object):
         p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    def add_int(self, intf, host):
-        self.int_to_neighbor[intf] = host
-        if host in self.neighbor_to_int:
+    def add_int(self, name, neighbor, bw=None, delay=None, loss=None,
+            mtu=None, vlan=None, trunk=None):
+
+        if neighbor in self.int_by_neighbor:
             raise ValueError('Only one link can exist between two hosts')
-        self.neighbor_to_int[host] = intf
-        self.neighbor_by_hostname[host.hostname] = host
+
+        intf = InterfaceConfig(name, bw=bw, delay=delay, loss=loss,
+                mtu=mtu, vlan=vlan, trunk=trunk)
+        self.int_by_name[name] = intf
+        self.int_by_neighbor[neighbor] = intf
+        self.neighbor_by_int[intf] = neighbor
+        self.neighbor_by_hostname[neighbor.hostname] = neighbor
+        return intf
 
     def next_int(self):
         int_next = self.next_int_num
@@ -263,10 +250,10 @@ class Host(object):
             cmd = ['sudo', 'ovs-vsctl', 'del-br', self.hostname]
             subprocess.run(cmd)
 
-            for intf in self.int_to_neighbor:
-                neighbor = self.int_to_neighbor[intf]
+            for intf in self.neighbor_by_int:
+                neighbor = self.neighbor_by_int[intf]
                 if neighbor.type == 'switch' and neighbor.native_apps:
-                    cmd = ['sudo', 'ip', 'link', 'del', intf]
+                    cmd = ['sudo', 'ip', 'link', 'del', intf.name]
                     subprocess.run(cmd)
 
         for f in self.sock_file, self.config_file, self.script_file, \
@@ -275,16 +262,16 @@ class Host(object):
                 os.unlink(f)
 
     def label_for_int(self, intf):
-        s = f'<TR><TD COLSPAN="2" ALIGN="left"><B>{intf}:</B></TD></TR>'
-        if self.int_to_mac[intf] is not None:
-            s += f'<TR><TD ALIGN="right">  </TD><TD>{self.int_to_mac[intf]}</TD></TR>'
-        if self.int_to_ip4[intf]:
+        s = f'<TR><TD COLSPAN="2" ALIGN="left"><B>{intf.name}:</B></TD></TR>'
+        if intf.mac_addr is not None:
+            s += f'<TR><TD ALIGN="right">  </TD><TD>{intf.mac_addr}</TD></TR>'
+        if intf.ipv4_addrs:
             s += '<TR><TD ALIGN="RIGHT">  </TD><TD>'
-            s += '</TD></TR><TR><TD ALIGN="right">'.join(self.int_to_ip4[intf])
+            s += '</TD></TR><TR><TD ALIGN="right">'.join(intf.ipv4_addrs)
             s += '</TD></TR>'
-        if self.int_to_ip6[intf]:
+        if intf.ipv6_addrs:
             s += '<TR><TD ALIGN="RIGHT">  </TD><TD>'
-            s += '</TD></TR><TR><TD ALIGN="right">'.join(self.int_to_ip6[intf])
+            s += '</TD></TR><TR><TD ALIGN="right">'.join(intf.ipv6_addrs)
             s += '</TD></TR>'
         return s
 
