@@ -2,7 +2,6 @@ import json
 import os
 import subprocess
 import sys
-import time
 
 from .interface import InterfaceConfig
 from cougarnet import util
@@ -207,28 +206,12 @@ class Host(object):
 
     def kill(self):
         if self.pid is not None:
-            cmd = ['kill', f'-TERM', str(self.pid)]
-            subprocess.run(cmd, stderr=subprocess.DEVNULL)
-
-            if util.pid_is_running(self.pid):
-                time.sleep(0.2)
-                if util.pid_is_running(self.pid):
-                    cmd = ['kill', f'-KILL', str(self.pid)]
-                    subprocess.run(cmd, stderr=subprocess.DEVNULL)
+            util.kill_until_terminated(self.pid, elevate_if_needed=True)
 
         if self.tmux_file is not None:
             tmux_pid = self._get_tmux_server_pid()
-            if tmux_pid is not None and \
-                    util.pid_is_running(tmux_pid):
-                cmd = ['kill', f'-TERM', str(tmux_pid)]
-                subprocess.run(cmd, stderr=subprocess.DEVNULL)
-
-                if util.pid_is_running(tmux_pid):
-                    time.sleep(0.2)
-                    if util.pid_is_running(tmux_pid):
-                        cmd = ['kill', f'-KILL', str(tmux_pid)]
-                        subprocess.run(cmd, stderr=subprocess.DEVNULL)
-
+            if tmux_pid is not None:
+                util.kill_until_terminated(tmux_pid, elevate_if_needed=False)
 
     def cleanup(self):
         self.kill()
