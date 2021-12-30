@@ -14,7 +14,7 @@ import tempfile
 import time
 
 from cougarnet import util
-from .host import Host
+from .host import HostConfig
 
 
 HOST_RE = re.compile(r'^[a-z]([a-z0-9-]*[a-z0-9])?$')
@@ -218,7 +218,7 @@ class VirtualNetwork(object):
 
         self.hostname_by_sock[sock_file] = hostname
         self.host_by_name[hostname] = \
-                Host(hostname, sock_file, tmux_file, script_file, **attrs)
+                HostConfig(hostname, sock_file, tmux_file, script_file, **attrs)
 
     def add_link(self, host1, host2, bw=None, delay=None, loss=None,
             mtu=None, vlan=None, trunk=None):
