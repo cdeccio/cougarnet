@@ -14,7 +14,7 @@ CONTROL_WINDOW_NAME = "remote control"
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 
-class Host(object):
+class HostConfig(object):
     def __init__(self, hostname, sock_file, tmux_file, script_file, type='host',
             native_apps=True, terminal=True, prog=None, ipv6=True, routes=None):
 
