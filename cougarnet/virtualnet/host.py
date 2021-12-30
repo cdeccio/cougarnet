@@ -8,7 +8,7 @@ from cougarnet import util
 
 #TERM="xfce4-terminal"
 TERM = "lxterminal"
-HOSTPREP_MODULE = "cougarnet.hostprep"
+HOSTPREP_MODULE = "cougarnet.virtualnet.hostinit"
 MAIN_WINDOW_NAME = "main"
 CONTROL_WINDOW_NAME = "remote control"
 
