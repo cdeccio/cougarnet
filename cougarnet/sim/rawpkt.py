@@ -5,6 +5,8 @@ import re
 import socket
 import subprocess
 
+from .interface import InterfaceInfo
+
 IP_ADDR_MTU_RE = re.compile(r'^\d:\s+.*\smtu\s+(\d+)(\s|$)')
 IP_ADDR_MAC_RE = re.compile(r'^\s+link/ether\s+([0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5})(\s|$)')
 IP_ADDR_IPV4_RE = re.compile(r'^\s+inet\s+([0-9]{1,3}(\.[0-9]{1,3}){3})\/(\d{1,2})\s+brd\s+([0-9]{1,3}(\.[0-9]{1,3}){3})(\s|$)')
@@ -32,19 +34,7 @@ class tpacket_auxdata(ctypes.Structure):
         ("tp_padding", ctypes.c_ushort),
     ]
 
-class InterfaceInfo:
-    def __init__(self, macaddr, ipv4addrs, ipv4prefix, ipv4broadcast, \
-            ipv6addrs, ipv6lladdr, ipv6prefix, mtu):
-        self.macaddr = macaddr
-        self.ipv4addrs = ipv4addrs
-        self.ipv4prefix = ipv4prefix
-        self.ipv4broadcast = ipv4broadcast
-        self.ipv6addrs = ipv6addrs
-        self.ipv6lladdr = ipv6lladdr
-        self.ipv6prefix = ipv6prefix
-        self.mtu = mtu
-
-class BaseFrameHandler:
+class BaseHost:
     def __init__(self):
         self.int_to_sock = {}
         self.int_to_info = {}
