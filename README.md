@@ -644,7 +644,9 @@ could happen by running the following:
 
 ```python
 import asyncio
+
 loop = asyncio.get_event_loop()
+
 def say_hello(arg):
     print(f'hello {arg}')
     loop.call_later(2, say_hello, 'world')
@@ -667,7 +669,9 @@ example:
 
 ```python
 import asyncio
+
 loop = asyncio.get_event_loop()
+
 def say_hello(arg):
     print(f'hello {arg}')
 
