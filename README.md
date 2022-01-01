@@ -32,7 +32,6 @@ stack and some that do not.
    - [Sending and Receiving Frames](#sending-and-receiving-frames)
    - [Scheduling Events](#scheduling-events)
    - [Cancelling Events](#cancelling-events)
-
  - [Virtual Links](#virtual-links)
    - [Configuration](#configuration-1)
    - [Bi-Directionality of Link Attributes](#bi-directionality-of-link-attributes)
@@ -207,9 +206,9 @@ In general, the syntax for a host is:
 ```
 
 That is, if there are additional options, there is a space after the hostname,
-and those options come after the space. The options consist a comma-delimited
-list of name-value pairs, each name-value connected by `=`.  The defined host
-option names are the following, accompanied by the expected value:
+and those options come after the space. The options consist of a comma-delimited
+list of name-value pairs, each name connected to its value by `=`.  The defined
+host option names are the following, accompanied by the expected value:
  - `native_apps`: a boolean (i.e., `true` or `false`) indicating whether or not
    the native network stack should be used.  Default: `true`.
  - `terminal`: a boolean (i.e., `true` or `false`) indicating whether or not a
@@ -323,7 +322,7 @@ import os
 import socket
 
 sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
-s.bind((os.environ['COUGARNET_MY_SOCK']))
+sock.bind((os.environ['COUGARNET_MY_SOCK']))
 sock.connect(os.environ['COUGARNET_COMM_SOCK'])
 sock.send('hello world'.encode('utf-8'))
 ```
