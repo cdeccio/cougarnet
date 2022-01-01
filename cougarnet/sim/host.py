@@ -86,14 +86,14 @@ class BaseHost:
 
     @classmethod
     def _get_interface_info(cls, intf):
-        macaddr = None
+        mac_addr = None
         mtu = None
-        ipv4prefix = None
-        ipv4broadcast = None
-        ipv4addrs = []
-        ipv6prefix = None
-        ipv6addrs = []
-        ipv6lladdr = None
+        ipv4_prefix_len = None
+        ipv4_broadcast = None
+        ipv4_addrs = []
+        ipv6_prefix_len = None
+        ipv6_addrs = []
+        ipv6_addr_link_local = None
         output = subprocess.run(['ip', 'addr', 'show', intf], \
                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout
         output = output.decode('utf-8')
@@ -101,15 +101,15 @@ class BaseHost:
             m = IP_ADDR_MAC_RE.match(line)
             if m is not None:
                 # MAC address
-                macaddr = m.group(1)
+                mac_addr = m.group(1)
                 continue
 
             m = IP_ADDR_IPV4_RE.match(line)
             if m is not None:
                 # IPv4 address
-                ipv4addrs.append(m.group(1))
-                ipv4prefix = int(m.group(3))
-                ipv4broadcast = m.group(4)
+                ipv4_addrs.append(m.group(1))
+                ipv4_prefix_len = int(m.group(3))
+                ipv4_broadcast = m.group(4)
                 continue
 
             m = IP_ADDR_IPV6_RE.match(line)
@@ -117,19 +117,19 @@ class BaseHost:
                 # IPv6 address
                 if m.group(3) == 'global':
                     # IPv6 global address
-                    ipv6addrs.append(m.group(1))
-                    ipv6prefix = int(m.group(2))
+                    ipv6_addrs.append(m.group(1))
+                    ipv6_prefix_len = int(m.group(2))
                 elif m.group(3) == 'link':
                     # IPv6 link-local address
-                    ipv6lladdr = m.group(1)
+                    ipv6_addr_link_local = m.group(1)
                 continue
 
             m = IP_ADDR_MTU_RE.match(line)
             if m is not None:
                 mtu = int(m.group(1))
 
-        return InterfaceInfo(macaddr, ipv4addrs, ipv4prefix, ipv4broadcast,
-                        ipv6addrs, ipv6lladdr, ipv6prefix, mtu)
+        return InterfaceInfo(mac_addr, ipv4_addrs, ipv4_prefix_len,
+                        ipv6_addrs, ipv6_addr_link_local, ipv6_prefix_len, mtu)
 
     def _handle_frame(self, frame, intf):
         pass
