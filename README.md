@@ -30,6 +30,9 @@ stack and some that do not.
    - [Environment](#environment)
    - [Running Programs](#running-programs)
    - [Sending and Receiving Frames](#sending-and-receiving-frames)
+   - [Scheduling Events](#scheduling-events)
+   - [Cancelling Events](#cancelling-events)
+
  - [Virtual Links](#virtual-links)
    - [Configuration](#configuration-1)
    - [Bi-Directionality of Link Attributes](#bi-directionality-of-link-attributes)
@@ -345,9 +348,9 @@ The three components of the output message can be explained as follows:
    will be unknown.
  - *Message* (`hello world`): the actual message to be logged and/or printed.
 
-The `rawpkt.BaseFrameHandler` class has a function `log()` which can be used to
-issue messages.  So if you subclass `rawpkt.BaseFrameHandler` and then call
-`log()`, it will handle socket functions for you.
+The `BaseHost` class has a function `log()` which can be used to issue
+messages.  So if you subclass `BaseHost` and then call `log()`, it will handle
+socket functions for you.
 
 
 ## Name Resolution
@@ -534,14 +537,8 @@ The output is the same as the previous output.
 
 When Cougarnet is used for protocol development, it is desirable to send and
 receive raw Ethernet frames, rather than using the native network stack, i.e.,
-with the socket API.  Two classes are useful for sending and receiving frames
-in Cougarnet: `rawpkt.BaseFrameHandler` and `networksched.NetworkEventLoop`.
-
-
-### `BaseFrameHandler`
-
-The `BaseFrameHandler` class provides functionality to a virtual host to
-facilitate frame sending and receiving.  The key components are the following:
+with the socket API.  The `BaseHost` class is useful for sending and receiving
+frames in Cougarnet.  The key components are the following:
 
  - `int_to_sock` - a `dict` containing a mapping of
    [interface names](#interface-names) to raw sockets (i.e., for sending
@@ -549,20 +546,18 @@ facilitate frame sending and receiving.  The key components are the following:
  - `int_to_info` - a `dict` containing a mapping of
    [interface names](#interface-names) to `InterfaceInfo` instances.  An
    `InterfaceInfo` instance has the following attributes:
-   - `macaddr` - the MAC address for the interface.
-   - `ipv4addrs` - a list of IPv4 addresses with which the interface has been
+   - `mac_addr` - the MAC address for the interface.
+   - `ipv4_addrs` - a list of IPv4 addresses with which the interface has been
      configured.  Please note that _typically_ an interface will just be configured
      with a single IP address.  Thus, usually `ipv4addrs[0]` will work just fine.
-   - `ipv4prefix` - the length of the IPv4 prefix(es) on this interface.
-   - `ipv4broadcast` - the IPv4 broadcast address for the IPv4 subnet on this
-     interface.
-   - `ipv6addrs` - a list of IPv6 addresses with which the interface has been
+   - `ipv4_prefix_len` - the length of the IPv4 prefix(es) on this interface.
+   - `ipv6_addrs` - a list of IPv6 addresses with which the interface has been
      configured.  Please note that just as with IPv4, an interface will typically
      just be configured with a single IP address.  Thus, usually `ipv6addrs[0]`
      will work just fine.
-   - `ipv6lladdr` - the link-local IPv6 address with which the interface has
-     been configured.
-   - `ipv6prefix` - the length of the IPv6 prefix(es) on this interface.
+   - `ipv6_addr_link_local` - the link-local IPv6 address with which the
+     interface has been configured.
+   - `ipv6_prefix_len` - the length of the IPv6 prefix(es) on this interface.
  - `hostname` - a `str` whose value is the [hostname](#hostnames) of the virtual host.
  - `comm_sock` - a socket (`socket.socket`) that is connected to the
    [communications socket](#communicating-with-the-calling-process) on which
@@ -578,103 +573,85 @@ facilitate frame sending and receiving.  The key components are the following:
    communications socket (i.e., `comm_sock`) directly.
 
 This is designed to provide a base class, which can be subclassed, such that
-the inherited functionality is accessible to the child class.  For example,
+the inherited functionality is accessible to the child class.
 
-```python
-class FramePrinter(BaseFrameHandler):
-    def print_frame_repr(self, intf, frame):
-        self.log(f'Received frame: {repr(frame)}')
-```
-
-
-### `NetworkEventLoop`
-
-The `NetworkEventLoop` class provides a way for a process to handle incoming
-frames and scheduled events to be handled by an event loop.  In short, the
-`NetworkEventLoop` is instantiated with a function or bound method that is to
-be called when a frame is received, such as:
-
-```python
-def print_frame_repr(intf, frame):
-    print(f'Received frame: {repr(frame)}')
-
-event_loop = NetworkEventLoop(print_frame_repr)
-event_loop.run()
-```
-
-or, using a subclass of `BaseFrameHandler`:
-
-```python
-class FramePrinter(BaseFrameHandler):
-    def print_frame_repr(self, intf, frame):
-        self.log(f'Received frame: {repr(frame)}')
-
-frame_printer = FramePrinter()
-event_loop = NetworkEventLoop(frame_printer.print_frame_repr)
-event_loop.run()
-```
-
-In both examples the argument used in the instantiation and initialization
-of a `NetworkEventLoop` instance is a function (or bound method) that takes
-two arguments:
+The `BaseHost` class uses Python's `SelectorEventLoop`
+[documentation](https://docs.python.org/3/library/asyncio-eventloop.html#asyncio.SelectorEventLoop)
+to handle incoming frames and scheduled events.  Every time an Ethernet frame
+is received on an interface of the virtual host running the script, the
+`_handle_frame()` method is called with the following arguments:
 
  - `frame` (type `bytes`) - the frame received; and
  - `intf` (type `str`) - the name of the interface out which it should be sent.
 
-Thus, when an incoming frame `frame` arrives on interface `intf`, the
-following is called by the `NetworkEventLoop` instance:
+For example, consider the following code:
 
 ```python
-handle_frame(frame, intf)
+import asyncio
+from cougarnet.sim.host import BaseHost
+
+class FramePrinter(BaseHost):
+    def _handle_frame(self, frame, intf):
+        self.log(f'Received frame on {intf}: {repr(frame)}')
+
+def main():
+    frame_printer = FramePrinter()
+    loop = asyncio.get_event_loop()
+    try:
+        loop.run_forever()
+    finally:
+        loop.close()
 ```
 
-where `handle_frame()` represents the function that was passed.
+With the above example, every time an Ethernet frame is received, a
+representation of the frame and the name of the interface on which it was
+received is sent to the calling process over the UNIX domain socket set up for
+that purpose, with the `log()` method.  Of course, `_handle_frame()` can be
+overridden to do whatever the developer would like; this is simply an example.
 
 
-#### Scheduling Events
+## Scheduling Events
 
-Events (besides incoming packets) are added to the event loop by calling
-`schedule_event()` method, which is defined thus:
+Events (besides incoming packets) are added to the event loop by calling its
+`call_later()` method.  For example:
 
 ```python
-def schedule_event(self, seconds, action, args=None, kwargs=None):
+import asyncio
+
+loop = asyncio.get_event_loop()
+loop.call_later(1, do_something, arg1, arg2)
 ```
 
-The arguments are as follows:
- - `seconds` (type `float`) - a time relative to the current time (i.e., to
-   designate that something should happen `seconds` seconds from now).
- - `action` (type `callable`) - the function or bound method that should be
-   called at the designated time.
- - `args` (type `tuple` or `None`) - one or more arguments that should be
-   passed to the function or bound method when it is called.
- - `kwargs` (type `dict` or `None`) - one or more keyword arguments that should
-   be passed to the function or bound method when it is called.
+The `call_later()` method is documented
+[here](https://docs.python.org/3/library/asyncio-eventloop.html#scheduling-delayed-callbacks).
 
 For example, consider the following:
 
 ```python
-event_loop = NetworkEventLoop(handle_frame)
+import asyncio
+
+loop = asyncio.get_event_loop()
 
 def say_hello(arg):
     print(f'hello {arg}')
 
-event_loop.schedule_event(2, say_hello, ('world',))
-event_loop.run()
+loop.call_later(2, say_hello, 'world')
+loop.run_forever()
 ```
 
-This would result in "hello world" being printed two seconds after
-`event_loop.run()` was called.  A perpetual event could happen by running the
-following:
+Assuming the event loop is running, this would result in "hello world" being
+printed two seconds from the time `call_later()` was called.  A perpetual event
+could happen by running the following:
 
 ```python
-event_loop = NetworkEventLoop(handle_frame)
-
+import asyncio
+loop = asyncio.get_event_loop()
 def say_hello(arg):
     print(f'hello {arg}')
-    event_loop.schedule_event(2, say_hello, ('world',))
+    loop.call_later(2, say_hello, 'world')
 
-event_loop.schedule_event(2, say_hello, ('world',))
-event_loop.run()
+loop.call_later(2, say_hello, 'world')
+loop.run_forever()
 ```
 
 This would result in `say_hello()` being called every two seconds.  Note that
@@ -682,22 +659,22 @@ is not a recursive call because `say_hello()` is not calling `say_hello()`; it
 is simply scheduling `say_hello()` to be called later.
 
 
-#### Canceling Events
+## Cancelling Events
 
-Canceling a scheduled event is done with the `cancel_event()` method.  When an
+Cancelling a scheduled event is done with the `cancel_event()` method.  When an
 event is scheduled by calling `schedule_event()`, an `Event` instance is
 returned.  That instance is passed to `cancel_event()`.  Consider the previous
 example:
 
 ```python
-event_loop = NetworkEventLoop(handle_frame)
-
+import asyncio
+loop = asyncio.get_event_loop()
 def say_hello(arg):
     print(f'hello {arg}')
 
-event = event_loop.schedule_event(2, say_hello, ('world',))
-event_loop.cancel_event(event)
-event_loop.run()
+event = loop.call_later(2, say_hello, 'world')
+event.cancel()
+loop.run_forever()
 ```
 
 The call to `say_hello()` is cancelled before it ever gets run!
