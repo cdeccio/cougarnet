@@ -67,7 +67,10 @@ class BaseFrameHandler:
         ints = os.listdir('/sys/class/net/')
         for intf in ints:
 
-            if intf.startswith('lo'):
+            #XXX this is a hack. fix this by putting it in its own namespace
+            #if intf.startswith('lo'):
+            #    continue
+            if not intf.startswith(f'{self.hostname}-'):
                 continue
 
             # For receiving...
@@ -81,7 +84,10 @@ class BaseFrameHandler:
     def _setup_send_sockets(self):
         ints = os.listdir('/sys/class/net/')
         for intf in ints:
-            if intf.startswith('lo'):
+            #XXX this is a hack. fix this by putting it in its own namespace
+            #if intf.startswith('lo'):
+            #    continue
+            if not intf.startswith(f'{self.hostname}-'):
                 continue
 
             sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_ALL))
