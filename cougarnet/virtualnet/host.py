@@ -250,11 +250,13 @@ class HostConfig(object):
             cmd = ['sudo', 'ovs-vsctl', 'del-br', self.hostname]
             subprocess.run(cmd)
 
+            # Explicitly deleting interfaces is only needed when this is a
+            # switch running in "native apps" mode; otherwise, the interfaces
+            # were deleted when the process with the namespace ended.
             for intf in self.neighbor_by_int:
                 neighbor = self.neighbor_by_int[intf]
-                if neighbor.type == 'switch' and neighbor.native_apps:
-                    cmd = ['sudo', 'ip', 'link', 'del', intf.name]
-                    subprocess.run(cmd)
+                cmd = ['sudo', 'ip', 'link', 'del', intf.name]
+                subprocess.run(cmd)
 
         for f in self.sock_file, self.config_file, self.script_file, \
                 self.hosts_file, self.tmux_file:
