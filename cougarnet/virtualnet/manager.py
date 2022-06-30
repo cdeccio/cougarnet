@@ -330,6 +330,14 @@ class VirtualNetwork(object):
                 subprocess.run(cmd, check=True)
                 self.bridge_interfaces.add(br)
 
+                if not self.ipv6:
+                    cmd = ['sudo', 'sysctl', f'net.ipv6.conf.{ghost1}.disable_ipv6=1']
+                    subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
+                    cmd = ['sudo', 'sysctl', f'net.ipv6.conf.{ghost2}.disable_ipv6=1']
+                    subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
+                    cmd = ['sudo', 'sysctl', f'net.ipv6.conf.{br}.disable_ipv6=1']
+                    subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
+
                 host1_bridge = False
                 if host1.type == 'switch' and host1.native_apps:
                     host1_bridge = True
