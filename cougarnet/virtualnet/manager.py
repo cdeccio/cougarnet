@@ -465,7 +465,7 @@ class VirtualNetwork(object):
             else:
                 raise HostNotStarted(f'{hostname} is taking too long.')
 
-    def start(self, wireshark_host=None):
+    def start(self, wireshark_ints):
         # start the hosts and wait for each to write its PID to the
         for hostname, host in self.host_by_name.items():
             host.start(self.commsock_file)
@@ -481,8 +481,8 @@ class VirtualNetwork(object):
             self.commsock.sendto(b'\x00', host.sock_file)
 
         self.wait_for_phase2_startup()
-        if wireshark_host is not None:
-            self.start_wireshark(self.host_by_name[wireshark_host])
+        if wireshark_ints:
+            self.start_wireshark(wireshark_ints)
 
         # let hosts know that they can start now
         for hostname, host in self.host_by_name.items():
@@ -552,13 +552,12 @@ class VirtualNetwork(object):
         subprocess.run(['graph-easy', '--from', 'graphviz'], input=img,
                 stderr=subprocess.DEVNULL)
 
-    def start_wireshark(self, host):
-        if host.type == 'switch' and host.native_apps:
-            cmd = ['sudo', 'wireshark']
-        else:
-            sys.stderr.write('Sorry, at the moment wireshark can only be run on switches using "native app".\n')
-            return
-            cmd = ['sudo', '-E', 'ip', 'netns', 'exec', host.hostname, 'wireshark']
+    def start_wireshark(self, ints):
+        cmd = ['wireshark']
+        for intf in ints:
+            cmd += ['-i', intf]
+        if ints:
+            cmd.append('-k')
         subprocess.Popen(cmd)
 
     def message_loop(self):
@@ -637,13 +636,13 @@ def main():
     parser.add_argument('--wireshark', '-w',
             action='store', type=str, default=None,
             metavar='NODE',
-            help='Start wireshark for the specified node')
+            help='Start wireshark for the specified links (host1-host2[,host2-host3,...])')
     parser.add_argument('--display',
             action='store_const', const=True, default=False,
             help='Display the network configuration as text')
     parser.add_argument('--vars',
             action='store', type=str, default=None,
-            help='Variables to be replaced in the configuration file (name=value[,name=value...])')
+            help='Variables to be replaced in the configuration file (name=value[,name=value,...])')
     parser.add_argument('--terminal',
             action='store', type=str, choices=('all', 'none'), default=None,
             help='Specify that all virtual hosts should launch (all) or not launch (none) a terminal.')
@@ -696,11 +695,30 @@ def main():
     net = VirtualNetwork.from_file(args.config_file, native_apps, \
             terminal, config_vars, tmpdir.name, ipv6)
 
-    if args.wireshark is not None and \
-            args.wireshark not in net.host_by_name:
-        sys.stderr.write(f'The host specified for wireshark with the ' + \
-                f'--wireshark/-w option ({args.wireshark}) does not exist.\n')
-        sys.exit(1)
+    wireshark_ints = []
+    if args.wireshark is not None:
+        wireshark_ints = args.wireshark.split(',')
+        for intf in wireshark_ints:
+            intf = intf.strip()
+            try:
+                host1, host2 = intf.split('-')
+            except ValueError:
+                sys.stderr.write(f'Invalid link passed to the ' + \
+                        f'--wireshark/-w option: {intf}\n')
+                sys.exit(1)
+            if host1 not in net.host_by_name:
+                sys.stderr.write(f'Invalid link passed to the ' + \
+                        f'--wireshark/-w option; host does not exist: {host1}\n')
+                sys.exit(1)
+            if host2 not in net.host_by_name:
+                sys.stderr.write(f'Invalid link passed to the ' + \
+                        f'--wireshark/-w option; host does not exist: {host2}\n')
+                sys.exit(1)
+            if host2 not in net.host_by_name[host1].neighbor_by_hostname:
+                sys.stderr.write(f'Invalid link passed to the ' + \
+                        f'--wireshark/-w option; link does not exist: {intf}\n')
+                sys.exit(1)
+        wireshark_ints = [f'{intf}-ghost' for intf in wireshark_ints]
 
     if args.display:
         net.display_to_screen()
@@ -709,7 +727,7 @@ def main():
 
     try:
         net.config()
-        net.start(args.wireshark)
+        net.start(wireshark_ints)
         sys.stdout.write('Ctrl-c to quit\n')
         net.message_loop()
     except KeyboardInterrupt:
