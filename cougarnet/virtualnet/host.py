@@ -8,7 +8,7 @@ from cougarnet import util
 
 #TERM="xfce4-terminal"
 TERM = "lxterminal"
-HOSTPREP_MODULE = "cougarnet.virtualnet.hostinit"
+HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
 MAIN_WINDOW_NAME = "main"
 CONTROL_WINDOW_NAME = "remote control"
 
@@ -179,7 +179,7 @@ class HostConfig(object):
         cmd = ['sudo', '-E', 'unshare', '--mount']
         if not (self.type == 'switch' and self.native_apps):
             cmd += [f'--net=/run/netns/{self.hostname}']
-        cmd += ['--uts', sys.executable, '-m', f'{HOSTPREP_MODULE}',
+        cmd += ['--uts', sys.executable, '-m', f'{HOSTINIT_MODULE}',
                     '--hosts-file', self.hosts_file,
                     '--user', os.environ.get("USER")]
 
