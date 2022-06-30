@@ -47,6 +47,8 @@ class VirtualNetwork(object):
         self.tmpdir = tmpdir
         self.ipv6 = ipv6
 
+        self.bridge_interfaces = set()
+
         self.comm_dir = os.path.join(self.tmpdir, COMM_DIR)
         self.config_dir = os.path.join(self.tmpdir, CONFIG_DIR)
         self.hosts_dir = os.path.join(self.tmpdir, HOSTS_DIR)
@@ -299,10 +301,34 @@ class VirtualNetwork(object):
                                         'VLANs while others do not!')
                     host2.has_vlans = has_vlans
 
-                # create both interfaces
+                # For each interface, we create both the interface itself and a
+                # "ghost" interface that will be on the host.
+                ghost1 = f'{int1.name}-ghost'
+                ghost2 = f'{int2.name}-ghost'
                 cmd = ['sudo', 'ip', 'link', 'add', int1.name,
-                        'type', 'veth', 'peer', 'name', int2.name]
+                        'type', 'veth', 'peer', 'name', ghost1]
                 subprocess.run(cmd, check=True)
+                cmd = ['sudo', 'ip', 'link', 'add', int2.name,
+                        'type', 'veth', 'peer', 'name', ghost2]
+                subprocess.run(cmd, check=True)
+
+                # We now connect to the two ghost interfaces together with a
+                # bridge.
+                br = f'{int1.name}-br'
+                cmd = ['sudo', 'ip', 'link', 'add', br, 'type', 'bridge',
+                        'stp_state', '0', 'vlan_filtering', '0']
+                subprocess.run(cmd, check=True)
+                cmd = ['sudo', 'ip', 'link', 'set', ghost1, 'master', br]
+                subprocess.run(cmd, check=True)
+                cmd = ['sudo', 'ip', 'link', 'set', ghost2, 'master', br]
+                subprocess.run(cmd, check=True)
+                cmd = ['sudo', 'ip', 'link', 'set', ghost1, 'up']
+                subprocess.run(cmd, check=True)
+                cmd = ['sudo', 'ip', 'link', 'set', ghost2, 'up']
+                subprocess.run(cmd, check=True)
+                cmd = ['sudo', 'ip', 'link', 'set', br, 'up']
+                subprocess.run(cmd, check=True)
+                self.bridge_interfaces.add(br)
 
                 host1_bridge = False
                 if host1.type == 'switch' and host1.native_apps:
@@ -359,7 +385,6 @@ class VirtualNetwork(object):
                     cmd = ['sudo', 'ip', 'link', 'set', int2.name, 'netns',
                             host2.hostname]
                     subprocess.run(cmd, check=True)
-
 
     def create_hosts_file(self):
         self.hosts_file = os.path.join(self.hosts_dir, MAIN_FILENAME)
@@ -458,6 +483,10 @@ class VirtualNetwork(object):
     def cleanup(self):
         for hostname, host in self.host_by_name.items():
             host.cleanup()
+
+        for intf in self.bridge_interfaces:
+            cmd = ['sudo', 'ip', 'link', 'del', intf]
+            subprocess.run(cmd)
 
         os.unlink(self.hosts_file)
 
