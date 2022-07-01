@@ -45,7 +45,8 @@ class HostConfig(object):
             self.terminal = False
         else:
             self.terminal = True
-        if not ipv6 or str(ipv6).lower() in FALSE_STRINGS:
+        if not ipv6 or str(ipv6).lower() in FALSE_STRINGS or \
+                self.type == 'switch':
             self.ipv6 = False
         else:
             self.ipv6 = True
