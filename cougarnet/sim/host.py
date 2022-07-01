@@ -178,7 +178,10 @@ class BaseHost:
         for intf in self.int_to_sock:
             self.int_to_info[intf] = self._get_interface_info(intf)
 
-    def get_first_interface(self):
+    def get_interface(self):
+        if len(self.int_to_sock) > 1:
+            raise ValueError(f'There is more than one interface on ' + \
+                    f'{self.hostname}')
         try:
             return [i for i in self.int_to_sock][0]
         except IndexError:
