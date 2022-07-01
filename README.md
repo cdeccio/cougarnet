@@ -19,6 +19,9 @@ stack and some that do not.
 # Table of Contents
  - [Installation](#installation)
  - [Getting Started](#getting-started)
+   - [Two Hosts, Directly Connected](#two-hosts-directly-connected)
+   - [Three-Host Local Area Network (LAN)](#three-host-local-area-network-lan)
+   - [Routers and Multiple LANs](#routers-and-multiple-lans)
  - [Virtual Hosts](#virtual-hosts)
    - [Configuration](#configuration)
    - [Hostnames](#hostnames)
