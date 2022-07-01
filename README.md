@@ -63,7 +63,12 @@ Of course, this assumes that you already have `sudo` installed and that your use
 allowed to call it.
 
 Additionally, `sudo` should be configured such that your user can call it without requiring a
-password (i.e., with the `NOPASSWD` option).
+password (i.e., with the `NOPASSWD` option).  For example, your `/etc/sudoers`
+file might contain the following:
+
+```sudoers
+%sudo   ALL=(ALL:ALL) NOPASSWD: ALL
+```
 
 To install Cougarnet, run the following:
 
@@ -261,8 +266,8 @@ hostname = socket.gethostname()
 
 The interface names for a given [link](#virtual-links) are derived from the
 name of the current host and the host it connects to on that link.  For
-example, if there is a link connecting host `h1` and host `h2`, then the `h1`'s
-interface will be called `h1-h2`, and `h2`'s interface will be callsed `h2-h1`.
+example, if there is a link connecting host `h1` and host `h2`, then `h1`'s
+interface will be called `h1-h2`, and `h2`'s interface will be called `h2-h1`.
 That helps greatly with identification.  The interfaces for a host, and their
 respective configurations, can be viewed by running the following from the
 command line:
@@ -339,7 +344,7 @@ The three components of the output message can be explained as follows:
    that have elapsed since the virtual hosts were started by the `cougarnet`
    process.
  - *Hostname* (`h1`): the hostname of the virtual host from which the message
-   was sent.  Note that the hostname is found looking up the "address" (i.e.,
+   was sent.  Note that the hostname is found by looking up the "address" (i.e.,
    the path corresponding to the UNIX socket) of the peer--that is, the virtual
    host that sent the message--in a table maintained by the `cougarnet` process.
    Thus, a virtual host must `bind()` the socket to the path corresponding to
@@ -354,33 +359,36 @@ socket functions for you.
 
 ## Name Resolution
 
-When the `native_apps` option is used in a host configuration, or when the
-`--native-apps` option is used on the command line, a virtual host has access
-to `/etc/hosts`, which contains a mapping of the names and IP addresses of all
-virtual hosts in the virtual network.  That allows apps such as `ping` to use
-hostname instead of IP address exclusively (see the [example given
-previously](#getting-started)).
+Every virtual host has its own `/etc/hosts`, which contains a mapping of the
+names and IP addresses of all virtual hosts in the virtual network.  That
+allows apps such as `ping` to use hostname instead of IP address exclusively
+(see the [example given previously](#getting-started)).
 
 
 ## Host Types
 
 The host types (i.e., `host`, `router`, `switch`) are intended to give special
-behavior to the virtual host, depending on the type.  Currently, however, only
-hosts of type `switch` have special meaning.  See [VLAN
-Attributes](#vlan-attributes) for more.
+behavior to the virtual host, depending on the type.  For example, when a host
+of type `router` uses native apps mode, IP forwarding is enabled.  If native
+apps mode is enabled for a host of type `switch`, then a special instance of
+Open vSwitch is started in connection with the virtual host.  Finally, when
+host of type `switch` is started, special environment variables are set with
+its VLAN configuration (see [VLAN Attributes](#vlan-attributes)).
 
 
 ## Routes
 
 The behavior resulting from setting the `routes` attributes depends on whether
 a host or router has been configured for native apps (i.e., with the
-`native_apps` configuration option or the `--native-apps` command-line option).
+`native_apps` configuration option).
 
 A subtle behavior related to configuration is that only when the type is
-`router` is IP forwarding through the router for native apps.
+`router` and native apps mode is in effect is IP forwarding enabled through the
+router.
 
 
 ### Native Apps
+
 In native apps mode, a [virtual host](#virtual-hosts) is created, the
 forwarding rules are added using the `ip route` command.  Thus any packets sent
 using the native network stack will use the table entries to determine which
@@ -388,6 +396,7 @@ interface should be used for an outgoing packet.
 
 
 ### Non-Native Apps
+
 If forwarding rules are specified using the `routes` option for a host, then
 the router is made aware of these rules via the environment variable
 `COUGARNET_ROUTES`.  The value of this variable is a JSON list of three-tuples
@@ -465,17 +474,18 @@ import os
 print(os.environ['COUGARNET_COMM_SOCK'])
 ```
 
+
 ## Running Programs
 
 When a program is specified with the `prog` attribute, that program will be
-executed in the virtual host, instead of the standard shell being executed (the
-default).  Furthermore, programs from all virtual hosts are intended to start
-at *approximately* the same time--though there is some non-determinism as to
-their *exact* timing.
+executed in the virtual host.  Furthermore, programs from all virtual hosts are
+intended to start at *approximately* the same time--though there is some
+non-determinism as to their *exact* timing.
 
-If `terminal` is enabled for a given host (the default), or the `--terminal
-all` option is used on the command line, then the program will have access to
-the standard input, standard output, and standard error.
+If `terminal` is enabled for a given host (the default), or the `--terminal`
+option is used on the command line with either the name of the host or `all`,
+then the program will have access to the standard input, standard output, and
+standard error for a given host.
 
 In either case (terminal or not), the program will have access to all the
 [environment variables](#environment-variables) associated with the virtual
@@ -502,7 +512,6 @@ h1 prog=./loop.sh|hello,routes=0.0.0.0/0|s1|10.0.0.4
 ```
 
 The result would be the following:
-
 
 ```
 h1
@@ -548,22 +557,25 @@ frames in Cougarnet.  The key components are the following:
    - `mac_addr` - the MAC address for the interface.
    - `ipv4_addrs` - a list of IPv4 addresses with which the interface has been
      configured.  Please note that _typically_ an interface will just be configured
-     with a single IP address.  Thus, usually `ipv4addrs[0]` will work just fine.
-   - `ipv4_prefix_len` - the length of the IPv4 prefix(es) on this interface.
+     with a single IP address.  Thus, usually `ipv4_addrs[0]` will work just fine.
+   - `ipv4_prefix_len` - the length of the IPv4 prefix associated with this
+     interface.
    - `ipv6_addrs` - a list of IPv6 addresses with which the interface has been
      configured.  Please note that just as with IPv4, an interface will typically
-     just be configured with a single IP address.  Thus, usually `ipv6addrs[0]`
+     just be configured with a single IP address.  Thus, usually `ipv6_addrs[0]`
      will work just fine.
    - `ipv6_addr_link_local` - the link-local IPv6 address with which the
      interface has been configured.
-   - `ipv6_prefix_len` - the length of the IPv6 prefix(es) on this interface.
+   - `ipv6_prefix_len` - the length of the IPv6 prefix associated with this
+     interface.
+   - `mtu` - the MTU of the link associated with the interface.
  - `hostname` - a `str` whose value is the [hostname](#hostnames) of the virtual host.
  - `comm_sock` - a socket (`socket.socket`) that is connected to the
    [communications socket](#communicating-with-the-calling-process) on which
    the calling `cougarnet` process is listening (i.e., for logging).
- - `get_first_interface()` - returns the name of one of the interfaces on the
-   virtual host.  This is useful when the device really has just one interface,
-   to make it easily retrievable.  Note that `first` is probably a misnomer.
+ - `get_interface()` - returns the name of one of the interfaces on the virtual
+   host.  This can only be used when the device has just one interface.  It is
+   intended to facilitate easy retrieval of the interface.
  - `send_frame(frame, intf)` - send frame (type `bytes`) out on the interface
    designated by name `intf`, a `str`.  Generally calling this method is
    preferred over calling `sendto()` on a socket  directly.
@@ -662,10 +674,9 @@ is simply scheduling `say_hello()` to be called later.
 
 ## Cancelling Events
 
-Cancelling a scheduled event is done with the `cancel_event()` method.  When an
-event is scheduled by calling `schedule_event()`, an `Event` instance is
-returned.  That instance is passed to `cancel_event()`.  Consider the previous
-example:
+When an event is scheduled by calling `call_later()`, an `asyncio.TimerHandle`
+instance is returned.  The event can be cancelled by calling `cancel()` on that
+instance. For example:
 
 ```python
 import asyncio
@@ -829,14 +840,16 @@ numbers 1 and 3 were unsuccessful.
 
 The behavior resulting from setting the `vlan` and `trunk` attributes depends
 on whether a switch has been configured for native apps (i.e., with the
-`native_apps` configuration option or the `--native-apps` command-line option).
+`native_apps` configuration option).
 
 In either case, neither the `vlan` attribute nor the `trunk` attribute have any
 effect unless at least one of the hosts is of type `switch`.
 
+
 ### Native Apps
 In native apps mode, a virtual switch is created (using Open vSwitch), and the
 links are assigned as designated VLAN or trunk links, respectively.
+
 
 ### Non-Native Apps
 In non-native apps mode, the `COUGARNET_VLAN` environment variable contains the
@@ -865,8 +878,8 @@ In the process associated with `h2`, the environment variable `COUGARNET_VLAN`
 contains a JSON object mapping each interface to its VLAN or trunk assignment.
 The value for an interface assigned to a VLAN has the form `vlan<id>` where
 `<id>` is the numerical VLAN id.  The value for an interface that corresponds
-to a trunk link is simply `trunk`.  The above configuration wouldlresult in the
-following environment variables being set for `h2`:
+to a trunk link is simply `trunk`.  The above configuration would result in the
+following environment variable being set for `h2`:
 
 ```bash
 COUGARNET_VLAN={"h2-h1": "vlan25", "h2-h3": "vlan32", "h2-h4": "trunk"}
@@ -921,9 +934,8 @@ link](#configuration-1) configuration sections.
 
 ```
 $ cougarnet --help
-usage: cougarnet [-h] [--wireshark NODE] [--display]
-                 [--terminal {all,none}] [--disable-ipv6]
-                 [--native-apps {all,none}] [--display-file DISPLAY_FILE]
+usage: cougarnet [-h] [--wireshark NODE] [--display] [--vars VARS] [--terminal TERMINAL] [--disable-ipv6] [--native-apps {all,none}]
+                 [--display-file DISPLAY_FILE]
                  config_file
 
 positional arguments:
@@ -932,20 +944,17 @@ positional arguments:
 optional arguments:
   -h, --help            show this help message and exit
   --wireshark NODE, -w NODE
-                        Start wireshark for the specified node
+                        Start wireshark for the specified links (host1-host2[,host2-host3,...])
   --display             Display the network configuration as text
-  --terminal {all,none}
-                        Specify that all virtual hosts should launch (all)
-                        or not launch (none) a terminal.
+  --vars VARS           Specify variables to be replaced in the configuration file (name=value[,name=value,...])
+  --terminal TERMINAL   Specify which virtual hosts should launch a terminal (all|none|host1[,host2,...])
   --disable-ipv6        Disable IPv6
   --native-apps {all,none}
-                        Specify that all virtual hosts should enable (all)
-                        or disable (none) native apps.
+                        Specify that all virtual hosts should enable (all) or disable (none) native apps.
   --display-file DISPLAY_FILE
                         Print the network configuration to a file (.png)
 ```
 
-Note that `--terminal` and `--native-apps` options override all per-host
-`terminal` and `native_apps` options.
+Note that `--terminal` overrides all per-host `terminal` options.
 
 Also note that the `--display-file` option is not yet fully-functional.
