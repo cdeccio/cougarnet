@@ -38,11 +38,10 @@ class InconsistentConfiguration(Exception):
     pass
 
 class VirtualNetwork(object):
-    def __init__(self, native_apps, terminal_hosts, tmpdir, ipv6):
+    def __init__(self, terminal_hosts, tmpdir, ipv6):
         self.host_by_name = {}
         self.hostname_by_sock = {}
         self.hosts_file = None
-        self.native_apps = native_apps
         self.terminal_hosts = terminal_hosts
         self.tmpdir = tmpdir
         self.ipv6 = ipv6
@@ -151,9 +150,8 @@ class VirtualNetwork(object):
             host.process_routes()
 
     @classmethod
-    def from_file(cls, fh, native_apps, terminal_hosts, config_vars,
-            tmpdir, ipv6):
-        net = cls(native_apps, terminal_hosts, tmpdir, ipv6)
+    def from_file(cls, fh, terminal_hosts, config_vars, tmpdir, ipv6):
+        net = cls(terminal_hosts, tmpdir, ipv6)
         mode = None
         for line in fh:
             line = line.strip()
@@ -213,8 +211,6 @@ class VirtualNetwork(object):
         else:
             attrs = {}
 
-        if self.native_apps is not None:
-            attrs['native_apps'] = str(self.native_apps)
         if self.terminal_hosts:
             if hostname in self.terminal_hosts or 'all' in self.terminal_hosts:
                 attrs['terminal'] = 'true'
@@ -653,9 +649,6 @@ def main():
     parser.add_argument('--disable-ipv6',
             action='store_const', const=True, default=False,
             help='Disable IPv6')
-    parser.add_argument('--native-apps',
-            action='store', type=str, choices=('all', 'none'), default=None,
-            help='Specify that all virtual hosts should enable (all) or disable (none) native apps.')
     parser.add_argument('--display-file',
             type=argparse.FileType('wb'), action='store',
             help='Print the network configuration to a file (.png)')
@@ -674,13 +667,6 @@ def main():
         sys.stderr.write(f'Unable to create working directory.  Check permissions of {TMPDIR}.\n')
         sys.exit(1)
 
-    if args.native_apps == 'all':
-        native_apps = True
-    elif args.native_apps == 'none':
-        native_apps = False
-    else:
-        native_apps = None
-
     if args.terminal is None:
         terminal_hosts = []
     else:
@@ -694,7 +680,7 @@ def main():
 
     ipv6 = not args.disable_ipv6
 
-    net = VirtualNetwork.from_file(args.config_file, native_apps, \
+    net = VirtualNetwork.from_file(args.config_file, \
             terminal_hosts, config_vars, tmpdir.name, ipv6)
 
     wireshark_ints = []
