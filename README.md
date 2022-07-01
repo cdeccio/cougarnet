@@ -80,8 +80,11 @@ $ sudo python3 setup.py install
 
 # Getting Started
 
-To get started, create a simple network configuration.  Create a file called
-`simple-net.cfg` with the following contents:
+
+## Two Hosts, Directly Connected
+
+To get started, let's create a simple network configuration.  Create a file
+called `two-node.cfg` with the following contents:
 
 ```
 NODES
@@ -92,7 +95,7 @@ LINKS
 h1,10.0.0.1/24 h2,10.0.0.2/24
 ```
 
-This simple configuration results in a network composed of two nodes, named
+This simple configuration results in a network composed of two hosts, named
 `h1` and `h2`.  There is a single link between them.  For the link between `h1`
 and `h2`, `h1`'s interface will have an IPv4 address of 10.0.0.1, and `h2` will
 have an IPv4 address of 10.0.0.2.  The `/24` indicates that the length of the
@@ -101,7 +104,7 @@ IPv4 prefix associated with that link is 24 bits, i.e., 10.0.0.0/24.
 Start Cougarnet with this configuration by running the following command:
 
 ```bash
-$ cougarnet simple-net.cfg
+$ cougarnet two-node.cfg
 ```
 
 When it starts up, it will launch two new terminals.  One will be associated
@@ -126,7 +129,7 @@ each host is configured with the address from the configuration file.
 Next, from the `h2` terminal, run the following:
 
 ```bash
-h2$ sudo tcpdump -l
+h2$ tcpdump -l
 ```
 
 (Note that in this example and elsewhere in this document `h2$` simply
@@ -152,6 +155,143 @@ return to the terminal on which you ran the `cougarnet` command, and enter
 `Ctrl`+`c`.
 
 Congratulations!  You have just completed a simple Cougarnet excercise!
+
+
+## Three-Host Local Area Network (LAN)
+
+Let's now add a switch to the previous example, so we can connect three nodes
+together on the same LAN.  Create a new file called `three-node-lan.cfg` with
+the following contents:
+
+```
+NODES
+h1
+h2
+h3
+s1 type=switch,terminal=false
+
+LINKS
+h1,10.0.0.1/24 s1
+h2,10.0.0.2/24 s1
+h3,10.0.0.3/24 s1
+```
+
+This configuration results in a network composed of three hosts, all connected
+to a single switch, `s1`.  Each host has an IP address in the prefix
+10.0.0.0/24 subnet.
+
+Start Cougarnet with this configuration by running the following command:
+
+```bash
+$ cougarnet three-node-lan.cfg
+```
+
+When it starts up, it will launch three new terminals, associated with `h1`,
+`h2`, and `h3`.  No terminal will appear for `s1` because `terminal=false` was
+specified in the configuration file.
+
+This time let's use Wireshark to capture packets.  Wireshark can be launched by
+using the menu of your desktop environment or from a terminal, but it cannot be
+launched from any of the terminals running your virtual hosts (i.e., `h1`,
+`h2`, `h3`).  From the open Wireshark window, click the "Capture Options"
+button (the gear icon).  Select interfaces `h2-s1-ghost` and `h3-s1-ghost`.
+(You can select multiple by holding `Ctrl` when clicking.)  Those names might
+seem a little confusing.  The way they should be understood is "`h2`'s
+interface that is connected to `s1`" and "`h3`'s interface that is connected to
+`s1`", respectively. The `-ghost` extension is simply part of a convention
+needed to get Cougarnet to use Wireshark properly. See
+[Interface Names](#interface-names) for more.  Now click "Start" to begin
+capturing packets at those interfaces.
+
+Now let's begin communicating!  First, let's split `h1`'s terminal into two.
+Click on `h1` terminal, and press `Ctrl`+`b` then `"` (double quote).  Your
+terminal is running an instance of [tmux](https://github.com/tmux/tmux/), and
+the key strokes you just entered split the terminal horizontally.  panes.  To
+switch back and forth between the two panes, press `Ctrl`+`b` followed by the
+up or down arrow, to move up or down, respectively.
+
+In one pane of `h1`, enter the following command:
+
+```bash
+h1$ ping h2
+```
+
+While that is running, switch panes, and enter enter the following:
+
+```bash
+h1$ ping h3
+```
+
+You should now see a lot of activity in your Wireshark window!  In particular,
+you should see ICMP (Echo) request and reply packets between `10.0.0.1` (`h1`)
+and `10.0.0.2` (`h2`) and between `10.0.0.1` (`h1`) and `10.0.0.3` (`h3`).
+
+Now return to the terminal on which you ran the `cougarnet` command, and enter
+`Ctrl`+`c`.  Then close Wireshark.
+
+See the sections on [Virtual Links](#virtual-links) and
+[VLAN Attributes](#vlan-attributes) to see what else is possible with switches.
+
+
+## Routers and Multiple LANs
+
+In our final introductory example, we introduce routers, for network-layer
+forwarding.  Create a new file called `four-node-multi-hop.cfg` with the
+following contents:
+
+```
+NODES
+h1 routes=0.0.0.0/0|s1|10.0.0.30
+h2 terminal=false,routes=0.0.0.0/0|s1|10.0.0.30
+h3 routes=0.0.0.0/0|s2|10.0.1.30
+h4 terminal=false,routes=0.0.0.0/0|s2|10.0.1.30
+
+s1 type=switch,terminal=false
+s2 type=switch,terminal=false
+
+r1 type=router,terminal=false,routes=10.0.1.0/24|r2|10.100.0.2
+r2 type=router,terminal=false,routes=10.0.0.0/24|r1|10.100.0.1
+
+LINKS
+h1,10.0.0.1/24 s1
+h2,10.0.0.2/24 s1
+s1 r1,10.0.0.30/24
+r1,10.100.0.1/30 r2,10.100.0.2/30
+s2 r2,10.0.1.30/24
+h3,10.0.1.1/24 s2
+h4,10.0.1.2/24 s2
+```
+
+This simple configuration in two LANs (technically three, if you consider the
+link between the routers), separated by two routers.  Each host and router is
+provided entries for their routing table, so they can send packets out of their
+LAN.  See [Routes](#routes) for more information.
+
+This time we are going to start the network with additional options:
+
+```bash
+$ cougarnet --display --wireshark h3-s2 four-node-multi-hop.cfg
+```
+
+The `--display` option prints out a text-based drawing of the topology.  For a
+slightly more detailed drawing, try the `--display-file` option.  The
+`--wireshark` option simplifies packet capture setup.  When interfaces are
+specified with the `--wireshark` option (`h3-h2`, in this case), Cougarnet
+automatically starts wireshark and begins capturing on those interfaces.
+
+Now enter the following command on `h1`'s terminal:
+
+```bash
+h1$ ping h3
+```
+
+You should again see ICMP Echo activity in Wireshark, captured at `h3`'s only
+interface.  You might also notice that the packets arriving from 10.0.0.1 have
+a smaller time-to-live (TTL) value, as it has decreased one for each hop
+(router) traversed.
+
+Again return to the terminal on which you ran the `cougarnet` command, and enter
+`Ctrl`+`c`.  Then close Wireshark.
 
 
 # Virtual Hosts
