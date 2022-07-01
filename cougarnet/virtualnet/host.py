@@ -37,6 +37,8 @@ class HostConfig(object):
         self.routes_pre_processed = routes
         self.routes = None
 
+        self.remote_control = False
+
         if not native_apps or str(native_apps).lower() in FALSE_STRINGS:
             self.native_apps = False
         else:
@@ -140,8 +142,9 @@ class HostConfig(object):
 
             # allow scrolling in window
             fh.write(f'    setw -g mouse on \\; \\\n')
-            # create a new window for remote control
-            fh.write(f'    new-window -d -n "{CONTROL_WINDOW_NAME}" \\; \\\n')
+            if self.remote_control:
+                # create a new window for remote control
+                fh.write(f'    new-window -d -n "{CONTROL_WINDOW_NAME}" \\; \\\n')
             fh.write(f'\n')
 
         cmd = ['chmod', '755', self.script_file]
