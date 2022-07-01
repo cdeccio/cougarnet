@@ -83,11 +83,13 @@ $ sudo python3 setup.py install
 
 # Getting Started
 
+This section provides three examples of Cougarnet usage.
+
 
 ## Two Hosts, Directly Connected
 
 To get started, let's create a simple network configuration.  Create a file
-called `two-node.cfg` with the following contents:
+called `two-node-direct.cfg` with the following contents:
 
 ```
 NODES
@@ -107,7 +109,7 @@ IPv4 prefix associated with that link is 24 bits, i.e., 10.0.0.0/24.
 Start Cougarnet with this configuration by running the following command:
 
 ```bash
-$ cougarnet two-node.cfg
+$ cougarnet two-node-direct.cfg
 ```
 
 When it starts up, it will launch two new terminals.  One will be associated
@@ -160,10 +162,10 @@ return to the terminal on which you ran the `cougarnet` command, and enter
 Congratulations!  You have just completed a simple Cougarnet excercise!
 
 
-## Three-Host Local Area Network (LAN)
+## Three Hosts Connected by a Switch
 
 Let's now add a switch to the previous example, so we can connect three nodes
-together on the same LAN.  Create a new file called `three-node-lan.cfg` with
+together on the same LAN.  Create a new file called `three-node-switch.cfg` with
 the following contents:
 
 ```
@@ -186,7 +188,7 @@ to a single switch, `s1`.  Each host has an IP address in the prefix
 Start Cougarnet with this configuration by running the following command:
 
 ```bash
-$ cougarnet three-node-lan.cfg
+$ cougarnet three-node-switch.cfg
 ```
 
 When it starts up, it will launch three new terminals, associated with `h1`,
@@ -236,10 +238,10 @@ See the sections on [Virtual Links](#virtual-links) and
 [VLAN Attributes](#vlan-attributes) to see what else is possible with switches.
 
 
-## Routers and Multiple LANs
+## Hosts Connected Across Multiple Switches and Routers
 
 In our final introductory example, we introduce routers, for network-layer
-forwarding.  Create a new file called `four-node-multi-hop.cfg` with the
+forwarding.  Create a new file called `four-node-multi-lan.cfg` with the
 following contents:
 
 ```
@@ -273,7 +275,7 @@ LAN.  See [Routes](#routes) for more information.
 This time we are going to start the network with additional options:
 
 ```bash
-$ cougarnet --display --wireshark h3-s2 four-node-multi-hop.cfg
+$ cougarnet --display --wireshark h3-s2 four-node-multi-lan.cfg
 ```
 
 The `--display` option prints out a text-based drawing of the topology.  For a
