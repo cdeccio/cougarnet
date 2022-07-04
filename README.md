@@ -58,7 +58,7 @@ The following are dependencies for Cougarnet:
 
 To install these on a Debian system, run the following:
 
-```
+```bash
 $ sudo apt install openvswitch-switch tmux lxterminal python3-pygraphviz libgraph-easy-perl wireshark socat
 ```
 
@@ -1079,27 +1079,22 @@ link](#configuration-1) configuration sections.
 
 ```
 $ cougarnet --help
-usage: cougarnet [-h] [--wireshark NODE] [--display] [--vars VARS] [--terminal TERMINAL] [--disable-ipv6] [--native-apps {all,none}]
-                 [--display-file DISPLAY_FILE]
-                 config_file
+usage: cougarnet [-h] [--wireshark LINKS] [--display] [--vars VARS] [--terminal HOSTNAMES] [--disable-ipv6] [--display-file FILE] config_file
 
 positional arguments:
   config_file           File containing the network configuration
 
 optional arguments:
   -h, --help            show this help message and exit
-  --wireshark NODE, -w NODE
+  --wireshark LINKS, -w LINKS
                         Start wireshark for the specified links (host1-host2[,host2-host3,...])
   --display             Display the network configuration as text
   --vars VARS           Specify variables to be replaced in the configuration file (name=value[,name=value,...])
-  --terminal TERMINAL   Specify which virtual hosts should launch a terminal (all|none|host1[,host2,...])
+  --terminal HOSTNAMES  Specify which virtual hosts should launch a terminal (all|none|host1[,host2,...])
   --disable-ipv6        Disable IPv6
-  --native-apps {all,none}
-                        Specify that all virtual hosts should enable (all) or disable (none) native apps.
-  --display-file DISPLAY_FILE
-                        Print the network configuration to a file (.png)
+  --display-file FILE   Print the network configuration to a file (.png)
 ```
 
-Note that `--terminal` overrides all per-host `terminal` options.
+Note that `--terminal` overrides _all_ per-host `terminal` options.
 
 Also note that the `--display-file` option is not yet fully-functional.

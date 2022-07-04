@@ -635,7 +635,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--wireshark', '-w',
             action='store', type=str, default=None,
-            metavar='NODE',
+            metavar='LINKS',
             help='Start wireshark for the specified links (host1-host2[,host2-host3,...])')
     parser.add_argument('--display',
             action='store_const', const=True, default=False,
@@ -645,12 +645,14 @@ def main():
             help='Specify variables to be replaced in the configuration file (name=value[,name=value,...])')
     parser.add_argument('--terminal',
             action='store', type=str, default=None,
+            metavar='HOSTNAMES',
             help='Specify which virtual hosts should launch a terminal (all|none|host1[,host2,...])')
     parser.add_argument('--disable-ipv6',
             action='store_const', const=True, default=False,
             help='Disable IPv6')
     parser.add_argument('--display-file',
             type=argparse.FileType('wb'), action='store',
+            metavar='FILE',
             help='Print the network configuration to a file (.png)')
     parser.add_argument('config_file',
             type=argparse.FileType('r'), action='store',
