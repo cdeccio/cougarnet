@@ -49,11 +49,15 @@ SCRIPT_EXTENSION='sh'
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 
-class HostNotStarted(Exception):
-    '''An Exception raised when a host did not start properly.'''
+class CougarnetError(Exception):
+    '''Base class for errors related to Cougarnet.'''
 
-class InconsistentConfiguration(Exception):
-    '''An Exception raised when a Cougarnet configuration was inconsistent.'''
+class HostNotStarted(CougarnetError):
+    '''An error raised when a host did not start properly.'''
+
+class ConfigurationError(CougarnetError):
+    '''An error raised when there was an error with content in the Cougarnet
+    configuration file.'''
 
 def sort_addresses(addrs):
     '''Sort a list of addresses into MAC address, IPv4 addresses, and IPv6
@@ -69,14 +73,15 @@ def sort_addresses(addrs):
         m = MAC_RE.search(addr)
         if m is not None:
             if mac_addr is not None:
-                raise ValueError('Only one MAC address is allowed')
+                raise ConfigurationError('Only one MAC address ' + \
+                        'is allowed')
             mac_addr = addr
             continue
 
         # IP address
         slash = addr.find('/')
         if slash < 0:
-            raise ValueError(f'IP address for interface ' + \
+            raise ConfigurationError(f'IP address for interface ' + \
                     'must include prefix length!')
 
         if ':' in addr:
@@ -84,11 +89,11 @@ def sort_addresses(addrs):
             try:
                 subnet = str(ipaddress.IPv6Network(addr, strict=False))
             except (ipaddress.AddressValueError, ipaddress.NetmaskValueError) as e:
-                raise ValueError(str(e))
+                raise ConfigurationError(str(e))
             if subnet6 is None:
                 subnet6 = subnet
             if subnet6 != subnet:
-                raise ValueError('All connected IP addresses ' + \
+                raise ConfigurationError('All connected IP addresses ' + \
                         'must be on the same subnet!')
             ipv6_addrs.append(addr)
         else:
@@ -96,11 +101,11 @@ def sort_addresses(addrs):
             try:
                 subnet = str(ipaddress.IPv4Network(addr, strict=False))
             except (ipaddress.AddressValueError, ipaddress.NetmaskValueError) as e:
-                raise ValueError(str(e))
+                raise ConfigurationError(str(e))
             if subnet4 is None:
                 subnet4 = subnet
             if subnet4 != subnet:
-                raise ValueError('All connected IP addresses ' + \
+                raise ConfigurationError('All connected IP addresses ' + \
                         'must be on the same subnet!')
             ipv4_addrs.append(addr)
     return mac_addr, ipv4_addrs, ipv6_addrs, subnet4, subnet6
@@ -341,7 +346,7 @@ class VirtualNetwork:
                     has_vlans = bool(int1.vlan is not None or int1.trunk)
                     if has_vlans and host1.has_vlans is False or \
                             not has_vlans and host1.has_vlans:
-                        raise InconsistentConfiguration(
+                        raise ConfigurationError(
                                 f'Some links on {host1.hostname} have ' + \
                                         'VLANs while others do not!')
                     host1.has_vlans = has_vlans
@@ -349,7 +354,7 @@ class VirtualNetwork:
                     has_vlans = bool(int2.vlan is not None or int2.trunk)
                     if has_vlans and host2.has_vlans is False or \
                             not has_vlans and host2.has_vlans:
-                        raise InconsistentConfiguration(
+                        raise ConfigurationError(
                                 f'Some links on {host2.hostname} have ' + \
                                         'VLANs while others do not!')
                     host2.has_vlans = has_vlans
