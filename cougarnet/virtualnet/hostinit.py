@@ -20,7 +20,6 @@ import io
 import json
 import os
 import pwd
-import signal
 import socket
 import subprocess
 import sys
@@ -150,9 +149,6 @@ def close_file_descriptors(exceptions):
             except OSError:
                 pass
 
-def sighup_handler(signum, frame):
-    pass
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--hosts-file', '-f',
@@ -178,8 +174,6 @@ def main():
             action='store', type=str, default=None,
             help='Path to UNIX socket with which with coordinating process' + \
                     'communicattes with us')
-
-    signal.signal(signal.SIGHUP, sighup_handler)
 
     try:
         args = parser.parse_args(sys.argv[1:])
