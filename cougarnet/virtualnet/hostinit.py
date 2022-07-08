@@ -14,18 +14,27 @@
 # GNU General Public License for more details.
 #
 
+'''
+Functions called by virtual hosts to initialize them for use in part of a
+virtual network.
+'''
+
 import argparse
 import grp
-import io
 import json
 import os
 import pwd
 import socket
 import subprocess
 import sys
-import tempfile
+import time
+import traceback
 
 def _apply_config(info):
+    '''Apply the network configuration contained in the dictionary info.  Set
+    the hostname, configure and set interfaces, and set environment variables
+    related to VLANs and routes.'''
+
     if info.get('hostname', None) is not None:
         cmd = ['hostname', info['hostname']]
         subprocess.run(cmd, check=True)
@@ -50,7 +59,7 @@ def _apply_config(info):
     subprocess.run(cmd, check=True)
 
     if not info.get('ipv6', True):
-        cmd = ['sysctl', f'net.ipv6.conf.lo.disable_ipv6=1']
+        cmd = ['sysctl', 'net.ipv6.conf.lo.disable_ipv6=1']
         subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
 
     for intf in info.get('interfaces', []):
@@ -130,6 +139,9 @@ def _apply_config(info):
             subprocess.run(cmd, check=True)
 
 def user_group_info(user):
+    '''Return the user ID and group ID(s) associated with the specified
+    user.'''
+
     pwinfo = pwd.getpwnam(user)
     uid = pwinfo.pw_uid
 
@@ -141,6 +153,8 @@ def user_group_info(user):
     return uid, groups
 
 def close_file_descriptors(exceptions):
+    '''Close all open file descriptors except those specified.'''
+
     fds = [int(fd) for fd in os.listdir(f'/proc/{os.getpid()}/fd')]
     for fd in fds:
         if fd not in exceptions:
@@ -150,6 +164,9 @@ def close_file_descriptors(exceptions):
                 pass
 
 def main():
+    '''Parse command-line arguments, synchronize with virtual network manager,
+    apply network configuration, and set appropriate environment variables.'''
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--hosts-file', '-f',
             action='store', type=str, default=None,
@@ -241,9 +258,7 @@ def main():
                 cmd.append('-i')
             os.execvp(cmd[0], cmd)
 
-    except:
-        import traceback
-        import time
+    except Exception:
         traceback.print_exc()
         time.sleep(10)
 
