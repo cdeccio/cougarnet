@@ -53,6 +53,8 @@ def _apply_config(info):
     if info.get('ip_forwarding', False):
         cmd = ['sysctl', 'net.ipv4.ip_forward=1']
         subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
+        cmd = ['sysctl', 'net.ipv6.conf.all.forwarding=1']
+        subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
 
     # bring lo up
     cmd = ['ip', 'link', 'set', 'lo', 'up']
