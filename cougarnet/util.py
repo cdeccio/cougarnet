@@ -19,9 +19,12 @@ Various utility functions for Cougarnet.
 '''
 
 import binascii
+import re
 import socket
 import subprocess
 import time
+
+HOST_RE = re.compile(r'^[a-z]([a-z0-9-]*[a-z0-9])?$')
 
 def mac_str_to_binary(mac_str):
     '''Given a MAC address in presentation format as a string, return the
@@ -63,6 +66,17 @@ def pid_is_running(pid):
     p = subprocess.run(cmd, check=False,
             stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     return p.returncode == 0
+
+def is_valid_hostname(hostname):
+    '''Return True  if a string begins with a letter, ends with a letter or
+    number, and is composed of only lower-case letters, numbers, and
+    hyphens.'''
+
+    if not hostname[0].isalpha():
+        return False
+    if HOST_RE.search(hostname) is None:
+        return False
+    return True
 
 def kill(pid, sig, elevate_if_needed=False):
     '''Send a signal (e.g., TERM, KILL) to a process.  If a permissions error

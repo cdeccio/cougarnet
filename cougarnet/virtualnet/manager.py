@@ -14,6 +14,11 @@
 # GNU General Public License for more details.
 #
 
+'''
+Classes and main function related to reading the configuration for a virtual
+network and starting it.
+'''
+
 import argparse
 import csv
 import io
@@ -31,7 +36,6 @@ from cougarnet import util
 from .host import HostConfig
 
 
-HOST_RE = re.compile(r'^[a-z]([a-z0-9-]*[a-z0-9])?$')
 MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
 
 TMPDIR=os.path.join(os.environ.get('HOME', '.'), 'cougarnet-tmp')
@@ -46,12 +50,14 @@ SCRIPT_EXTENSION='sh'
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 
 class HostNotStarted(Exception):
-    pass
+    '''An Exception raised when a host did not start properly.'''
 
 class InconsistentConfiguration(Exception):
-    pass
+    '''An Exception raised when a Cougarnet configuration was inconsistent.'''
 
-class VirtualNetwork(object):
+class VirtualNetwork:
+    '''The class that creates and manages a Cougarnet Virtual network.'''
+
     def __init__(self, terminal_hosts, tmpdir, ipv6):
         self.host_by_name = {}
         self.hostname_by_sock = {}
@@ -68,12 +74,18 @@ class VirtualNetwork(object):
         self.script_dir = os.path.join(self.tmpdir, SCRIPT_DIR)
         self.tmux_dir = os.path.join(self.tmpdir, TMUX_DIR)
 
+        self.commsock_file = None
+        self.commsock = None
+
         for d in self.comm_dir, self.config_dir, self.hosts_dir, \
                 self.script_dir, self.tmux_dir:
             cmd = ['mkdir', '-p', d]
             subprocess.run(cmd, check=True)
 
     def parse_int(self, hostname_addr):
+        '''Parse a string containing hostname and address information for a
+        given interface, and return the parsed information.'''
+
         parts = hostname_addr.split(',')
         hostname = parts[0]
         mac = None
@@ -88,7 +100,7 @@ class VirtualNetwork(object):
             m = MAC_RE.search(addr)
             if m is not None:
                 if mac is not None:
-                    raise ValueError(f'Only one MAC address is allowed')
+                    raise ValueError('Only one MAC address is allowed')
                 mac = addr
                 continue
 
@@ -103,7 +115,7 @@ class VirtualNetwork(object):
                 if subnet6 is None:
                     subnet6 = subnet
                 if subnet6 != subnet:
-                    raise ValueError(f'All connected IP addresses ' + \
+                    raise ValueError('All connected IP addresses ' + \
                             'must be on the same subnet!')
                 addrs6.append(addr)
             else:
@@ -112,7 +124,7 @@ class VirtualNetwork(object):
                 if subnet4 is None:
                     subnet4 = subnet
                 if subnet4 != subnet:
-                    raise ValueError(f'All connected IP addresses ' + \
+                    raise ValueError('All connected IP addresses ' + \
                             'must be on the same subnet!')
                 addrs4.append(addr)
 
@@ -122,9 +134,13 @@ class VirtualNetwork(object):
         return host, mac, addrs4, addrs6, subnet4, subnet6
 
     def import_link(self, line):
+        '''Parse a string containing information for a virtual link between two
+        virtual hosts.  Instantiate the interfaces and associate them with
+        their respective hosts.'''
+
         parts = line.split(maxsplit=2)
         if len(parts) < 2 or len(parts) > 3:
-            raise ValueError(f'Invalid link format.')
+            raise ValueError('Invalid link format.')
 
         int1_info, int2_info = parts[:2]
         host1, mac1, addrs41, addrs61, subnet41, subnet61 = \
@@ -160,11 +176,18 @@ class VirtualNetwork(object):
         int2.update(mac_addr=mac2, ipv4_addrs=addrs42, ipv6_addrs=addrs62)
 
     def process_routes(self):
-        for hostname, host in self.host_by_name.items():
+        '''For every virtual host, parse and store the routes designated by the
+        config.'''
+
+        for _, host in self.host_by_name.items():
             host.process_routes()
 
     @classmethod
     def from_file(cls, fh, terminal_hosts, config_vars, tmpdir, ipv6):
+        '''Read a Cougarnet configuration file containing directives for
+        virtual hosts and links, and return the resulting VirtualNetwork
+        instance composed of those hosts and links.'''
+
         net = cls(terminal_hosts, tmpdir, ipv6)
         mode = None
         for line in fh:
@@ -177,12 +200,12 @@ class VirtualNetwork(object):
             if line == 'NODES':
                 mode = 'node'
                 continue
-            elif line == 'LINKS':
+            if line == 'LINKS':
                 mode = 'link'
                 continue
-            elif not line:
+            if not line:
                 continue
-            elif line.startswith('#'):
+            if line.startswith('#'):
                 continue
 
             if mode == 'node':
@@ -196,20 +219,17 @@ class VirtualNetwork(object):
 
         return net
 
-    def is_valid_hostname(self, hostname):
-        if not hostname[0].isalpha():
-            return False
-        if HOST_RE.search(hostname) is None:
-            return False
-        return True
-
     def import_node(self, line):
+        '''Parse a string containing information for a given node--a Host,
+        Router, or Switch--and add the instantiated node to the collection
+        maintained by this VirtualNetwork instance.'''
+
         parts = line.split()
         if len(parts) < 1 or len(parts) > 2:
             raise ValueError(f'Invalid node format: {line}')
 
         hostname = parts[0]
-        if not self.is_valid_hostname(hostname):
+        if not util.is_valid_hostname(hostname):
             raise ValueError(f'Invalid hostname: {hostname}')
         if hostname == MAIN_FILENAME:
             raise ValueError(f'Hostname cannot be {hostname}')
@@ -238,14 +258,14 @@ class VirtualNetwork(object):
 
     def add_link(self, host1, host2, bw=None, delay=None, loss=None,
             mtu=None, vlan=None, trunk=None):
+        '''Add a link between two hosts, with the given attributes.  Make sure
+        the link configuration is consistent. Instantiate both interfaces, and
+        return the resulting objects.'''
+
         if isinstance(host1, str):
             host1 = self.host_by_name[host1]
         if isinstance(host2, str):
             host2 = self.host_by_name[host2]
-
-        #XXX deprecated
-        num1 = host1.next_int()
-        num2 = host2.next_int()
 
         int1_name = f'{host1.hostname}-{host2.hostname}'
         int2_name = f'{host2.hostname}-{host1.hostname}'
@@ -285,8 +305,12 @@ class VirtualNetwork(object):
         return intf1, intf2
 
     def apply_links(self):
+        '''Create and connect the virtual interfaces for all the links in this
+        VirtualNetwork instance, and put them into their own namespaces, as
+        appropriate.'''
+
         done = set()
-        for hostname, host in self.host_by_name.items():
+        for _, host in self.host_by_name.items():
             for intf, neighbor in host.neighbor_by_int.items():
                 host1 = host
                 host2 = neighbor
@@ -409,13 +433,19 @@ class VirtualNetwork(object):
                     subprocess.run(cmd, check=True)
 
     def create_hosts_file(self):
+        '''Create a hosts file containing the hostname-address mappings for all
+        hosts mananged by the VirtualNetwork instance.'''
+
         self.hosts_file = os.path.join(self.hosts_dir, MAIN_FILENAME)
 
         with open(self.hosts_file, 'w') as fh:
-            for hostname, host in self.host_by_name.items():
+            for _, host in self.host_by_name.items():
                 host.create_hosts_file_entries(fh)
 
     def config(self):
+        '''Create the files containing network configuration information for
+        each host managed by the VirtualNetwork instance.'''
+
         self.commsock_file = os.path.join(self.comm_dir, MAIN_FILENAME)
         self.commsock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
         self.commsock.bind(self.commsock_file)
@@ -428,6 +458,12 @@ class VirtualNetwork(object):
             host.create_hosts_file(self.hosts_file, hosts_file)
 
     def wait_for_phase1_startup(self, host):
+        '''Wait for a given virtual host to send its PID over the UNIX domain
+        socket designated for communication between VirtualNetwork manager and
+        virtual host, as a form of synchronization.  If an invalid PID is sent,
+        or if no communication is received within 3 seconds, then raise
+        HostNotStarted.'''
+
         # set to non-bocking with timeout 3
         self.commsock.settimeout(3)
         try:
@@ -436,21 +472,27 @@ class VirtualNetwork(object):
                 raise Exception('Received packet from someone else!')
             host.pid = int(data.decode('utf-8'))
         except socket.timeout:
-            raise HostNotStarted(f'{host.hostname} did not start properly.')
+            raise HostNotStarted(f'{host.hostname} did not start properly.') \
+                    from None
         finally:
             # revert to non-blocking
             self.commsock.settimeout(None)
 
     def wait_for_phase2_startup(self):
+        '''Wait for all hosts to send a single null byte (i.e., b'\x00') over
+        the UNIX domain socket designated for communication between host and
+        virtual hosts, as a form of synchronization.  If any virtual hosts have
+        not sent the null byte within 3 seconds, then raise HostNotStarted.'''
+
         # set to non-bocking with timeout 3
         self.commsock.settimeout(3)
         try:
-            sock_files = set([host.sock_file \
-                    for hostname, host in self.host_by_name.items()])
+            sock_files = {host.sock_file \
+                    for _, host in self.host_by_name.items()}
             start_time = time.time()
             end_time = start_time + 3
             while sock_files and time.time() < end_time:
-                data, peer = self.commsock.recvfrom(1)
+                _, peer = self.commsock.recvfrom(1)
                 if peer in sock_files:
                     sock_files.remove(peer)
         except socket.timeout:
@@ -473,15 +515,18 @@ class VirtualNetwork(object):
             hostname = sock_file_to_hostname[sock_file]
             host = self.host_by_name[hostname]
             cmd = ['ps', '-p', str(host.pid)]
-            p = subprocess.run(cmd, stdout=subprocess.DEVNULL)
+            p = subprocess.run(cmd, stdout=subprocess.DEVNULL, check=False)
             if p.returncode != 0:
                 raise HostNotStarted(f'{hostname} did not start properly.')
-            else:
-                raise HostNotStarted(f'{hostname} is taking too long.')
+            raise HostNotStarted(f'{hostname} is taking too long.')
 
     def start(self, wireshark_ints):
+        '''Start the hosts and links comprising the VirtualNetwork instance,
+        and synchronize appropriately between the VirtualNetwork instance and
+        the virtual hosts.'''
+
         # start the hosts and wait for each to write its PID to the
-        for hostname, host in self.host_by_name.items():
+        for _, host in self.host_by_name.items():
             host.start(self.commsock_file)
             self.wait_for_phase1_startup(host)
 
@@ -491,7 +536,7 @@ class VirtualNetwork(object):
 
         # let hosts know that virtual interfaces have been
         # created, so they can proceed with network configuration
-        for hostname, host in self.host_by_name.items():
+        for _, host in self.host_by_name.items():
             self.commsock.sendto(b'\x00', host.sock_file)
 
         self.wait_for_phase2_startup()
@@ -503,12 +548,15 @@ class VirtualNetwork(object):
             self.commsock.sendto(b'\x00', host.sock_file)
 
     def cleanup(self):
-        for hostname, host in self.host_by_name.items():
+        '''Shut down and clean up resources allocated for the
+        VirtualNetwork, including processes, interfaces, and files.'''
+
+        for _, host in self.host_by_name.items():
             host.cleanup()
 
         for intf in self.bridge_interfaces:
             cmd = ['sudo', 'ip', 'link', 'del', intf]
-            subprocess.run(cmd)
+            subprocess.run(cmd, check=False)
 
         os.unlink(self.hosts_file)
 
@@ -520,6 +568,8 @@ class VirtualNetwork(object):
             os.rmdir(d)
 
     def label_for_link(self, host1, int1, host2, int2):
+        '''Return a GraphViz label for a given link.'''
+
         s = '<<TABLE BORDER="0">' + host1.label_for_int(int1) + \
                 '<TR><TD COLSPAN="2"></TD></TR>' + \
                 host2.label_for_int(int2) + \
@@ -527,11 +577,14 @@ class VirtualNetwork(object):
         return s
 
     def display_to_file(self, output_file):
+        '''Create a GraphViz representation of this VirtualNetwork, and save it
+        to a file.'''
+
         from pygraphviz import AGraph
         G = AGraph()
 
         done = set()
-        for hostname, host in self.host_by_name.items():
+        for _, host in self.host_by_name.items():
             for intf, neighbor in host.neighbor_by_int.items():
                 host1 = host
                 host2 = neighbor
@@ -543,15 +596,17 @@ class VirtualNetwork(object):
                 done.add((host2, host1, int2, int1))
                 G.add_edge(host1.hostname, host2.hostname,
                         label=self.label_for_link(host1, int1, host2, int2))
-        img = G.draw(prog='dot')
         G.draw(output_file, format='png', prog='dot')
 
     def display_to_screen(self):
+        '''Create a GraphViz representation of this VirtualNetwork, and print
+        it to standard output.'''
+
         from pygraphviz import AGraph
         G = AGraph()
 
         done = set()
-        for hostname, host in self.host_by_name.items():
+        for _, host in self.host_by_name.items():
             for intf, neighbor in host.neighbor_by_int.items():
                 host1 = host
                 host2 = neighbor
@@ -564,9 +619,11 @@ class VirtualNetwork(object):
                 G.add_edge(host1.hostname, host2.hostname)
         img = G.draw(prog='dot')
         subprocess.run(['graph-easy', '--from', 'graphviz'], input=img,
-                stderr=subprocess.DEVNULL)
+                stderr=subprocess.DEVNULL, check=False)
 
     def start_wireshark(self, ints):
+        '''Start Wireshark, and begin capturing on the specified interfaces.'''
+
         cmd = ['wireshark']
         for intf in ints:
             cmd += ['-i', intf]
@@ -575,6 +632,9 @@ class VirtualNetwork(object):
         subprocess.Popen(cmd)
 
     def message_loop(self):
+        '''Loop until interrupted, printing messages received over the
+        communications socket.'''
+
         start_time = time.time()
         while True:
             data, peer = self.commsock.recvfrom(4096)
@@ -587,16 +647,19 @@ class VirtualNetwork(object):
             print('%000.3f \033[1m%4s\033[0m  %s' % (ts, hostname, msg))
 
 def check_requirements(args):
+    '''Check the basic requirements for Cougarnet to run, including effective
+    user, sudo configuration, presence directories, and presence of certain
+    programs.'''
 
     if os.geteuid() == 0:
-        sys.stderr.write(f'Please run this program as a non-privileged user.\n')
+        sys.stderr.write('Please run this program as a non-privileged user.\n')
         sys.exit(1)
 
     try:
         subprocess.run(['sudo', '-k'], check=True)
         subprocess.run(['sudo', '-n', '-v'], check=True)
     except subprocess.CalledProcessError as e:
-        sys.stderr.write(f'Please run visudo to allow your user to run ' + \
+        sys.stderr.write('Please run visudo to allow your user to run ' + \
                 'sudo without a password, using the NOPASSWD option.\n')
         sys.exit(1)
 
@@ -643,24 +706,34 @@ def check_requirements(args):
         sys.exit(1)
 
 def warn_on_sigttin(sig, frame):
+    '''Warn when SIGTTIN is received.  This is only necessary because of some
+    issues with extraneous signals being unexpectedly received, possibly a side
+    effect of running in a virtual machine.'''
+
     sys.stderr.write('Warning: SIGTTIN received\n')
 
 def main():
+    '''Process command-line arguments, instantiate a VirtualNetwork instance
+    from a file, and run and clean-up the virtual network.'''
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--wireshark', '-w',
             action='store', type=str, default=None,
             metavar='LINKS',
-            help='Start wireshark for the specified links (host1-host2[,host2-host3,...])')
+            help='Start wireshark for the specified links ' + \
+                    '(host1-host2[,host2-host3,...])')
     parser.add_argument('--display',
             action='store_const', const=True, default=False,
             help='Display the network configuration as text')
     parser.add_argument('--vars',
             action='store', type=str, default=None,
-            help='Specify variables to be replaced in the configuration file (name=value[,name=value,...])')
+            help='Specify variables to be replaced in the ' + \
+                    'configuration file (name=value[,name=value,...])')
     parser.add_argument('--terminal',
             action='store', type=str, default=None,
             metavar='HOSTNAMES',
-            help='Specify which virtual hosts should launch a terminal (all|none|host1[,host2,...])')
+            help='Specify which virtual hosts should launch a terminal ' + \
+                    '(all|none|host1[,host2,...])')
     parser.add_argument('--disable-ipv6',
             action='store_const', const=True, default=False,
             help='Disable IPv6')
@@ -680,7 +753,8 @@ def main():
     try:
         tmpdir = tempfile.TemporaryDirectory(dir=TMPDIR)
     except PermissionError:
-        sys.stderr.write(f'Unable to create working directory.  Check permissions of {TMPDIR}.\n')
+        sys.stderr.write('Unable to create working directory.  Check ' + \
+                f'permissions of {TMPDIR}.\n')
         sys.exit(1)
 
     if args.terminal is None:
@@ -707,19 +781,19 @@ def main():
             try:
                 host1, host2 = intf.split('-')
             except ValueError:
-                sys.stderr.write(f'Invalid link passed to the ' + \
+                sys.stderr.write('Invalid link passed to the ' + \
                         f'--wireshark/-w option: {intf}\n')
                 sys.exit(1)
             if host1 not in net.host_by_name:
-                sys.stderr.write(f'Invalid link passed to the ' + \
+                sys.stderr.write('Invalid link passed to the ' + \
                         f'--wireshark/-w option; host does not exist: {host1}\n')
                 sys.exit(1)
             if host2 not in net.host_by_name:
-                sys.stderr.write(f'Invalid link passed to the ' + \
+                sys.stderr.write('Invalid link passed to the ' + \
                         f'--wireshark/-w option; host does not exist: {host2}\n')
                 sys.exit(1)
             if host2 not in net.host_by_name[host1].neighbor_by_hostname:
-                sys.stderr.write(f'Invalid link passed to the ' + \
+                sys.stderr.write('Invalid link passed to the ' + \
                         f'--wireshark/-w option; link does not exist: {intf}\n')
                 sys.exit(1)
         wireshark_ints = [f'{intf}-ghost' for intf in wireshark_ints]
