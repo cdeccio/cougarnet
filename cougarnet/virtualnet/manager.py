@@ -55,6 +55,56 @@ class HostNotStarted(Exception):
 class InconsistentConfiguration(Exception):
     '''An Exception raised when a Cougarnet configuration was inconsistent.'''
 
+def sort_addresses(addrs):
+    '''Sort a list of addresses into MAC address, IPv4 addresses, and IPv6
+    addresses, checking them for consistency, and return the sorted elements.'''
+
+    mac_addr = None
+    ipv4_addrs = []
+    ipv6_addrs = []
+    subnet4 = None
+    subnet6 = None
+    for addr in addrs:
+        # MAC address
+        m = MAC_RE.search(addr)
+        if m is not None:
+            if mac_addr is not None:
+                raise ValueError('Only one MAC address is allowed')
+            mac_addr = addr
+            continue
+
+        # IP address
+        slash = addr.find('/')
+        if slash < 0:
+            raise ValueError(f'IP address for interface ' + \
+                    'must include prefix length!')
+
+        if ':' in addr:
+            # IPv6 address
+            try:
+                subnet = str(ipaddress.IPv6Network(addr, strict=False))
+            except (ipaddress.AddressValueError, ipaddress.NetmaskValueError) as e:
+                raise ValueError(str(e))
+            if subnet6 is None:
+                subnet6 = subnet
+            if subnet6 != subnet:
+                raise ValueError('All connected IP addresses ' + \
+                        'must be on the same subnet!')
+            ipv6_addrs.append(addr)
+        else:
+            # IPv4 address
+            try:
+                subnet = str(ipaddress.IPv4Network(addr, strict=False))
+            except (ipaddress.AddressValueError, ipaddress.NetmaskValueError) as e:
+                raise ValueError(str(e))
+            if subnet4 is None:
+                subnet4 = subnet
+            if subnet4 != subnet:
+                raise ValueError('All connected IP addresses ' + \
+                        'must be on the same subnet!')
+            ipv4_addrs.append(addr)
+    return mac_addr, ipv4_addrs, ipv6_addrs, subnet4, subnet6
+
 class VirtualNetwork:
     '''The class that creates and manages a Cougarnet Virtual network.'''
 
@@ -88,45 +138,10 @@ class VirtualNetwork:
 
         parts = hostname_addr.split(',')
         hostname = parts[0]
-        mac = None
         addrs = parts[1:]
-        addrs4 = []
-        addrs6 = []
-        subnet4 = None
-        subnet6 = None
-        for addr in addrs:
 
-            # MAC address
-            m = MAC_RE.search(addr)
-            if m is not None:
-                if mac is not None:
-                    raise ValueError('Only one MAC address is allowed')
-                mac = addr
-                continue
-
-            # IP address
-            slash = addr.find('/')
-            if slash < 0:
-                raise ValueError(f'Address for {hostname} interface ' + \
-                        'must include prefix length!')
-            if ':' in addr:
-                # IPv6 address
-                subnet = str(ipaddress.IPv6Network(addr, strict=False))
-                if subnet6 is None:
-                    subnet6 = subnet
-                if subnet6 != subnet:
-                    raise ValueError('All connected IP addresses ' + \
-                            'must be on the same subnet!')
-                addrs6.append(addr)
-            else:
-                # IPv4 address
-                subnet = str(ipaddress.IPv4Network(addr, strict=False))
-                if subnet4 is None:
-                    subnet4 = subnet
-                if subnet4 != subnet:
-                    raise ValueError('All connected IP addresses ' + \
-                            'must be on the same subnet!')
-                addrs4.append(addr)
+        mac, addrs4, addrs6, subnet4, subnet6 = \
+                sort_addresses(addrs)
 
         if hostname not in self.host_by_name:
             raise ValueError(f'Host not defined: {hostname}')
