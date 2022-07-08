@@ -14,7 +14,13 @@
 # GNU General Public License for more details.
 #
 
-class InterfaceConfig(object):
+'''Classes for maintaining configurations related to network interfaces for
+virtual hosts.'''
+
+class InterfaceConfig:
+    '''Configuration information for a network interface associated with a
+    virtual host.'''
+
     def __init__(self, name, mac_addr=None, ipv4_addrs=None, ipv6_addrs=None,
             bw=None, delay=None, loss=None, mtu=None, vlan=None, trunk=None):
 
@@ -31,10 +37,17 @@ class InterfaceConfig(object):
 
     def update(self, mac_addr=None, ipv4_addrs=None, ipv6_addrs=None,
             bw=None, delay=None, loss=None, mtu=None, vlan=None, trunk=None):
+        '''Update attributes with those specified.'''
 
         self.mac_addr = mac_addr
-        self.ipv4_addrs = [a for a in ipv4_addrs]
-        self.ipv6_addrs = [a for a in ipv6_addrs]
+        if ipv4_addrs is not None:
+            self.ipv4_addrs = ipv4_addrs[:]
+        else:
+            self.ipv4_addrs = None
+        if ipv6_addrs is not None:
+            self.ipv6_addrs = ipv6_addrs[:]
+        else:
+            self.ipv6_addrs = None
         self.bw = bw
         self.delay = delay
         self.loss = loss
@@ -43,10 +56,11 @@ class InterfaceConfig(object):
         self.trunk = trunk
 
     def as_dict(self):
-        return {
+        '''Return a dictionary containing the attributes associated with this
+        network instance.'''
+
+        d = {
                 'mac_addr': self.mac_addr,
-                'ipv4_addrs': [a for a in self.ipv4_addrs],
-                'ipv6_addrs': [a for a in self.ipv6_addrs],
                 'bw': self.bw,
                 'delay': self.delay,
                 'loss': self.loss,
@@ -54,3 +68,13 @@ class InterfaceConfig(object):
                 'vlan': self.vlan,
                 'trunk': self.trunk,
                 }
+
+        if self.ipv4_addrs is not None:
+            d['ipv4_addrs'] = self.ipv4_addrs[:]
+        else:
+            d['ipv4_addrs'] = None
+        if self.ipv6_addrs is not None:
+            d['ipv6_addrs'] = self.ipv6_addrs[:]
+        else:
+            d['ipv6_addrs'] = None
+        return d
