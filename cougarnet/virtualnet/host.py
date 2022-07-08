@@ -14,13 +14,17 @@
 # GNU General Public License for more details.
 #
 
+'''Classes and functions for maintaining network configurations for virtual
+hosts.'''
+
 import json
 import os
 import subprocess
 import sys
 
-from .interface import InterfaceConfig
 from cougarnet import util
+
+from .interface import InterfaceConfig
 
 #TERM="xfce4-terminal"
 TERM = "lxterminal"
@@ -30,7 +34,9 @@ CONTROL_WINDOW_NAME = "remote control"
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 
-class HostConfig(object):
+class HostConfig:
+    '''The network configuration for a virtual host.'''
+
     def __init__(self, hostname, sock_file, tmux_file, script_file, type='host',
             native_apps=True, terminal=True, prog=None, ipv6=True, routes=None):
 
@@ -75,17 +81,25 @@ class HostConfig(object):
         return self.hostname
 
     def _get_tmux_server_pid(self):
+        '''Return the PID associated with the tmux server for this virtual
+        host, or None, if there is no tmux server running.'''
+
         if self.tmux_file is None:
-            return
+            return None
         cmd = ['tmux', '-S', self.tmux_file,
                 'display-message', '-pF', '#{pid}']
-        output = subprocess.run(cmd, stderr=subprocess.DEVNULL, stdout=subprocess.PIPE).stdout
+        output = subprocess.run(cmd,
+                stderr=subprocess.DEVNULL,
+                stdout=subprocess.PIPE, check=False).stdout
         if output:
             return int(output.decode('utf-8').strip())
-        else:
-            return None
+        return None
 
     def process_routes(self):
+        '''Parse the string containing the manual routes contained in the
+        routes_pre_processed instance variable, and create a list of three
+        tuples representing those routes as the routes instance variable.'''
+
         self.routes = []
 
         if self.routes_pre_processed is None:
@@ -100,12 +114,16 @@ class HostConfig(object):
                 intf = self.int_by_neighbor[self.neighbor_by_hostname[neighbor]]
             except KeyError:
                 raise ValueError(f"The interface connected to {neighbor} " + \
-                        f"is designated as a next hop for one of " + \
+                        "is designated as a next hop for one of " + \
                         f"{self.hostname}'s routes, but {neighbor} " + \
-                        f"is not directly connected to {self.hostname}.")
+                        f"is not directly connected to {self.hostname}.") \
+                        from None
             self.routes.append((prefix, intf.name, next_hop))
 
     def _host_config(self):
+        '''Return a dictionary containing the network configuration for this
+        virtual host.'''
+
         host_info = {
                 'hostname': self.hostname,
                 'routes': self.routes,
@@ -121,6 +139,8 @@ class HostConfig(object):
         return host_info
 
     def create_config(self, config_file):
+        '''Create the specified file with the network configuration associated
+        with this virtual host.'''
 
         host_config = self._host_config()
 
@@ -129,6 +149,8 @@ class HostConfig(object):
             fh.write(json.dumps(host_config))
 
     def create_script_file(self):
+        '''Create the script that is to be run by the virtual host after its
+        network configuration has been applied.'''
 
         with open(self.script_file, 'w') as fh:
             fh.write('#!/bin/bash\n')
@@ -137,19 +159,19 @@ class HostConfig(object):
 
             if self.terminal:
                 # start attached
-                fh.write(f' \\; \\\n')
+                fh.write(' \\; \\\n')
                 # have server terminate when client detaches
-                fh.write(f'    set exit-unattached on \\; \\\n')
+                fh.write('    set exit-unattached on \\; \\\n')
                 if self.prog is not None:
                     # start script in window
                     prog = self.prog.replace('|', ' ').replace('"', r'\"')
                     fh.write(f'    send-keys "{prog}" C-m \\; \\\n')
                     # split window, and make new pane the focus
-                    fh.write(f'    split-window -v \\;\\\n')
+                    fh.write('    split-window -v \\;\\\n')
 
             else:
                 # start detached
-                fh.write(f' -d \\; \\\n')
+                fh.write(' -d \\; \\\n')
                 if self.prog is not None:
                     # start script
                     prog = self.prog.replace('|', ' ').replace('"', r'\"')
@@ -157,16 +179,18 @@ class HostConfig(object):
                     # no need for split window; this session is not attached
 
             # allow scrolling in window
-            fh.write(f'    setw -g mouse on \\; \\\n')
+            fh.write('    setw -g mouse on \\; \\\n')
             if self.remote_control:
                 # create a new window for remote control
                 fh.write(f'    new-window -d -n "{CONTROL_WINDOW_NAME}" \\; \\\n')
-            fh.write(f'\n')
+            fh.write('\n')
 
         cmd = ['chmod', '755', self.script_file]
         subprocess.run(cmd, check=True)
 
     def create_hosts_file(self, other_hosts, hosts_file):
+        '''Create the hosts file for this virtual host.'''
+
         self.hosts_file = hosts_file
 
         with open(self.hosts_file, 'w') as write_fh:
@@ -177,6 +201,9 @@ class HostConfig(object):
                 write_fh.write(read_fh.read())
 
     def create_hosts_file_entries(self, fh):
+        '''Create the hosts file entries associated with the hostname-interface
+        mappings for this virtual host.'''
+
         for intf in self.neighbor_by_int:
             for addr in intf.ipv4_addrs:
                 slash = addr.find('/')
@@ -190,16 +217,20 @@ class HostConfig(object):
                 fh.write(f'{addr} {self.hostname}\n')
 
     def start(self, commsock_file):
+        '''Start this virtual host.  Call unshare to create the new namespace,
+        initialize the virtual network within the new namespace, and start the
+        designated program within the new namespace.'''
+
         assert self.config_file is not None, \
                 "create_config() must be called before start()"
 
         cmd = ['sudo', 'touch', f'/run/netns/{self.hostname}']
-        subprocess.run(cmd)
+        subprocess.run(cmd, check=False)
 
         cmd = ['sudo', '-E', 'unshare', '--mount']
         if not (self.type == 'switch' and self.native_apps):
             cmd += [f'--net=/run/netns/{self.hostname}']
-        cmd += ['--uts', sys.executable, '-m', f'{HOSTINIT_MODULE}',
+        cmd += ['--uts', sys.executable, '-m', HOSTINIT_MODULE,
                     '--hosts-file', self.hosts_file,
                     '--user', os.environ.get("USER")]
 
@@ -219,11 +250,13 @@ class HostConfig(object):
 
             cmd = [TERM, '-t', f'{self.type.capitalize()}: {self.hostname}', '-e', subcmd]
 
-        p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
+        subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def add_int(self, name, neighbor, bw=None, delay=None, loss=None,
             mtu=None, vlan=None, trunk=None):
+        '''Add a new interface on this virtual host with the specified name,
+        neighbor, and attributes.'''
 
         if neighbor in self.int_by_neighbor:
             raise ValueError('Only one link can exist between two hosts')
@@ -237,11 +270,18 @@ class HostConfig(object):
         return intf
 
     def next_int(self):
+        '''Return the number associated with the next interfacei, for a unique
+        name.'''
+
         int_next = self.next_int_num
         self.next_int_num += 1
         return int_next
 
     def kill(self):
+        '''Send signals to the program being run within the tmux process being
+        run by unshare, until it is terminated.  If the tmux server process
+        persists, then send signals to it, until it is terminated.'''
+
         if self.pid is not None:
             util.kill_until_terminated(self.pid, elevate_if_needed=True)
 
@@ -251,6 +291,9 @@ class HostConfig(object):
                 util.kill_until_terminated(tmux_pid, elevate_if_needed=False)
 
     def cleanup(self):
+        '''Shut down and clean up resources allocated for the this virtual
+        host, including processes, interfaces, and files.'''
+
         self.kill()
 
         #XXX not sure why this while loop is necessary (i.e., why we need to
@@ -264,19 +307,18 @@ class HostConfig(object):
 
         if os.path.exists(f'/run/netns/{self.hostname}'):
             cmd = ['sudo', 'rm', f'/run/netns/{self.hostname}']
-            subprocess.run(cmd)
+            subprocess.run(cmd, check=False)
 
         if self.type == 'switch' and self.native_apps:
             cmd = ['sudo', 'ovs-vsctl', 'del-br', self.hostname]
-            subprocess.run(cmd)
+            subprocess.run(cmd, check=False)
 
             # Explicitly deleting interfaces is only needed when this is a
             # switch running in "native apps" mode; otherwise, the interfaces
             # were deleted when the process with the namespace ended.
             for intf in self.neighbor_by_int:
-                neighbor = self.neighbor_by_int[intf]
                 cmd = ['sudo', 'ip', 'link', 'del', intf.name]
-                subprocess.run(cmd)
+                subprocess.run(cmd, check=False)
 
         for f in self.sock_file, self.config_file, self.script_file, \
                 self.hosts_file, self.tmux_file:
@@ -284,6 +326,9 @@ class HostConfig(object):
                 os.unlink(f)
 
     def label_for_int(self, intf):
+        '''Return a GraphViz HTML-like label for a given interface on this
+        virtual host.'''
+
         s = f'<TR><TD COLSPAN="2" ALIGN="left"><B>{intf.name}:</B></TD></TR>'
         if intf.mac_addr is not None:
             s += f'<TR><TD ALIGN="right">  </TD><TD>{intf.mac_addr}</TD></TR>'
