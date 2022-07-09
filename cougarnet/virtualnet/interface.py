@@ -26,8 +26,14 @@ class InterfaceConfig:
 
         self.name = name
         self.mac_addr = mac_addr
-        self.ipv4_addrs = ipv4_addrs
-        self.ipv6_addrs = ipv6_addrs
+        if ipv4_addrs is not None:
+            self.ipv4_addrs = ipv4_addrs[:]
+        else:
+            self.ipv4_addrs = []
+        if ipv6_addrs is not None:
+            self.ipv6_addrs = ipv6_addrs[:]
+        else:
+            self.ipv6_addrs = []
         self.bw = bw
         self.delay = delay
         self.loss = loss
@@ -39,21 +45,24 @@ class InterfaceConfig:
             bw=None, delay=None, loss=None, mtu=None, vlan=None, trunk=None):
         '''Update attributes with those specified.'''
 
-        self.mac_addr = mac_addr
+        if mac_addr is not None:
+            self.mac_addr = mac_addr
         if ipv4_addrs is not None:
             self.ipv4_addrs = ipv4_addrs[:]
-        else:
-            self.ipv4_addrs = None
         if ipv6_addrs is not None:
             self.ipv6_addrs = ipv6_addrs[:]
-        else:
-            self.ipv6_addrs = None
-        self.bw = bw
-        self.delay = delay
-        self.loss = loss
-        self.mtu = mtu
-        self.vlan = vlan
-        self.trunk = trunk
+        if bw is not None:
+            self.bw = bw
+        if delay is not None:
+            self.delay = delay
+        if loss is not None:
+            self.loss = loss
+        if mtu is not None:
+            self.mtu = mtu
+        if vlan is not None:
+            self.vlan = vlan
+        if trunk is not None:
+            self.trunk = trunk
 
     def as_dict(self):
         '''Return a dictionary containing the attributes associated with this
@@ -61,6 +70,8 @@ class InterfaceConfig:
 
         d = {
                 'mac_addr': self.mac_addr,
+                'ipv4_addrs': self.ipv4_addrs[:],
+                'ipv6_addrs': self.ipv6_addrs[:],
                 'bw': self.bw,
                 'delay': self.delay,
                 'loss': self.loss,
@@ -68,13 +79,4 @@ class InterfaceConfig:
                 'vlan': self.vlan,
                 'trunk': self.trunk,
                 }
-
-        if self.ipv4_addrs is not None:
-            d['ipv4_addrs'] = self.ipv4_addrs[:]
-        else:
-            d['ipv4_addrs'] = None
-        if self.ipv6_addrs is not None:
-            d['ipv6_addrs'] = self.ipv6_addrs[:]
-        else:
-            d['ipv6_addrs'] = None
         return d
