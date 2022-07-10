@@ -105,3 +105,15 @@ class PhysicalInterfaceConfig(InterfaceConfigBase):
                 'trunk': self.trunk,
                 })
         return d
+
+class VirtualInterfaceConfig(InterfaceConfigBase):
+    '''Configuration information for a virtual network interface associated
+    with a virtual host, i.e., for a VLAN.'''
+
+    def __init__(self, phys_int, vlan, mac_addr=None, ipv4_addrs=None,
+            ipv6_addrs=None):
+
+        name = f'{phys_int.name}.vlan{vlan}'
+        super(VirtualInterfaceConfig, self).__init__(
+                name, mac_addr, ipv4_addrs, ipv6_addrs)
+        self.phys_int = phys_int

@@ -195,6 +195,30 @@ class VirtualNetwork:
         int1.update(mac_addr=mac1, ipv4_addrs=addrs41, ipv6_addrs=addrs61)
         int2.update(mac_addr=mac2, ipv4_addrs=addrs42, ipv6_addrs=addrs62)
 
+    def import_vlan(self, line):
+        '''Parse a string containing information for a VLAN.'''
+
+        parts = line.split()
+        if len(parts) != 2:
+            raise ValueError('Invalid VLAN format.')
+
+        vlan, host_peer_addr = parts
+        parts = host_peer_addr.split(',')
+
+        vlan = int(vlan)
+        hostname = parts[0]
+        peer_hostname = parts[1]
+        addrs = parts[2:]
+
+        mac, addrs4, addrs6, subnet4, subnet6 = \
+                sort_addresses(parts[2:])
+
+        host = self.host_by_name[hostname]
+        neighbor = host.neighbor_by_hostname[peer_hostname]
+        phys_int = host.int_by_neighbor[neighbor]
+        intf = host.add_vlan(phys_int, vlan)
+        intf.update(mac_addr=mac, ipv4_addrs=addrs4, ipv6_addrs=addrs6)
+
     def process_routes(self):
         '''For every virtual host, parse and store the routes designated by the
         config.'''
@@ -223,6 +247,9 @@ class VirtualNetwork:
             if line == 'LINKS':
                 mode = 'link'
                 continue
+            if line == 'VLANS':
+                mode = 'vlan'
+                continue
             if not line:
                 continue
             if line.startswith('#'):
@@ -232,6 +259,8 @@ class VirtualNetwork:
                 net.import_node(line)
             elif mode == 'link':
                 net.import_link(line)
+            elif mode == 'vlan':
+                net.import_vlan(line)
             else:
                 pass
 
@@ -304,7 +333,8 @@ class VirtualNetwork:
         else:
             vlan2 = None
 
-        if host1.type == 'switch' and host2.type == 'switch':
+        if (host1.type == 'switch' and host2.type in ('switch', 'router')) or \
+                (host2.type == 'switch' and host1.type in ('switch', 'router')):
             if not trunk or str(trunk).lower() in FALSE_STRINGS:
                 trunk1 = False
                 trunk2 = False
@@ -436,20 +466,43 @@ class VirtualNetwork:
                             cmd.append('tag=0')
                     subprocess.run(cmd, check=True)
 
+    def apply_vlans(self):
+        '''Create the virtual interfaces associated with a router.'''
+
+        for _, host in self.host_by_name.items():
+            for vlan, intf in host.int_by_vlan.items():
+
+                # Sanity check
+                if host.type != 'router':
+                    raise ConfigurationError(
+                            f'VLAN interfaces on non-router.')
+
+                if host.native_apps:
+                    cmd = ['sudo', 'ip', 'link', 'add', 'link',
+                            intf.phys_int.name, 'name', intf.name, 'type',
+                            'vlan', 'id', str(vlan)]
+                    subprocess.run(cmd, check=True)
+                else:
+                    cmd = ['sudo', 'ip', 'link', 'add',
+                            intf.name, 'type', 'veth']
+                    subprocess.run(cmd, check=True)
+
+    def set_interfaces_up_netns(self):
+        for _, host in self.host_by_name.items():
+            for intf in [i for i in host.neighbor_by_int] + \
+                    [host.int_by_vlan[i] for i in host.int_by_vlan]:
+
+                host_bridge = False
+                if host.type == 'switch' and host.native_apps:
+                    host_bridge = True
+
                 # Move interfaces to their appropriate namespaces
-                if host1_bridge:
-                    cmd = ['sudo', 'ip', 'link', 'set', int1.name, 'up']
+                if host_bridge:
+                    cmd = ['sudo', 'ip', 'link', 'set', intf.name, 'up']
                     subprocess.run(cmd, check=True)
                 else:
-                    cmd = ['sudo', 'ip', 'link', 'set', int1.name, 'netns',
-                            host1.hostname]
-                    subprocess.run(cmd, check=True)
-                if host2_bridge:
-                    cmd = ['sudo', 'ip', 'link', 'set', int2.name, 'up']
-                    subprocess.run(cmd, check=True)
-                else:
-                    cmd = ['sudo', 'ip', 'link', 'set', int2.name, 'netns',
-                            host2.hostname]
+                    cmd = ['sudo', 'ip', 'link', 'set', intf.name, 'netns',
+                            host.hostname]
                     subprocess.run(cmd, check=True)
 
     def create_hosts_file(self):
@@ -553,6 +606,8 @@ class VirtualNetwork:
         # we have to wait to apply the links until the namespace is created
         # i.e., process has to start, as evidenced by pid file
         self.apply_links()
+        self.apply_vlans()
+        self.set_interfaces_up_netns()
 
         # let hosts know that virtual interfaces have been
         # created, so they can proceed with network configuration

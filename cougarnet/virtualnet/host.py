@@ -24,7 +24,7 @@ import sys
 
 from cougarnet import util
 
-from .interface import PhysicalInterfaceConfig
+from .interface import PhysicalInterfaceConfig, VirtualInterfaceConfig
 
 #TERM="xfce4-terminal"
 TERM = "lxterminal"
@@ -49,6 +49,7 @@ class HostConfig:
         self.next_int_num = 0
         self.int_by_name = {}
         self.int_by_neighbor = {}
+        self.int_by_vlan = {}
         self.neighbor_by_int = {}
         self.neighbor_by_hostname = {}
         self.type = type
@@ -134,6 +135,9 @@ class HostConfig:
         host_info['ip_forwarding'] = self.type == 'router' and self.native_apps
         int_infos = {}
         for intf in self.neighbor_by_int:
+            int_infos[intf.name] = intf.as_dict()
+        for vlan in self.int_by_vlan:
+            intf = self.int_by_vlan[vlan]
             int_infos[intf.name] = intf.as_dict()
         host_info['interfaces'] = int_infos
         return host_info
@@ -267,6 +271,17 @@ class HostConfig:
         self.int_by_neighbor[neighbor] = intf
         self.neighbor_by_int[intf] = neighbor
         self.neighbor_by_hostname[neighbor.hostname] = neighbor
+        return intf
+
+    def add_vlan(self, phys_int, vlan):
+        '''Add a new VLAN interface on this virtual host with the specified
+        VLAN ID.'''
+
+        if vlan in self.int_by_vlan:
+            raise ValueError('A VLAN can only be assigned to one interface.')
+
+        intf = VirtualInterfaceConfig(phys_int, vlan)
+        self.int_by_vlan[vlan] = intf
         return intf
 
     def next_int(self):

@@ -85,7 +85,7 @@ def _apply_config(info):
             subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
 
         # disable router solicitations
-        cmd = ['sysctl', f'net.ipv6.conf.{intf}.router_solicitations=0']
+        cmd = ['sysctl', f'net/ipv6/conf/{intf}/router_solicitations=0']
         subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
 
         # add each IP address
