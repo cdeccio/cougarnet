@@ -211,9 +211,9 @@ capturing packets at those interfaces.
 Now let's begin communicating!  First, let's split `h1`'s terminal into two.
 Click on `h1` terminal, and press `Ctrl`+`b` then `"` (double quote).  Your
 terminal is running an instance of [tmux](https://github.com/tmux/tmux/), and
-the key strokes you just entered split the terminal horizontally.  panes.  To
-switch back and forth between the two panes, press `Ctrl`+`b` followed by the
-up or down arrow, to move up or down, respectively.
+the key strokes you just entered split the terminal horizontally.  To switch
+back and forth between the two panes, press `Ctrl`+`b` followed by the up or
+down arrow, to move up or down, respectively.
 
 In one pane of `h1`, enter the following command:
 
