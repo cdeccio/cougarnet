@@ -24,7 +24,7 @@ import sys
 
 from cougarnet import util
 
-from .interface import InterfaceConfig
+from .interface import PhysicalInterfaceConfig
 
 #TERM="xfce4-terminal"
 TERM = "lxterminal"
@@ -261,7 +261,7 @@ class HostConfig:
         if neighbor in self.int_by_neighbor:
             raise ValueError('Only one link can exist between two hosts')
 
-        intf = InterfaceConfig(name, bw=bw, delay=delay, loss=loss,
+        intf = PhysicalInterfaceConfig(name, bw=bw, delay=delay, loss=loss,
                 mtu=mtu, vlan=vlan, trunk=trunk)
         self.int_by_name[name] = intf
         self.int_by_neighbor[neighbor] = intf

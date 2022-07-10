@@ -17,12 +17,11 @@
 '''Classes for maintaining configurations related to network interfaces for
 virtual hosts.'''
 
-class InterfaceConfig:
-    '''Configuration information for a network interface associated with a
-    virtual host.'''
+class InterfaceConfigBase:
+    '''Base class for configuration information for a network interface
+    associated with a virtual host.'''
 
-    def __init__(self, name, mac_addr=None, ipv4_addrs=None, ipv6_addrs=None,
-            bw=None, delay=None, loss=None, mtu=None, vlan=None, trunk=None):
+    def __init__(self, name, mac_addr=None, ipv4_addrs=None, ipv6_addrs=None):
 
         self.name = name
         self.mac_addr = mac_addr
@@ -34,6 +33,37 @@ class InterfaceConfig:
             self.ipv6_addrs = ipv6_addrs[:]
         else:
             self.ipv6_addrs = []
+
+    def update(self, mac_addr=None, ipv4_addrs=None, ipv6_addrs=None):
+        '''Update attributes with those specified.'''
+
+        if mac_addr is not None:
+            self.mac_addr = mac_addr
+        if ipv4_addrs is not None:
+            self.ipv4_addrs = ipv4_addrs[:]
+        if ipv6_addrs is not None:
+            self.ipv6_addrs = ipv6_addrs[:]
+
+    def as_dict(self):
+        '''Return a dictionary containing the attributes associated with this
+        network interface instance.'''
+
+        return {
+                'mac_addr': self.mac_addr,
+                'ipv4_addrs': self.ipv4_addrs,
+                'ipv6_addrs': self.ipv6_addrs,
+                }
+
+class PhysicalInterfaceConfig(InterfaceConfigBase):
+    '''Configuration information for a "physical" network interface associated
+    with a virtual host.'''
+
+    def __init__(self, name, mac_addr=None, ipv4_addrs=None, ipv6_addrs=None,
+            bw=None, delay=None, loss=None, mtu=None, vlan=None, trunk=None):
+
+        super(PhysicalInterfaceConfig, self).__init__(
+                name, mac_addr, ipv4_addrs, ipv6_addrs)
+
         self.bw = bw
         self.delay = delay
         self.loss = loss
@@ -45,12 +75,9 @@ class InterfaceConfig:
             bw=None, delay=None, loss=None, mtu=None, vlan=None, trunk=None):
         '''Update attributes with those specified.'''
 
-        if mac_addr is not None:
-            self.mac_addr = mac_addr
-        if ipv4_addrs is not None:
-            self.ipv4_addrs = ipv4_addrs[:]
-        if ipv6_addrs is not None:
-            self.ipv6_addrs = ipv6_addrs[:]
+        super(PhysicalInterfaceConfig, self).update(
+                mac_addr, ipv4_addrs, ipv6_addrs)
+
         if bw is not None:
             self.bw = bw
         if delay is not None:
@@ -68,15 +95,13 @@ class InterfaceConfig:
         '''Return a dictionary containing the attributes associated with this
         network instance.'''
 
-        d = {
-                'mac_addr': self.mac_addr,
-                'ipv4_addrs': self.ipv4_addrs[:],
-                'ipv6_addrs': self.ipv6_addrs[:],
+        d = super(PhysicalInterfaceConfig, self).as_dict()
+        d.update({
                 'bw': self.bw,
                 'delay': self.delay,
                 'loss': self.loss,
                 'mtu': self.mtu,
                 'vlan': self.vlan,
                 'trunk': self.trunk,
-                }
+                })
         return d
