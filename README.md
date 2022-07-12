@@ -395,7 +395,7 @@ host option names are the following, accompanied by the expected value:
    the program in one pane, while a shell is instantiated in the new pane.
    `background` creates a new window that is not the focus (by default) and
    runs the program in that window.  Default: run the program in the primary
-   window, such that any new windows are panes must be started manually.
+   window, such that any new windows or panes must be started manually.
 
 
 ## Hostnames
