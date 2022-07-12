@@ -213,7 +213,8 @@ Click on `h1` terminal, and press `Ctrl`+`b` then `"` (double quote).  Your
 terminal is running an instance of [tmux](https://github.com/tmux/tmux/), and
 the key strokes you just entered split the terminal horizontally.  To switch
 back and forth between the two panes, press `Ctrl`+`b` followed by the up or
-down arrow, to move up or down, respectively.
+down arrow, to move up or down, respectively.  Or you can use your mouse by
+clicking in the pane in which you would like to focus.
 
 In one pane of `h1`, enter the following command:
 
@@ -292,8 +293,11 @@ h1$ ping h3
 
 You should again see ICMP Echo activity in Wireshark, captured at `h3`'s only
 interface.  You might also notice that the packets arriving from 10.0.0.1 have
-a smaller time-to-live (TTL) value, as it has decreased one for each hop
+a smaller time-to-live (TTL) value, as it has decreased by one for each hop
 (router) traversed.
+
+You can copy and paste from the terminal by holding down `Shift` and
+highlighting text, then clicking `Shift`+`Ctrl`+`C`.
 
 Again return to the terminal on which you ran the `cougarnet` command, and enter
 `Ctrl`+`c`.  Then close Wireshark.
