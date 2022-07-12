@@ -81,7 +81,7 @@ def sort_addresses(addrs):
         # IP address
         slash = addr.find('/')
         if slash < 0:
-            raise ConfigurationError(f'IP address for interface ' + \
+            raise ConfigurationError('IP address for interface ' + \
                     'must include prefix length!')
 
         if ':' in addr:
