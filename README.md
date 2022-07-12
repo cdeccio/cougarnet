@@ -387,8 +387,15 @@ host option names are the following, accompanied by the expected value:
  - `prog`: a string representing a program and its arguments, which are to be
    run, instead of an interactive shell.  The program path and its arguments
    are delimited by `|`.  For example, `echo|foo|bar` would execute
-   `echo foo bar`.  Default: execute an interactive shell.  See [Running
-   Programs](#running-programs) for more information.
+   `echo foo bar`.  Default: execute an interactive shell.
+   See [Running Programs](#running-programs) for more information.
+ - `prog_window`: a string indicating how the tmux windows and panes should be
+   arranged when running the program designated by `prog`.  Valid values are
+   `split` and `background`.  `split` splits the window horizontally and runs
+   the program in one pane, while a shell is instantiated in the new pane.
+   `background` creates a new window that is not the focus (by default) and
+   runs the program in that window.  Default: run the program in the primary
+   window, such that any new windows are panes must be started manually.
 
 
 ## Hostnames
