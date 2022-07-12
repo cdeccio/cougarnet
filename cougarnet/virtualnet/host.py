@@ -30,6 +30,7 @@ from .interface import PhysicalInterfaceConfig, VirtualInterfaceConfig
 TERM = "lxterminal"
 HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
 MAIN_WINDOW_NAME = "main"
+CMD_WINDOW_NAME = "cmd"
 CONTROL_WINDOW_NAME = "remote control"
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
@@ -38,7 +39,8 @@ class HostConfig:
     '''The network configuration for a virtual host.'''
 
     def __init__(self, hostname, sock_file, tmux_file, script_file, type='host',
-            native_apps=True, terminal=True, prog=None, ipv6=True, routes=None):
+            native_apps=True, terminal=True, prog=None, prog_window=None,
+            ipv6=True, routes=None):
 
         self.hostname = hostname
         self.sock_file = sock_file
@@ -54,6 +56,7 @@ class HostConfig:
         self.neighbor_by_hostname = {}
         self.type = type
         self.prog = prog
+        self.prog_window = prog_window
         self.has_bridge = False
         self.has_vlans = None
         self.hosts_file = None
@@ -166,27 +169,27 @@ class HostConfig:
                 fh.write(' \\; \\\n')
                 # have server terminate when client detaches
                 fh.write('    set exit-unattached on \\; \\\n')
-                if self.prog is not None:
-                    # start script in window
-                    prog = self.prog.replace('|', ' ').replace('"', r'\"')
-                    fh.write(f'    send-keys "{prog}" C-m \\; \\\n')
-                    # split window, and make new pane the focus
-                    fh.write('    split-window -v \\;\\\n')
-
             else:
                 # start detached
                 fh.write(' -d \\; \\\n')
-                if self.prog is not None:
-                    # start script
-                    prog = self.prog.replace('|', ' ').replace('"', r'\"')
-                    fh.write(f'    send-keys "{prog}" C-m \\; \\\n')
-                    # no need for split window; this session is not attached
+
+            if self.prog is not None:
+                # start script in window
+                prog = self.prog.replace('|', ' ').replace('"', r'\"')
+                fh.write(f'    send-keys "{prog}" C-m \\; \\\n')
+                if self.prog_window == 'split':
+                    # split window, and make new pane the focus
+                    fh.write('    split-window -v \\; \\\n')
+                elif self.prog_window == 'background':
+                    fh.write(f'    new-window \\; \\\n')
 
             # allow scrolling in window
             fh.write('    setw -g mouse on \\; \\\n')
+
             if self.remote_control:
                 # create a new window for remote control
-                fh.write(f'    new-window -d -n "{CONTROL_WINDOW_NAME}" \\; \\\n')
+                fh.write(f'    new-window -d \\; \\\n')
+
             fh.write('\n')
 
         cmd = ['chmod', '755', self.script_file]
