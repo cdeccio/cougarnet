@@ -30,8 +30,7 @@ from .interface import PhysicalInterfaceConfig, VirtualInterfaceConfig
 TERM = "lxterminal"
 HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
 MAIN_WINDOW_NAME = "main"
-CMD_WINDOW_NAME = "cmd"
-CONTROL_WINDOW_NAME = "remote control"
+CMD_WINDOW_NAME = "prog"
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 
@@ -62,8 +61,6 @@ class HostConfig:
         self.hosts_file = None
         self.routes_pre_processed = routes
         self.routes = None
-
-        self.remote_control = False
 
         if not native_apps or str(native_apps).lower() in FALSE_STRINGS:
             self.native_apps = False
@@ -175,20 +172,17 @@ class HostConfig:
 
             if self.prog is not None:
                 # start script in window
+                if self.prog_window == 'background':
+                    fh.write(f'    new-window -n "{CMD_WINDOW_NAME}" \\; \\\n')
                 prog = self.prog.replace('|', ' ').replace('"', r'\"')
                 fh.write(f'    send-keys "{prog}" C-m \\; \\\n')
+                fh.write(f'    select-window -t "{MAIN_WINDOW_NAME}" \\; \\\n')
                 if self.prog_window == 'split':
                     # split window, and make new pane the focus
                     fh.write('    split-window -v \\; \\\n')
-                elif self.prog_window == 'background':
-                    fh.write(f'    new-window \\; \\\n')
 
             # allow scrolling in window
             fh.write('    setw -g mouse on \\; \\\n')
-
-            if self.remote_control:
-                # create a new window for remote control
-                fh.write(f'    new-window -d \\; \\\n')
 
             fh.write('\n')
 
