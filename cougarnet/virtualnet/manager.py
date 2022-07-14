@@ -159,6 +159,10 @@ class VirtualNetwork:
         if hostname not in self.host_by_name:
             raise ConfigurationError(f'The specified host is not defined: {hostname}.')
         host = self.host_by_name[hostname]
+
+        if host.type == 'switch' and (mac is not None or addrs4 or addrs6):
+            raise ConfigurationError('No addresses are allowed on switches.')
+
         return host, mac, addrs4, addrs6, subnet4, subnet6
 
     def import_link(self, line):
@@ -220,17 +224,40 @@ class VirtualNetwork:
         vlan, host_peer_addr = parts
         parts = host_peer_addr.split(',')
 
+        if len(parts) < 2:
+            raise ConfigurationError('Invalid VLAN format; peer switch must be specified.')
+
         vlan = int(vlan)
         hostname = parts[0]
         peer_hostname = parts[1]
         addrs = parts[2:]
 
+        if hostname not in self.host_by_name:
+            raise ConfigurationError(f'The specified host is not defined: {hostname}.')
+        host = self.host_by_name[hostname]
+
+        if host.type != 'router':
+            raise ConfigurationError('A VLAN interface can only be applied to a router.')
+
+        if peer_hostname not in self.host_by_name:
+            raise ConfigurationError(f'The specified host is not defined: {peer_hostname}.')
+
+        if peer_hostname not in host.neighbor_by_hostname:
+            raise ConfigurationError('There is no link between the ' + \
+                    f'two hosts: {hostname} and {peer_hostname}.')
+
+        neighbor = host.neighbor_by_hostname[peer_hostname]
+        phys_int = host.int_by_neighbor[neighbor]
+
+        if not phys_int.trunk:
+            raise ConfigurationError('VLAN interface must be linked by a trunk to a switch.')
+
         mac, addrs4, addrs6 = \
                 sort_addresses(addrs)[:3]
 
-        host = self.host_by_name[hostname]
-        neighbor = host.neighbor_by_hostname[peer_hostname]
-        phys_int = host.int_by_neighbor[neighbor]
+        if not (addrs4 or addrs6):
+            raise ConfigurationError('At least one IP address is required for a VLAN interface.')
+
         intf = host.add_vlan(phys_int, vlan)
         intf.update(mac_addr=mac, ipv4_addrs=addrs4, ipv6_addrs=addrs6)
 

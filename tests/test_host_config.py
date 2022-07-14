@@ -332,22 +332,32 @@ h1 h2 vlan=1''')
                         VirtualNetwork.from_file,
                         cfg, [], {}, tmpdir, True)
 
-                # VLAN specified with non-switch
+                # Invalid VLAN value
                 cfg = io.StringIO('''NODES
-r1
-r2
+h1
+s1 type=switch
 LINKS
-r1 r2 vlan=1''')
+h1 s1 vlan=a''')
                 self.assertRaises(ConfigurationError,
                         VirtualNetwork.from_file,
                         cfg, [], {}, tmpdir, True)
 
-                # Invliad VLAN value
+                # Switch interface with MAC address
                 cfg = io.StringIO('''NODES
-r1
-r2
+h1
+s1 type=switch
 LINKS
-r1 r2 vlan=a''')
+h1 s1,00:00:00:aa:aa:aa''')
+                self.assertRaises(ConfigurationError,
+                        VirtualNetwork.from_file,
+                        cfg, [], {}, tmpdir, True)
+
+                # Switch interface with IPv4 address
+                cfg = io.StringIO('''NODES
+h1
+s1 type=switch
+LINKS
+h1 s1,10.0.0.1/24''')
                 self.assertRaises(ConfigurationError,
                         VirtualNetwork.from_file,
                         cfg, [], {}, tmpdir, True)
@@ -490,7 +500,7 @@ h1,00:00:00:00:00:00,10.0.0.1/24,fd00:1::1/64 s1''')
                             'trunk': None,
                         })
 
-                # Linke that overrides default attributes - switch and host
+                # Link that overrides default attributes - switch and host
                 cfg = io.StringIO('''NODES
 h1
 s1 type=switch
@@ -621,6 +631,137 @@ s1 r1 trunk=true''')
                             'mtu': None,
                             'vlan': None,
                             'trunk': True,
+                        })
+
+    def test_vlan_config_errors(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+
+                # Invalid link format (no router peer specified)
+                cfg = io.StringIO('''NODES
+s1 type=switch
+r1 type=router
+LINKS
+s1 r1 trunk=true
+VLANS
+100 r1
+''')
+                self.assertRaises(ConfigurationError,
+                        VirtualNetwork.from_file,
+                        cfg, [], {}, tmpdir, True)
+
+                # No addresses specified
+                cfg = io.StringIO('''NODES
+s1 type=switch
+r1 type=router
+LINKS
+s1 r1 trunk=true
+VLANS
+100 r1,s1
+''')
+                self.assertRaises(ConfigurationError,
+                        VirtualNetwork.from_file,
+                        cfg, [], {}, tmpdir, True)
+
+                # Multiple MAC addresses
+                cfg = io.StringIO('''NODES
+s1 type=switch
+r1 type=router
+LINKS
+s1 r1 trunk=true
+VLANS
+100 r1,s1,00:00:00:00:11:11,00:00:00:00:aa:aa
+''')
+                self.assertRaises(ConfigurationError,
+                        VirtualNetwork.from_file,
+                        cfg, [], {}, tmpdir, True)
+
+                # Invalid VLAN - invalid host
+                cfg = io.StringIO('''NODES
+s1 type=switch
+r1 type=router
+LINKS
+s1 r1 trunk=true
+VLANS
+100 r2,s1,10.0.1.2/24
+''')
+                self.assertRaises(ConfigurationError,
+                        VirtualNetwork.from_file,
+                        cfg, [], {}, tmpdir, True)
+
+                # Invalid VLAN - host not a router
+                cfg = io.StringIO('''NODES
+s1 type=switch
+r1 type=router
+LINKS
+s1 r1 trunk=true
+VLANS
+100 s1,r1,10.0.1.2/24
+''')
+                self.assertRaises(ConfigurationError,
+                        VirtualNetwork.from_file,
+                        cfg, [], {}, tmpdir, True)
+
+                # Invalid VLAN - invalid peer host
+                cfg = io.StringIO('''NODES
+s1 type=switch
+r1 type=router
+LINKS
+s1 r1 trunk=true
+VLANS
+100 r1,s2,10.0.1.2/24
+''')
+                self.assertRaises(ConfigurationError,
+                        VirtualNetwork.from_file,
+                        cfg, [], {}, tmpdir, True)
+
+                # Invalid VLAN - no link between host and peer
+                cfg = io.StringIO('''NODES
+h1
+s1 type=switch
+r1 type=router
+LINKS
+s1 r1 trunk=true
+VLANS
+100 r1,h1,10.0.1.2/24
+''')
+                self.assertRaises(ConfigurationError,
+                        VirtualNetwork.from_file,
+                        cfg, [], {}, tmpdir, True)
+
+                # Invalid VLAN - link between host and peer is not a trunk
+                cfg = io.StringIO('''NODES
+s1 type=switch
+r1 type=router
+LINKS
+s1 r1
+VLANS
+100 r1,s1,10.0.1.2/24
+''')
+                self.assertRaises(ConfigurationError,
+                        VirtualNetwork.from_file,
+                        cfg, [], {}, tmpdir, True)
+
+
+    def test_vlan_attrs(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+
+                # Valid VLAN
+                cfg = io.StringIO('''NODES
+s1 type=switch
+r1 type=router
+LINKS
+s1 r1 trunk=true
+VLANS
+100 r1,s1,00:00:00:aa:aa:aa,10.0.1.2/24,fd00::1:2/64
+''')
+
+                net = VirtualNetwork.from_file(
+                        cfg, [], {}, tmpdir, True)
+                intf = net.host_by_name['r1'].int_by_vlan[100]
+                self.assertEqual(intf.as_dict(),
+                        {   'mac_addr': '00:00:00:aa:aa:aa',
+                            'ipv4_addrs': ['10.0.1.2/24'],
+                            'ipv6_addrs': ['fd00::1:2/64']
                         })
 
 
