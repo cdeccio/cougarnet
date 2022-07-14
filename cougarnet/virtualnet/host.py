@@ -48,9 +48,11 @@ class HostConfig:
             'routes': None,
             }
 
-    def __init__(self, hostname, sock_file, tmux_file, script_file, **kwargs):
+    def __init__(self, hostname, history_file,
+            sock_file, tmux_file, script_file, **kwargs):
 
         self.hostname = hostname
+        self.history_file = history_file
         self.sock_file = sock_file
         self.tmux_file = tmux_file
         self.script_file = script_file
@@ -180,6 +182,7 @@ class HostConfig:
 
         with open(self.script_file, 'w') as fh:
             fh.write('#!/bin/bash\n')
+            fh.write(f'export HISTFILE={self.history_file}\n\n')
             fh.write(f'exec tmux -S {self.tmux_file} ' + \
                     f'new-session -s "{self.hostname}" -n "{MAIN_WINDOW_NAME}"')
 

@@ -332,7 +332,8 @@ class VirtualNetwork:
 
         self.hostname_by_sock[sock_file] = hostname
         self.host_by_name[hostname] = \
-                HostConfig(hostname, sock_file, tmux_file, script_file, **attrs)
+                HostConfig(hostname, '/dev/null',
+                        sock_file, tmux_file, script_file, **attrs)
 
     def add_link(self, host1, host2, **attrs):
         '''Add a link between two hosts, with the given attributes.  Make sure
