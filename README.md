@@ -18,9 +18,9 @@ stack and some that do not.
 
 # Table of Contents
  - [Installation](#installation)
- - [Getting Started](#getting-started)
+ - [Working Examples](#working-examples)
    - [Two Hosts, Directly Connected](#two-hosts-directly-connected)
-   - [Three Hosts Connected by a Switch](#three-hosts-connected-by-a-switch)
+   - [Three Hosts, Connected by a Switch](#three-hosts-connected-by-a-switch)
    - [Hosts Connected Across Multiple Switches and Routers](#hosts-connected-across-multiple-switches-and-routers)
  - [Virtual Hosts](#virtual-hosts)
    - [Configuration](#configuration)
@@ -84,7 +84,7 @@ $ sudo python3 setup.py install
 ```
 
 
-# Getting Started
+# Working Examples
 
 This section provides three examples of Cougarnet usage.
 
@@ -165,7 +165,7 @@ return to the terminal on which you ran the `cougarnet` command, and enter
 Congratulations!  You have just completed a simple Cougarnet excercise!
 
 
-## Three Hosts Connected by a Switch
+## Three Hosts, Connected by a Switch
 
 Let's now add a switch to the previous example, so we can connect three nodes
 together on the same LAN.  Create a new file called `three-node-switch.cfg` with
