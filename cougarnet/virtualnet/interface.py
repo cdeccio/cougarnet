@@ -71,7 +71,7 @@ class PhysicalInterfaceConfig(InterfaceConfigBase):
     def __init__(self, name, mac_addr=None, ipv4_addrs=None, ipv6_addrs=None,
             **kwargs):
 
-        super(PhysicalInterfaceConfig, self).__init__(
+        super().__init__(
                 name, mac_addr, ipv4_addrs, ipv6_addrs)
 
         for attr in self.__class__.attrs:
@@ -81,7 +81,7 @@ class PhysicalInterfaceConfig(InterfaceConfigBase):
             **kwargs):
         '''Update attributes with those specified.'''
 
-        super(PhysicalInterfaceConfig, self).update(
+        super().update(
                 mac_addr, ipv4_addrs, ipv6_addrs)
 
         for attr in kwargs:
@@ -91,7 +91,7 @@ class PhysicalInterfaceConfig(InterfaceConfigBase):
         '''Return a dictionary containing the attributes associated with this
         network instance.'''
 
-        d = super(PhysicalInterfaceConfig, self).as_dict()
+        d = super().as_dict()
         for attr in self.__class__.attrs:
             d[attr] = getattr(self, attr)
         return d

@@ -60,7 +60,7 @@ class ConfigurationError(CougarnetError):
     configuration file.'''
 
     def __init__(self, *args, **kwargs):
-        super(ConfigurationError, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.lineno = 0
 
 class StartupError(CougarnetError):
@@ -97,7 +97,7 @@ def sort_addresses(addrs):
             try:
                 subnet = str(ipaddress.IPv6Network(addr, strict=False))
             except (ipaddress.AddressValueError, ipaddress.NetmaskValueError) as e:
-                raise ConfigurationError(str(e))
+                raise ConfigurationError(str(e)) from None
             if subnet6 is None:
                 subnet6 = subnet
             if subnet6 != subnet:
@@ -109,7 +109,7 @@ def sort_addresses(addrs):
             try:
                 subnet = str(ipaddress.IPv4Network(addr, strict=False))
             except (ipaddress.AddressValueError, ipaddress.NetmaskValueError) as e:
-                raise ConfigurationError(str(e))
+                raise ConfigurationError(str(e)) from None
             if subnet4 is None:
                 subnet4 = subnet
             if subnet4 != subnet:
@@ -177,21 +177,21 @@ class VirtualNetwork:
                 self.parse_int(int2_info)
 
         if set(addrs41).intersection(set(addrs42)):
-            raise ConfigurationError(f'The IPv4 addresses for ' + \
+            raise ConfigurationError('The IPv4 addresses for ' + \
                     f'{host1.hostname} and {host2.hostname} ' + \
                     'cannot be the same.')
         if subnet41 is not None and subnet42 is not None and \
                 subnet41 != subnet42:
-            raise ConfigurationError(f'The IPv4 addresses for ' + \
+            raise ConfigurationError('The IPv4 addresses for ' + \
                     f'{host1.hostname} and {host2.hostname} ' + \
                     'must be in the same subnet.')
         if set(addrs61).intersection(set(addrs62)):
-            raise ConfigurationError(f'The IPv6 addresses for ' + \
+            raise ConfigurationError('The IPv6 addresses for ' + \
                     f'{host1.hostname} and {host2.hostname} ' + \
                     'cannot be the same.')
         if subnet61 is not None and subnet62 is not None and \
                 subnet61 != subnet62:
-            raise ConfigurationError(f'The IPv6 addresses for ' + \
+            raise ConfigurationError('The IPv6 addresses for ' + \
                     f'{host1.hostname} and {host2.hostname} ' + \
                     'must be in the same subnet.')
 
@@ -202,7 +202,7 @@ class VirtualNetwork:
                 attrs = dict([p.split('=', maxsplit=1) \
                         for p in next(csv_reader)])
             except ValueError:
-                raise ConfigurationError(f'Invalid link format.') from None
+                raise ConfigurationError('Invalid link format.') from None
         else:
             attrs = {}
 
@@ -225,8 +225,8 @@ class VirtualNetwork:
         peer_hostname = parts[1]
         addrs = parts[2:]
 
-        mac, addrs4, addrs6, subnet4, subnet6 = \
-                sort_addresses(parts[2:])
+        mac, addrs4, addrs6 = \
+                sort_addresses(addrs)[:3]
 
         host = self.host_by_name[hostname]
         neighbor = host.neighbor_by_hostname[peer_hostname]
@@ -312,7 +312,7 @@ class VirtualNetwork:
                 attrs = dict([p.split('=', maxsplit=1) \
                         for p in next(csv_reader)])
             except ValueError:
-                raise ConfigurationError(f'Invalid node format.') from None
+                raise ConfigurationError('Invalid node format.') from None
         else:
             attrs = {}
 
@@ -324,8 +324,8 @@ class VirtualNetwork:
         attrs['ipv6'] = str(self.ipv6)
 
         # check for invalid attributes
-        unknown_host_attrs = [a for a in set(attrs).
-                difference(set(HostConfig.attrs))]
+        unknown_host_attrs = list(set(attrs).
+                difference(set(HostConfig.attrs)))
         if unknown_host_attrs:
             raise ConfigurationError('Invalid host attribute: ' + \
                     f'{unknown_host_attrs[0]}')
@@ -379,11 +379,12 @@ class VirtualNetwork:
             try:
                 vlan = int(vlan)
             except ValueError:
-                raise ConfigurationError('VLAN value must be an integer.')
+                raise ConfigurationError('VLAN value must be an integer.') \
+                        from None
 
             if not (host1.type == 'switch' or host2.type == 'switch'):
                 raise ConfigurationError('To assign a VLAN, at least ' + \
-                        'one endpoint must be a switch.')
+                        'one endpoint must be a switch.') from None
 
             if host1.type == 'switch':
                 vlan1 = vlan
@@ -393,8 +394,8 @@ class VirtualNetwork:
                 trunk2 = False
 
         # check for invalid attributes
-        unknown_int_attrs = [a for a in set(attrs).
-                difference(set(PhysicalInterfaceConfig.attrs))]
+        unknown_int_attrs = list(set(attrs).
+                difference(set(PhysicalInterfaceConfig.attrs)))
         if unknown_int_attrs:
             raise ConfigurationError('Invalid link attribute: ' + \
                     f'{unknown_int_attrs[0]}')
@@ -482,9 +483,7 @@ class VirtualNetwork:
                 cmd = ['sudo', 'sysctl', f'net.ipv6.conf.{br}.disable_ipv6=1']
                 subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
 
-                host1_bridge = False
                 if host1.type == 'switch' and host1.native_apps:
-                    host1_bridge = True
                     if not host1.has_bridge:
                         cmd = ['sudo', 'ovs-vsctl', 'add-br',
                                 host1.hostname]
@@ -502,9 +501,7 @@ class VirtualNetwork:
                             cmd.append('tag=0')
                     subprocess.run(cmd, check=True)
 
-                host2_bridge = False
                 if host2.type == 'switch' and host2.native_apps:
-                    host2_bridge = True
                     if not host2.has_bridge:
                         cmd = ['sudo', 'ovs-vsctl', 'add-br',
                                 host2.hostname]
@@ -531,7 +528,7 @@ class VirtualNetwork:
                 # Sanity check
                 if host.type != 'router':
                     raise ConfigurationError(
-                            f'VLAN interfaces may only be configured on ' + \
+                            'VLAN interfaces may only be configured on ' + \
                                     'routers; {host.hostname} is not a router.')
 
                 if host.native_apps:
@@ -545,16 +542,16 @@ class VirtualNetwork:
                     subprocess.run(cmd, check=True)
 
     def set_interfaces_up_netns(self):
+        '''For each virtual interface, either bring it up (switches in
+        native_apps mode) or set the namespace, in which case it will be
+        brought up later..'''
+
         for _, host in self.host_by_name.items():
-            for intf in [i for i in host.neighbor_by_int] + \
+            for intf in list(host.neighbor_by_int) + \
                     [host.int_by_vlan[i] for i in host.int_by_vlan]:
 
-                host_bridge = False
                 if host.type == 'switch' and host.native_apps:
-                    host_bridge = True
-
-                # Move interfaces to their appropriate namespaces
-                if host_bridge:
+                    # Move interfaces to their appropriate namespaces
                     cmd = ['sudo', 'ip', 'link', 'set', intf.name, 'up']
                     subprocess.run(cmd, check=True)
                 else:
@@ -681,7 +678,7 @@ class VirtualNetwork:
             self.start_wireshark(wireshark_ints)
 
         # let hosts know that they can start now
-        for hostname, host in self.host_by_name.items():
+        for _, host in self.host_by_name.items():
             self.commsock.sendto(b'\x00', host.sock_file)
 
     def cleanup(self):

@@ -63,6 +63,14 @@ class HostConfig:
         self.neighbor_by_int = {}
         self.neighbor_by_hostname = {}
 
+        self.type = 'host'
+        self.native_apps = True
+        self.terminal = True
+        self.prog = None
+        self.prog_window = None
+        self.ipv6 = True
+        self.routes = None
+
         for attr in self.__class__.attrs:
             setattr(self, attr, kwargs.get(attr, self.__class__.attrs[attr]))
 
@@ -128,10 +136,10 @@ class HostConfig:
             try:
                 intf = self.int_by_neighbor[self.neighbor_by_hostname[neighbor]]
             except KeyError:
-                raise ValueError(f"The interface connected to {neighbor} " + \
-                        "is designated as a next hop for one of " + \
-                        f"{self.hostname}'s routes, but {neighbor} " + \
-                        f"is not directly connected to {self.hostname}.") \
+                raise ValueError(f'The interface connected to {neighbor} ' + \
+                        'is designated as a next hop for one of ' + \
+                        f'{self.hostname}\'s routes, but {neighbor} ' + \
+                        f'is not directly connected to {self.hostname}.') \
                         from None
             self.routes.append((prefix, intf.name, next_hop))
 
