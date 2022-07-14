@@ -1187,7 +1187,7 @@ VLANS
 In general, the syntax for a VLAN endpoint is as follows:
 
 ```
-<vlan> <router_hostname>,<router_interface>[,<addr>[,<addr>...]]
+<vlan> <router_hostname>,<neighbor_hostname>,<addr>[,<addr>...]
 ```
 
 
@@ -1219,6 +1219,12 @@ HOSTS
 LINKS
 [<hostname>[,<addr>[,<addr>...]] <hostname>[,<addr>[,<addr>...]] [name=val[,name=val[...]]]
 [...]
+
+VLANS
+<vlan> <router_hostname>,<neighbor_hostname>,<addr>[,<addr>...]
+[...]
+```
+
 ```
 
 Blank links and lines beginning with `#` (i.e., comments) are ignored.
