@@ -39,6 +39,9 @@ stack and some that do not.
    - [Configuration](#configuration-1)
    - [Bi-Directionality of Link Attributes](#bi-directionality-of-link-attributes)
    - [VLAN Attributes](#vlan-attributes)
+ - [VLAN Endpoints](#vlan-endpoints)
+   - [Configuration](#configuration-2)
+   - [Behavior](#behavior)
  - [Network Configuration File](#network-configuration-file)
  - [Command-Line Usage](#command-line-usage)
 
@@ -420,13 +423,33 @@ hostname = socket.gethostname()
 
 ## Interface Names
 
-The interface names for a given [link](#virtual-links) are derived from the
-name of the current host and the host it connects to on that link.  For
-example, if there is a link connecting host `h1` and host `h2`, then `h1`'s
-interface will be called `h1-h2`, and `h2`'s interface will be called `h2-h1`.
-That helps greatly with identification.  The interfaces for a host, and their
-respective configurations, can be viewed by running the following from the
-command line:
+Two different types of interfaces exist on a virtual host.  "Physical"
+interfaces are those associated with [virtual links](#virtual-links).
+"Virtual" interfaces are those associated with
+[VLAN endpoints](#vlan-endpoints).  The naming convention for each is described
+subsequently.
+
+### Physical Interfaces
+
+The names for the interfaces associated with a given link (i.e., physical
+interfaces) are derived from the name of the current host and the host it
+connects to on that link.  For example, if there is a link connecting host `h1`
+and host `h2`, then `h1`'s interface will be called `h1-h2`, and `h2`'s
+interface will be called `h2-h1`.  That helps greatly with identification.
+
+
+### Virtual Interfaces
+
+The names for interfaces associated with VLAN endpoints (i.e., virtual
+interfaces) are a compound of the physical interface with which the virtual
+interface is connected and the VLAN id.  For example, the VLAN 100 interface on
+router `r1` connected to switch `s1`, would be named `r1-s1.vlan100`.
+
+
+### Listing Interfaces
+
+The interfaces for a host, and their respective configurations, can be viewed
+by running the following from the command line:
 
 ```bash
 $ ip addr
@@ -439,10 +462,22 @@ special directory `/sys/class/net`.  For example:
 $ ls /sys/class/net
 ```
 
-Or to show all interfaces except loopback interfaces (i.e., starting with `lo`):
+To show all interfaces except loopback interfaces (i.e., starting with `lo`):
 
 ```bash
 $ ls -l /sys/class/net | awk '$9 !~ /^lo/ { print $9 }'
+```
+
+To show only physical interfaces:
+
+```bash
+$ ls -l /sys/class/net | awk '$9 !~ /^lo/ && $9 !~ /\.vlan[0-9]+$/ { print $9 }'
+```
+
+Conversely, to show only virtual interfaces:
+
+```bash
+$ ls -l /sys/class/net | awk '$9 !~ /^lo/ && $9 ~ /\.vlan[0-9]+$/ { print $9 }'
 ```
 
 The equivalent Python code is the following:
@@ -450,7 +485,13 @@ The equivalent Python code is the following:
 ```python
 #!/usr/bin/python3
 import os
-ints = [i for i in os.listdir('/sys/class/net/') if not i.startswith('lo')]
+import re
+
+VIRT_INT_RE = re.compile(r'\.vlan\d+$')
+phys_ints = [i for i in os.listdir('/sys/class/net/') \
+    if not i.startswith('lo') and VIRT_INT_RE.search(i) is None]
+virt_ints = [i for i in os.listdir('/sys/class/net/') \
+    if not i.startswith('lo') and VIRT_INT_RE.search(i) is not None]
 ```
 
 
@@ -1064,6 +1105,106 @@ The corresponding output would be:
 ```
 {'s1-a': 'vlan25', 's1-b': 'vlan25', 's1-c': 'vlan30', 's1-s2': 'trunk'}
 ```
+
+
+# VLAN Endpoints
+
+In order for IP packets to be able to leave a VLAN, there must be a VLAN
+endpoint on the router with an IP address.  In Cougarnet, this is done by
+creating a trunk between a switch and a router and then creating VLAN-type
+interfaces on the router.  The trunk directs the switch to send 802.1Q frames
+to the router.  Each VLAN interface only receives the frames tagged with the
+VLAN with which it is configured.
+
+
+## Configuration
+
+In the Cougarnet configuration file, VLAN endpoints are designated in the
+`VLANS` section by indicating the VLAN number, the router, the interface, and
+the addresses.  Consider the following configuration:
+
+```
+NODES
+h1
+h2
+s1 type=switch
+r1 type=router
+
+LINKS
+h1,10.0.1.1/24 s1 vlan=100
+h2,10.0.2.1/24 s1 vlan=200
+s1 r1
+```
+
+At the moment, there is no way to route between `h1` (VLAN 100) and `h2` (VLAN
+200).  However, if we modify the configuration, such that VLAN 100 and VLAN 200
+each have an IP address on router `r1`, then routing is possible:
+
+```
+NODES
+h1 routes=0.0.0.0/0|s1|10.0.1.2
+h2 routes=0.0.0.0/0|s1|10.0.2.2
+s1 type=switch
+r1 type=router
+
+LINKS
+h1,10.0.1.1/24 s1 vlan=100
+h2,10.0.2.1/24 s1 vlan=200
+s1 r1 trunk=true
+
+VLANS
+100 r1,s1,10.0.1.2/24
+200 r1,s1,10.0.2.2/24
+```
+
+(Note that [default routes](#routes) were also added to `h1` and `h2`, such
+that they knew how to find the router addresses for sending packets outside
+their VLAN.)
+
+This specifies that the VLAN endpoint for VLAN 100 is on `r1`, on the interface
+connected to `s1` (i.e., the trunk link), and has IP address 10.0.1.2.
+
+The names of interfaces associated with VLAN endpoints are desribed in the
+[Interface Names](#interface-names) section.
+
+### Addressing
+
+Each VLAN interface must be configured with at least one IP address (IPv4 or
+IPv6); a MAC address is optional.  The list of addresses is comma-separated.
+For example, the previous example had the VLAN 100 and VLAN 200 interfaces on
+`r1` configured with IPv4 addresses 10.0.1.2 and 10.0.2.2, respectively.  MAC
+addresses and IPv6 addresses might be specified like this:
+
+```
+VLANS
+100 r1,s1,00:00:aa:aa:aa:aa,10.0.1.2/24,fd00::1:2/64
+200 r1,s1,00:00:bb:bb:bb:bb,10.0.2.2/24,fd00::2:2/64
+```
+
+
+### General Syntax
+
+In general, the syntax for a VLAN endpoint is as follows:
+
+```
+<vlan> <router_hostname>,<router_interface>[,<addr>[,<addr>...]]
+```
+
+
+## Behavior
+
+### Native Apps
+
+In native apps mode, a VLAN endpoint is created as a VLAN interface, and
+Ethernet frames are only send to the VLAN interface with which the 802.1Q frame
+is tagged.  Because it is also a router, IP packets are routed through the
+router as expected.
+
+### Non-Native Apps
+
+In non-native apps mode, a virtual interface is created on the virtual host,
+with the specified addresses.  However, it is not created as an interface of
+type VLAN and thus does not do anything special with 802.1Q frames.
 
 
 # Network Configuration File
