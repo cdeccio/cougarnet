@@ -39,9 +39,16 @@ FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 class HostConfig:
     '''The network configuration for a virtual host.'''
 
-    def __init__(self, hostname, sock_file, tmux_file, script_file, type='host',
-            native_apps=True, terminal=True, prog=None, prog_window=None,
-            ipv6=True, routes=None):
+    attrs = { 'type': 'host',
+            'native_apps': True,
+            'terminal': True,
+            'prog': None,
+            'prog_window': None,
+            'ipv6': True,
+            'routes': None,
+            }
+
+    def __init__(self, hostname, sock_file, tmux_file, script_file, **kwargs):
 
         self.hostname = hostname
         self.sock_file = sock_file
@@ -55,24 +62,29 @@ class HostConfig:
         self.int_by_vlan = {}
         self.neighbor_by_int = {}
         self.neighbor_by_hostname = {}
-        self.type = type
-        self.prog = prog
-        self.prog_window = prog_window
+
+        for attr in self.__class__.attrs:
+            setattr(self, attr, kwargs.get(attr, self.__class__.attrs[attr]))
+
         self.has_bridge = False
         self.has_vlans = None
         self.hosts_file = None
-        self.routes_pre_processed = routes
+
+        self.routes_pre_processed = self.routes
         self.routes = None
 
-        if not native_apps or str(native_apps).lower() in FALSE_STRINGS:
+        if not self.native_apps or \
+                str(self.native_apps).lower() in FALSE_STRINGS:
             self.native_apps = False
         else:
             self.native_apps = True
-        if not terminal or str(terminal).lower() in FALSE_STRINGS:
+        if not self.terminal or \
+                str(self.terminal).lower() in FALSE_STRINGS:
             self.terminal = False
         else:
             self.terminal = True
-        if not ipv6 or str(ipv6).lower() in FALSE_STRINGS or \
+        if not self.ipv6 or \
+                str(self.ipv6).lower() in FALSE_STRINGS or \
                 self.type == 'switch':
             self.ipv6 = False
         else:
@@ -256,16 +268,14 @@ class HostConfig:
         subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    def add_int(self, name, neighbor, bw=None, delay=None, loss=None,
-            mtu=None, vlan=None, trunk=None):
+    def add_int(self, name, neighbor, **kwargs):
         '''Add a new interface on this virtual host with the specified name,
         neighbor, and attributes.'''
 
         if neighbor in self.int_by_neighbor:
             raise ValueError('Only one link can exist between two hosts')
 
-        intf = PhysicalInterfaceConfig(name, bw=bw, delay=delay, loss=loss,
-                mtu=mtu, vlan=vlan, trunk=trunk)
+        intf = PhysicalInterfaceConfig(name, **kwargs)
         self.int_by_name[name] = intf
         self.int_by_neighbor[neighbor] = intf
         self.neighbor_by_int[intf] = neighbor

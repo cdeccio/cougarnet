@@ -60,52 +60,40 @@ class PhysicalInterfaceConfig(InterfaceConfigBase):
     '''Configuration information for a "physical" network interface associated
     with a virtual host.'''
 
+    attrs = { 'bw': None,
+            'delay': None,
+            'loss': None,
+            'mtu': None,
+            'vlan': None,
+            'trunk': None,
+            }
+
     def __init__(self, name, mac_addr=None, ipv4_addrs=None, ipv6_addrs=None,
-            bw=None, delay=None, loss=None, mtu=None, vlan=None, trunk=None):
+            **kwargs):
 
         super(PhysicalInterfaceConfig, self).__init__(
                 name, mac_addr, ipv4_addrs, ipv6_addrs)
 
-        self.bw = bw
-        self.delay = delay
-        self.loss = loss
-        self.mtu = mtu
-        self.vlan = vlan
-        self.trunk = trunk
+        for attr in self.__class__.attrs:
+            setattr(self, attr, kwargs.get(attr, self.__class__.attrs[attr]))
 
     def update(self, mac_addr=None, ipv4_addrs=None, ipv6_addrs=None,
-            bw=None, delay=None, loss=None, mtu=None, vlan=None, trunk=None):
+            **kwargs):
         '''Update attributes with those specified.'''
 
         super(PhysicalInterfaceConfig, self).update(
                 mac_addr, ipv4_addrs, ipv6_addrs)
 
-        if bw is not None:
-            self.bw = bw
-        if delay is not None:
-            self.delay = delay
-        if loss is not None:
-            self.loss = loss
-        if mtu is not None:
-            self.mtu = mtu
-        if vlan is not None:
-            self.vlan = vlan
-        if trunk is not None:
-            self.trunk = trunk
+        for attr in kwargs:
+            setattr(self, attr, kwargs[attr])
 
     def as_dict(self):
         '''Return a dictionary containing the attributes associated with this
         network instance.'''
 
         d = super(PhysicalInterfaceConfig, self).as_dict()
-        d.update({
-                'bw': self.bw,
-                'delay': self.delay,
-                'loss': self.loss,
-                'mtu': self.mtu,
-                'vlan': self.vlan,
-                'trunk': self.trunk,
-                })
+        for attr in self.__class__.attrs:
+            d[attr] = getattr(self, attr)
         return d
 
 class VirtualInterfaceConfig(InterfaceConfigBase):

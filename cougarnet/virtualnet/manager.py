@@ -36,6 +36,7 @@ import time
 
 from cougarnet import util
 from .host import HostConfig
+from .interface import PhysicalInterfaceConfig
 
 
 MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
@@ -54,12 +55,17 @@ FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 class CougarnetError(Exception):
     '''Base class for errors related to Cougarnet.'''
 
-class HostNotStarted(CougarnetError):
-    '''An error raised when a host did not start properly.'''
-
 class ConfigurationError(CougarnetError):
     '''An error raised when there was an error with content in the Cougarnet
     configuration file.'''
+
+    def __init__(self, *args, **kwargs):
+        super(ConfigurationError, self).__init__(*args, **kwargs)
+        self.lineno = 0
+
+class StartupError(CougarnetError):
+    '''An error raised when there was an error with starting up a Cougarnet
+    configuration.'''
 
 def sort_addresses(addrs):
     '''Sort a list of addresses into MAC address, IPv4 addresses, and IPv6
@@ -76,15 +82,15 @@ def sort_addresses(addrs):
         if m is not None:
             if mac_addr is not None:
                 raise ConfigurationError('Only one MAC address ' + \
-                        'is allowed')
+                        'is allowed for a given interface.')
             mac_addr = addr
             continue
 
         # IP address
         slash = addr.find('/')
         if slash < 0:
-            raise ConfigurationError('IP address for interface ' + \
-                    'must include prefix length!')
+            raise ConfigurationError('The IP address for an interface ' + \
+                    'must include a prefix length.')
 
         if ':' in addr:
             # IPv6 address
@@ -95,8 +101,8 @@ def sort_addresses(addrs):
             if subnet6 is None:
                 subnet6 = subnet
             if subnet6 != subnet:
-                raise ConfigurationError('All connected IP addresses ' + \
-                        'must be on the same subnet!')
+                raise ConfigurationError('All IPv6 addresses for a given ' + \
+                        'interface must be on the same subnet.')
             ipv6_addrs.append(addr)
         else:
             # IPv4 address
@@ -107,8 +113,8 @@ def sort_addresses(addrs):
             if subnet4 is None:
                 subnet4 = subnet
             if subnet4 != subnet:
-                raise ConfigurationError('All connected IP addresses ' + \
-                        'must be on the same subnet!')
+                raise ConfigurationError('All IPv4 addresses for a given ' + \
+                        'interface must be on the same subnet.')
             ipv4_addrs.append(addr)
     return mac_addr, ipv4_addrs, ipv6_addrs, subnet4, subnet6
 
@@ -151,7 +157,7 @@ class VirtualNetwork:
                 sort_addresses(addrs)
 
         if hostname not in self.host_by_name:
-            raise ValueError(f'Host not defined: {hostname}')
+            raise ConfigurationError(f'The specified host is not defined: {hostname}.')
         host = self.host_by_name[hostname]
         return host, mac, addrs4, addrs6, subnet4, subnet6
 
@@ -161,8 +167,8 @@ class VirtualNetwork:
         their respective hosts.'''
 
         parts = line.split(maxsplit=2)
-        if len(parts) < 2 or len(parts) > 3:
-            raise ValueError('Invalid link format.')
+        if len(parts) < 2:
+            raise ConfigurationError('Invalid link format.')
 
         int1_info, int2_info = parts[:2]
         host1, mac1, addrs41, addrs61, subnet41, subnet61 = \
@@ -171,25 +177,32 @@ class VirtualNetwork:
                 self.parse_int(int2_info)
 
         if set(addrs41).intersection(set(addrs42)):
-            raise ValueError(f'Addresses for {host1.hostname} and ' + \
-                    f'{host2.hostname} cannot be the same!')
+            raise ConfigurationError(f'The IPv4 addresses for ' + \
+                    f'{host1.hostname} and {host2.hostname} ' + \
+                    'cannot be the same.')
         if subnet41 is not None and subnet42 is not None and \
                 subnet41 != subnet42:
-            raise ValueError(f'Addresses for {host1.hostname} and ' + \
-                    f'{host2.hostname} must be in the same subnet!')
+            raise ConfigurationError(f'The IPv4 addresses for ' + \
+                    f'{host1.hostname} and {host2.hostname} ' + \
+                    'must be in the same subnet.')
         if set(addrs61).intersection(set(addrs62)):
-            raise ValueError(f'Addresses for {host1.hostname} and ' + \
-                    f'{host2.hostname} cannot be the same!')
+            raise ConfigurationError(f'The IPv6 addresses for ' + \
+                    f'{host1.hostname} and {host2.hostname} ' + \
+                    'cannot be the same.')
         if subnet61 is not None and subnet62 is not None and \
                 subnet61 != subnet62:
-            raise ValueError(f'Addresses for {host1.hostname} and ' + \
-                    f'{host2.hostname} must be in the same subnet!')
+            raise ConfigurationError(f'The IPv6 addresses for ' + \
+                    f'{host1.hostname} and {host2.hostname} ' + \
+                    'must be in the same subnet.')
 
         if len(parts) > 2:
             s = io.StringIO(parts[2])
             csv_reader = csv.reader(s)
-            attrs = dict([p.split('=', maxsplit=1) \
-                    for p in next(csv_reader)])
+            try:
+                attrs = dict([p.split('=', maxsplit=1) \
+                        for p in next(csv_reader)])
+            except ValueError:
+                raise ConfigurationError(f'Invalid link format.') from None
         else:
             attrs = {}
 
@@ -202,7 +215,7 @@ class VirtualNetwork:
 
         parts = line.split()
         if len(parts) != 2:
-            raise ValueError('Invalid VLAN format.')
+            raise ConfigurationError('Invalid VLAN format.')
 
         vlan, host_peer_addr = parts
         parts = host_peer_addr.split(',')
@@ -236,37 +249,43 @@ class VirtualNetwork:
 
         net = cls(terminal_hosts, tmpdir, ipv6)
         mode = None
-        for line in fh:
-            line = line.strip()
+        lineno = 0
+        try:
+            for line in fh:
+                lineno += 1
+                line = line.strip()
 
-            for name, val in config_vars.items():
-                var_re = re.compile(fr'\${name}(\W|$)')
-                line = var_re.sub(fr'{val}\1', line)
+                for name, val in config_vars.items():
+                    var_re = re.compile(fr'\${name}(\W|$)')
+                    line = var_re.sub(fr'{val}\1', line)
 
-            if line == 'NODES':
-                mode = 'node'
-                continue
-            if line == 'LINKS':
-                mode = 'link'
-                continue
-            if line == 'VLANS':
-                mode = 'vlan'
-                continue
-            if not line:
-                continue
-            if line.startswith('#'):
-                continue
+                if line == 'NODES':
+                    mode = 'node'
+                    continue
+                if line == 'LINKS':
+                    mode = 'link'
+                    continue
+                if line == 'VLANS':
+                    mode = 'vlan'
+                    continue
+                if not line:
+                    continue
+                if line.startswith('#'):
+                    continue
 
-            if mode == 'node':
-                net.import_node(line)
-            elif mode == 'link':
-                net.import_link(line)
-            elif mode == 'vlan':
-                net.import_vlan(line)
-            else:
-                pass
+                if mode == 'node':
+                    net.import_node(line)
+                elif mode == 'link':
+                    net.import_link(line)
+                elif mode == 'vlan':
+                    net.import_vlan(line)
+                else:
+                    pass
 
-        net.process_routes()
+            net.process_routes()
+        except ConfigurationError as e:
+            e.lineno = lineno
+            raise
 
         return net
 
@@ -275,15 +294,13 @@ class VirtualNetwork:
         Router, or Switch--and add the instantiated node to the collection
         maintained by this VirtualNetwork instance.'''
 
-        parts = line.split()
-        if len(parts) < 1 or len(parts) > 2:
-            raise ValueError(f'Invalid node format: {line}')
+        parts = line.split(maxsplit=1)
 
         hostname = parts[0]
         if not util.is_valid_hostname(hostname):
-            raise ValueError(f'Invalid hostname: {hostname}')
+            raise ConfigurationError(f'The hostname is invalid: {hostname}')
         if hostname == MAIN_FILENAME:
-            raise ValueError(f'Hostname cannot be {hostname}')
+            raise ConfigurationError(f'The hostname is reserved: {hostname}')
 
         sock_file = os.path.join(self.comm_dir, hostname)
         script_file = os.path.join(self.script_dir, f'{hostname}.sh')
@@ -291,8 +308,11 @@ class VirtualNetwork:
         if len(parts) > 1:
             s = io.StringIO(parts[1])
             csv_reader = csv.reader(s)
-            attrs = dict([p.split('=', maxsplit=1) \
-                    for p in next(csv_reader)])
+            try:
+                attrs = dict([p.split('=', maxsplit=1) \
+                        for p in next(csv_reader)])
+            except ValueError:
+                raise ConfigurationError(f'Invalid node format.') from None
         else:
             attrs = {}
 
@@ -303,12 +323,18 @@ class VirtualNetwork:
                 attrs['terminal'] = 'false'
         attrs['ipv6'] = str(self.ipv6)
 
+        # check for invalid attributes
+        unknown_host_attrs = [a for a in set(attrs).
+                difference(set(HostConfig.attrs))]
+        if unknown_host_attrs:
+            raise ConfigurationError('Invalid host attribute: ' + \
+                    f'{unknown_host_attrs[0]}')
+
         self.hostname_by_sock[sock_file] = hostname
         self.host_by_name[hostname] = \
                 HostConfig(hostname, sock_file, tmux_file, script_file, **attrs)
 
-    def add_link(self, host1, host2, bw=None, delay=None, loss=None,
-            mtu=None, vlan=None, trunk=None):
+    def add_link(self, host1, host2, **attrs):
         '''Add a link between two hosts, with the given attributes.  Make sure
         the link configuration is consistent. Instantiate both interfaces, and
         return the resulting objects.'''
@@ -321,38 +347,64 @@ class VirtualNetwork:
         int1_name = f'{host1.hostname}-{host2.hostname}'
         int2_name = f'{host2.hostname}-{host1.hostname}'
 
+        trunk = attrs.get('trunk', None)
+        vlan = attrs.get('vlan', None)
+
         vlan1 = None
         vlan2 = None
         trunk1 = None
         trunk2 = None
 
-        if host1.type == 'switch':
-            vlan1 = vlan
-        else:
-            vlan1 = None
-        if host2.type == 'switch':
-            vlan2 = vlan
-        else:
-            vlan2 = None
+        if trunk is not None and vlan is not None:
+            raise ConfigurationError('The trunk attribute cannot be used at ' + \
+                    'the same time as the vlan attribute.')
 
-        if (host1.type == 'switch' and host2.type in ('switch', 'router')) or \
-                (host2.type == 'switch' and host1.type in ('switch', 'router')):
+        if trunk is not None:
             if not trunk or str(trunk).lower() in FALSE_STRINGS:
                 trunk1 = False
                 trunk2 = False
             else:
                 trunk1 = True
                 trunk2 = True
-        else:
-            trunk1 = None
-            trunk2 = None
 
-        intf1 = host1.add_int(int1_name, host2,
-                        bw=bw, delay=delay, loss=loss, mtu=mtu,
-                        vlan=vlan1, trunk=trunk1)
-        intf2 = host2.add_int(int2_name, host1,
-                        bw=bw, delay=delay, loss=loss, mtu=mtu,
-                        vlan=vlan2, trunk=trunk2)
+            if not ((host1.type == 'switch' and \
+                    host2.type in ('switch', 'router')) or \
+                    (host2.type == 'switch' and \
+                    host1.type in ('switch', 'router'))):
+                raise ConfigurationError('The trunk attribute can only be ' + \
+                        'specified when one endpoint is a switch and the ' + \
+                        'other is a switch or router')
+
+        if vlan is not None:
+            try:
+                vlan = int(vlan)
+            except ValueError:
+                raise ConfigurationError('VLAN value must be an integer.')
+
+            if not (host1.type == 'switch' or host2.type == 'switch'):
+                raise ConfigurationError('To assign a VLAN, at least ' + \
+                        'one endpoint must be a switch.')
+
+            if host1.type == 'switch':
+                vlan1 = vlan
+                trunk1 = False
+            if host2.type == 'switch':
+                vlan2 = vlan
+                trunk2 = False
+
+        # check for invalid attributes
+        unknown_int_attrs = [a for a in set(attrs).
+                difference(set(PhysicalInterfaceConfig.attrs))]
+        if unknown_int_attrs:
+            raise ConfigurationError('Invalid link attribute: ' + \
+                    f'{unknown_int_attrs[0]}')
+
+        attrs['vlan'] = vlan1
+        attrs['trunk'] = trunk1
+        intf1 = host1.add_int(int1_name, host2, **attrs)
+        attrs['vlan'] = vlan2
+        attrs['trunk'] = trunk2
+        intf2 = host2.add_int(int2_name, host1, **attrs)
 
         return intf1, intf2
 
@@ -379,16 +431,18 @@ class VirtualNetwork:
                     if has_vlans and host1.has_vlans is False or \
                             not has_vlans and host1.has_vlans:
                         raise ConfigurationError(
-                                f'Some links on {host1.hostname} have ' + \
-                                        'VLANs while others do not!')
+                                f'Either all links on {host1.hostname} ' + \
+                                        'must be designated with a VLAN ' + \
+                                        'or as a trunk or none of them must.')
                     host1.has_vlans = has_vlans
                 if host2.type == 'switch':
                     has_vlans = bool(int2.vlan is not None or int2.trunk)
                     if has_vlans and host2.has_vlans is False or \
                             not has_vlans and host2.has_vlans:
                         raise ConfigurationError(
-                                f'Some links on {host2.hostname} have ' + \
-                                        'VLANs while others do not!')
+                                f'Either all links on {host2.hostname} ' + \
+                                        'must be designated with a VLAN ' + \
+                                        'or as a trunk or none of them must.')
                     host2.has_vlans = has_vlans
 
                 # For each interface, we create both the interface itself and a
@@ -477,7 +531,8 @@ class VirtualNetwork:
                 # Sanity check
                 if host.type != 'router':
                     raise ConfigurationError(
-                            f'VLAN interfaces on non-router.')
+                            f'VLAN interfaces may only be configured on ' + \
+                                    'routers; {host.hostname} is not a router.')
 
                 if host.native_apps:
                     cmd = ['sudo', 'ip', 'link', 'add', 'link',
@@ -544,11 +599,14 @@ class VirtualNetwork:
         try:
             data, peer = self.commsock.recvfrom(16)
             if peer != host.sock_file:
-                raise Exception('Received packet from someone else!')
+                raise StartupError('While waiting for a communication from ' + \
+                        f'{host.hostname}, a packet was received from a ' + \
+                        'different virtual host.')
             host.pid = int(data.decode('utf-8'))
         except socket.timeout:
-            raise HostNotStarted(f'{host.hostname} did not start properly.') \
-                    from None
+            raise StartupError(f'{host.hostname} did not start properly; ' + \
+                    'no communication was received within the designated ' + \
+                    'time.') from None
         finally:
             # revert to non-blocking
             self.commsock.settimeout(None)
@@ -592,8 +650,10 @@ class VirtualNetwork:
             cmd = ['ps', '-p', str(host.pid)]
             p = subprocess.run(cmd, stdout=subprocess.DEVNULL, check=False)
             if p.returncode != 0:
-                raise HostNotStarted(f'{hostname} did not start properly.')
-            raise HostNotStarted(f'{hostname} is taking too long.')
+                raise StartupError(f'Host {host.hostname} ' + \
+                        'terminated early.')
+            raise StartupError(f'Host {host.hostname} is taking ' + \
+                    'too long to start.')
 
     def start(self, wireshark_ints):
         '''Start the hosts and links comprising the VirtualNetwork instance,
@@ -847,8 +907,13 @@ def main():
 
     ipv6 = not args.disable_ipv6
 
-    net = VirtualNetwork.from_file(args.config_file, \
-            terminal_hosts, config_vars, tmpdir.name, ipv6)
+    try:
+        net = VirtualNetwork.from_file(args.config_file, \
+                terminal_hosts, config_vars, tmpdir.name, ipv6)
+    except ConfigurationError as e:
+        sys.stderr.write(f'{args.config_file.name}:{e.lineno}: ' + \
+                f'{str(e)}\n')
+        sys.exit(1)
 
     wireshark_ints = []
     if args.wireshark is not None:
