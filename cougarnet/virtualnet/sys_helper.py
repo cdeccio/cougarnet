@@ -237,7 +237,8 @@ class NetConfigHelper:
         cmd = ['sudo', 'sysctl', f'net/ipv6/conf/{intf}/disable_ipv6=1']
 
         try:
-            subprocess.run(cmd, check=True)
+            # we have to pipe stdout, or the return status will be non-zero
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE)
         except subprocess.CalledProcessError:
             return False
 
