@@ -22,10 +22,13 @@ Various utility functions for Cougarnet.
 
 import binascii
 import ctypes
+import os
 import re
+import signal
 import socket
 import subprocess
 import struct
+import sys
 import time
 
 # From /usr/include/linux/if_ether.h
@@ -51,6 +54,9 @@ class tpacket_auxdata(ctypes.Structure):
         ("tp_vlan_tci", ctypes.c_ushort),
         ("tp_padding", ctypes.c_ushort),
     ]
+
+def raise_interrupt(signum, frame):
+    raise KeyboardInterrupt()
 
 def mac_str_to_binary(mac_str):
     '''Given a MAC address in presentation format as a string, return the
@@ -164,3 +170,58 @@ def recv_raw(sock, bufsize):
                 )
                 pkt = pkt[:12] + tag + pkt[12:]
     return pkt, sa_ll
+
+def start_helper(cmd):
+    # We use two pipes: one for letting the helper know that the cougarnet
+    # process has died, so it can terminate as well; and one for the helper
+    # to communicate back to the cougarnet process that it is up and
+    # running.  The second pipe will be closed once the "alive" message has
+    # been received.
+    readfd, writefd = os.pipe()
+    alive_readfd, alive_writefd = os.pipe()
+    pid = os.fork()
+
+    if pid == 0:
+        # This is the child process, which will become the helper process
+        # through the use of exec, once it is properly prepared.
+
+        # Close the ends of the pipe that will not be used by this process.
+        os.close(writefd)
+        os.close(alive_readfd)
+
+        # Duplicate readfd on stdin
+        os.dup2(readfd, sys.stdin.fileno())
+        os.close(readfd)
+
+        # Duplicate alive_writefd on stdout
+        os.dup2(alive_writefd, sys.stdout.fileno())
+        os.close(alive_writefd)
+
+        os.execvp(cmd[0], cmd)
+        sys.exit(1)
+
+    # Close the ends of the pipe that will not be used by this process.
+    os.close(readfd)
+    os.close(alive_writefd)
+
+    # Use ALRM to let us know when we've waited too long for the child
+    # process to become ready.
+    old_handler = signal.getsignal(signal.SIGALRM)
+    signal.signal(signal.SIGALRM, raise_interrupt)
+    signal.alarm(3)
+    try:
+        if len(os.read(alive_readfd, 1)) < 1:
+            # read resulted in error
+            kill_until_terminated(pid)
+            return False
+    except KeyboardInterrupt:
+        # Timeout (ALRM signal was received)
+        kill_until_terminated(pid)
+        return False
+    finally:
+        # Reset alarm, restore previous ALRM handler, and close
+        # alive_readfd, which is no longer needed.
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)
+        os.close(alive_readfd)
+    return True
