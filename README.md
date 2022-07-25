@@ -502,30 +502,34 @@ that invoked all the virtual hosts (i.e., the `cougarnet` process).  This
 enables the logs for all messages to be received and printed in a single
 location.  To accomplish this, each virtual process has the following
 environment variables set:
- - `COUGARNET_COMM_SOCK` - the filesystem path corresponding to the remote UNIX
-   domain socket (i.e., family `AF_UNIX`) of type `SOCK_DGRAM`.  Once all the
-   virtual machines are started, the `cougarnet` process will print to standard
-   output all messages received on this socket.
- - `COUGARNET_MY_SOCK` - the filesystem path to which a local UNIX domain socket
-   should be bound to communicate with the remote socket.
+ - `COUGARNET_COMM_SOCK` - a JSON object designating the local and remote
+   "addresses" that should be used for communication over a UNIX domain socket
+   (i.e., family `AF_UNIX`) of type `SOCK_DGRAM` to the `cougarnet` process.
+   Once all the virtual machines are started, the `cougarnet` process will
+   print to standard output all messages received on this socket.
 
 For example, the following command, issued from a virtual host, will result in
 a UDP datagram being sent to the UNIX domain socket on which the `cougarnet`
 process is listening.
 
 ```bash
-$ echo -n hello world | socat - UNIX-SENDTO:$COUGARNET_COMM_SOCK,bind=$COUGARNET_MY_SOCK
+$ local=`echo $COUGARNET_COMM_SOCK | jq .local`
+$ remote=`echo $COUGARNET_COMM_SOCK | jq .remote`
+$ echo -n hello world | socat - UNIX-SENDTO:$remote,bind=$local
 ```
 
 The equivalent Python code is the following:
 
 ```python
+import json
 import os
 import socket
 
+paths = json.loads(os.environ['COUGARNET_COMM_SOCK'])
 sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
-sock.bind((os.environ['COUGARNET_MY_SOCK']))
-sock.connect(os.environ['COUGARNET_COMM_SOCK'])
+sock.connect(paths['remote'])
+sock.bind(paths['local'])
+
 sock.send('hello world'.encode('utf-8'))
 ```
 
@@ -545,8 +549,8 @@ The three components of the output message can be explained as follows:
    the path corresponding to the UNIX socket) of the peer--that is, the virtual
    host that sent the message--in a table maintained by the `cougarnet` process.
    Thus, a virtual host must `bind()` the socket to the path corresponding to
-   the `COUGARNET_MY_SOCK` environment variable, or the identity of the message
-   will be unknown.
+   the `local` component of the `COUGARNET_COMM_SOCK` environment variable, or
+   the identity of the message will be unknown.
  - *Message* (`hello world`): the actual message to be logged and/or printed.
 
 The `BaseHost` class has a function `log()` which can be used to issue
@@ -649,7 +653,7 @@ processes running within the virtual host have better context of their network
 environment.  All environment variables start with `COUGARNET_`.  The
 environment variables currently defined are:
 
- - `COUGARNET_COMM_SOCK` and `COUGARNET_MY_SOCK`:
+ - `COUGARNET_COMM_SOCK`:
    described [here](#communicating-with-the-calling-process)
  - `COUGARNET_VLAN`:
    described [here](#vlan-attributes)

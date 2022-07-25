@@ -17,6 +17,7 @@
 #
 
 import asyncio
+import json
 import os
 import re
 import socket
@@ -35,19 +36,30 @@ class BaseHost:
     def __init__(self):
         self.int_to_sock = {}
         self.int_to_info = {}
-        self.comm_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
-        self.comm_sock.connect(os.environ['COUGARNET_COMM_SOCK'])
-        self.comm_sock.bind((os.environ['COUGARNET_MY_SOCK']))
+
         self.hostname = socket.gethostname()
         self._setup_send_sockets()
         self._setup_receive_sockets()
+
+        self._setup_comm_sock()
+
         self._set_interface_info()
 
     def __del__(self):
+        self._remove_comm_sock()
+
+    def _remove_comm_sock(self):
         try:
-            os.unlink(os.environ['COUGARNET_MY_SOCK'])
+            comm_sock_paths = json.loads(os.environ['COUGARNET_COMM_SOCK'])
+            os.unlink(comm_sock_paths['local'])
         except FileNotFoundError:
             pass
+
+    def _setup_comm_sock(self):
+        comm_sock_paths = json.loads(os.environ['COUGARNET_COMM_SOCK'])
+        self.comm_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
+        self.comm_sock.connect(comm_sock_paths['remote'])
+        self.comm_sock.bind(comm_sock_paths['local'])
 
     def _setup_receive_sockets(self):
         loop = asyncio.get_event_loop()

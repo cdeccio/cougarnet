@@ -199,20 +199,23 @@ def main():
     try:
         args = parser.parse_args(sys.argv[1:])
 
-        os.environ['COUGARNET_MY_SOCK'] = args.my_sock
-        os.environ['COUGARNET_COMM_SOCK'] = args.comm_sock
+        comm_sock = {
+                'local': args.my_sock,
+                'remote': args.comm_sock
+                }
+        os.environ['COUGARNET_COMM_SOCK'] = json.dumps(comm_sock)
 
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
-        sock.bind(os.environ['COUGARNET_MY_SOCK'])
+        sock.bind(comm_sock['local'])
 
         # make the socket file readable by everyone, so the other process can
         # communicate back to us
-        cmd = ['chmod', '777', os.environ['COUGARNET_MY_SOCK']]
+        cmd = ['chmod', '777', comm_sock['local']]
         subprocess.run(cmd, check=True)
 
         # Tell the coordinating process that the the process has started--and
         # thus that the namespaces have been created
-        sock.connect(os.environ['COUGARNET_COMM_SOCK'])
+        sock.connect(comm_sock['remote'])
         pid = os.getpid()
         sock.send(f'{pid}'.encode('utf-8'))
 
@@ -243,7 +246,7 @@ def main():
 
         # close socket and remove the associated file
         sock.close()
-        os.unlink(os.environ['COUGARNET_MY_SOCK'])
+        os.unlink(comm_sock['local'])
 
         if args.user is not None:
             os.setgroups(groups)
