@@ -21,12 +21,36 @@ Various utility functions for Cougarnet.
 '''
 
 import binascii
+import ctypes
 import re
 import socket
 import subprocess
+import struct
 import time
 
+# From /usr/include/linux/if_ether.h
+ETH_P_ALL = 0x0003
+ETH_P_8021Q = 0x8100
+
+# From /usr/include/x86_64-linux-gnu/bits/socket.h:
+SOL_PACKET = 263
+
+# /usr/include/linux/if_packet.h
+PACKET_AUXDATA = 8
+TP_STATUS_VLAN_VALID = 1 << 4 # auxdata has valid tp_vlan_tci
+
 HOST_RE = re.compile(r'^[a-z]([a-z0-9-]*[a-z0-9])?$')
+
+class tpacket_auxdata(ctypes.Structure):
+    _fields_ = [
+        ("tp_status", ctypes.c_uint),
+        ("tp_len", ctypes.c_uint),
+        ("tp_snaplen", ctypes.c_uint),
+        ("tp_mac", ctypes.c_ushort),
+        ("tp_net", ctypes.c_ushort),
+        ("tp_vlan_tci", ctypes.c_ushort),
+        ("tp_padding", ctypes.c_ushort),
+    ]
 
 def mac_str_to_binary(mac_str):
     '''Given a MAC address in presentation format as a string, return the
@@ -111,3 +135,32 @@ def kill_until_terminated(pid, elevate_if_needed=False):
         if pid_is_running(pid):
             continue
         break
+
+def recv_raw(sock, bufsize):
+    """Internal function to receive a Packet,
+    and process ancillary data.
+
+    From: https://github.com/secdev/scapy/pull/2091/files
+    """
+
+    flags_len = socket.CMSG_LEN(4096)
+    pkt, ancdata, flags, sa_ll = sock.recvmsg(bufsize, flags_len)
+
+    if not pkt:
+        return pkt, sa_ll
+
+    for cmsg_lvl, cmsg_type, cmsg_data in ancdata:
+        # Check available ancillary data
+        if (cmsg_lvl == SOL_PACKET and cmsg_type == PACKET_AUXDATA):
+            # Parse AUXDATA
+            auxdata = tpacket_auxdata.from_buffer_copy(cmsg_data)
+            if auxdata.tp_vlan_tci != 0 or \
+                    auxdata.tp_status & TP_STATUS_VLAN_VALID:
+                # Insert VLAN tag
+                tag = struct.pack(
+                    "!HH",
+                    ETH_P_8021Q,
+                    auxdata.tp_vlan_tci
+                )
+                pkt = pkt[:12] + tag + pkt[12:]
+    return pkt, sa_ll
