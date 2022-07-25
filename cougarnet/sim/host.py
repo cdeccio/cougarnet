@@ -77,10 +77,7 @@ class BaseHost:
         ints = os.listdir('/sys/class/net/')
         for intf in ints:
 
-            #XXX this is a hack. fix this by putting it in its own namespace
-            #if intf.startswith('lo'):
-            #    continue
-            if not intf.startswith(f'{self.hostname}-'):
+            if intf.startswith('lo'):
                 continue
 
             sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_ALL))
@@ -99,10 +96,7 @@ class BaseHost:
         ints = os.listdir('/sys/class/net/')
         for intf in ints:
 
-            #XXX this is a hack. fix this by putting it in its own namespace
-            #if intf.startswith('lo'):
-            #    continue
-            if not intf.startswith(f'{self.hostname}-'):
+            if intf.startswith('lo'):
                 continue
 
             sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
