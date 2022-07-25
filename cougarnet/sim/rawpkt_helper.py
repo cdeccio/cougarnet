@@ -74,7 +74,6 @@ def main():
     args = parser.parse_args(sys.argv[1:])
 
     loop = asyncio.get_event_loop()
-
     loop.add_reader(sys.stdin, _raise)
 
     sockets = {}
@@ -103,18 +102,10 @@ def main():
             sys.stderr.write(f'Invalid path: {helper_sock_raw_path} ({str(e)})\n')
             sys.exit(1)
         atexit.register(_delete_softly, helper_sock_raw_path)
+        subprocess.run(['chmod', '700', helper_sock_raw_path], check=True)
         if args.user is not None:
             subprocess.run(['chown', args.user, helper_sock_raw_path], check=True)
   
-        #try:
-        #    helper_sock_raw.connect(helper_sock_user_path)
-        #except OSError as e:
-        #    sys.stderr.write(f'Invalid path (2): {helper_sock_user_path} ({str(e)})\n')
-        #    sys.exit(1)
-        atexit.register(_delete_softly, helper_sock_user_path)
-        #if args.user is not None:
-        #    subprocess.run(['chown', args.user, helper_sock_user_path], check=True)
-
         helper_sock_raw.setblocking(False)
 
         raw_sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_ALL))
