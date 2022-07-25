@@ -32,6 +32,9 @@ def _delete_softly(path):
     except FileNotFoundError:
         pass
 
+def _raise():
+    raise KeyboardInterrupt 
+
 class NetConfigHelper:
     def __init__(self):
         self.links = set()
@@ -294,6 +297,9 @@ def main():
 
     args = parser.parse_args(sys.argv[1:])
 
+    loop = asyncio.get_event_loop()
+    loop.add_reader(sys.stdin, _raise)
+
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
     try:
         sock.bind(args.socket)
@@ -308,8 +314,10 @@ def main():
     sock.setblocking(False)
 
     helper = NetConfigHelper()
-    loop = asyncio.get_event_loop()
     loop.add_reader(sock, helper.handle_request, sock)
+
+    sys.stdout.buffer.write(b'\x00')
+    sys.stdout.close()
 
     try:
         loop.run_forever()
