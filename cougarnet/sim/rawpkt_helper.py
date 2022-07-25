@@ -49,7 +49,7 @@ def send_raw_to_user(raw_sock, helper_sock_raw, dst_sock):
         if pkttype != socket.PACKET_OUTGOING:
             try:
                 helper_sock_raw.sendto(frame, dst_sock)
-            except FileNotFoundError:
+            except (FileNotFoundError, ConnectionRefusedError):
                 # other side has not connected yet
                 pass
 
