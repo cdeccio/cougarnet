@@ -43,7 +43,7 @@ MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
 
 TMPDIR=os.path.join(os.environ.get('HOME', '.'), 'cougarnet-tmp')
 MAIN_FILENAME='_main'
-COMM_DIR='comm'
+COMM_SOCK_DIR='comm'
 CONFIG_DIR='config'
 HOSTS_DIR='hosts'
 SCRIPT_DIR='scripts'
@@ -131,14 +131,14 @@ class VirtualNetwork:
 
         self.bridge_interfaces = set()
 
-        self.comm_dir = os.path.join(self.tmpdir, COMM_DIR)
+        self.comm_dir = os.path.join(self.tmpdir, COMM_SOCK_DIR)
         self.config_dir = os.path.join(self.tmpdir, CONFIG_DIR)
         self.hosts_dir = os.path.join(self.tmpdir, HOSTS_DIR)
         self.script_dir = os.path.join(self.tmpdir, SCRIPT_DIR)
         self.tmux_dir = os.path.join(self.tmpdir, TMUX_DIR)
 
-        self.commsock_file = None
-        self.commsock = None
+        self.comm_sock_file = None
+        self.comm_sock = None
 
         for d in self.comm_dir, self.config_dir, self.hosts_dir, \
                 self.script_dir, self.tmux_dir:
@@ -329,7 +329,7 @@ class VirtualNetwork:
         if hostname == MAIN_FILENAME:
             raise ConfigurationError(f'The hostname is reserved: {hostname}')
 
-        sock_file = os.path.join(self.comm_dir, hostname)
+        comm_sock_file = os.path.join(self.comm_dir, hostname)
         script_file = os.path.join(self.script_dir, f'{hostname}.sh')
         tmux_file = os.path.join(self.tmux_dir, hostname)
         if len(parts) > 1:
@@ -357,10 +357,10 @@ class VirtualNetwork:
             raise ConfigurationError('Invalid host attribute: ' + \
                     f'{unknown_host_attrs[0]}')
 
-        self.hostname_by_sock[sock_file] = hostname
+        self.hostname_by_sock[comm_sock_file] = hostname
         self.host_by_name[hostname] = \
                 HostConfig(hostname, '/dev/null',
-                        sock_file, tmux_file, script_file, **attrs)
+                        comm_sock_file, tmux_file, script_file, **attrs)
 
     def add_link(self, host1, host2, **attrs):
         '''Add a link between two hosts, with the given attributes.  Make sure
@@ -601,9 +601,9 @@ class VirtualNetwork:
         '''Create the files containing network configuration information for
         each host managed by the VirtualNetwork instance.'''
 
-        self.commsock_file = os.path.join(self.comm_dir, MAIN_FILENAME)
-        self.commsock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
-        self.commsock.bind(self.commsock_file)
+        self.comm_sock_file = os.path.join(self.comm_dir, MAIN_FILENAME)
+        self.comm_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
+        self.comm_sock.bind(self.comm_sock_file)
 
         self.create_hosts_file()
         for hostname, host in self.host_by_name.items():
@@ -620,10 +620,10 @@ class VirtualNetwork:
         HostNotStarted.'''
 
         # set to non-bocking with timeout 3
-        self.commsock.settimeout(3)
+        self.comm_sock.settimeout(3)
         try:
-            data, peer = self.commsock.recvfrom(16)
-            if peer != host.sock_file:
+            data, peer = self.comm_sock.recvfrom(16)
+            if peer != host.comm_sock_file:
                 raise StartupError('While waiting for a communication from ' + \
                         f'{host.hostname}, a packet was received from a ' + \
                         'different virtual host.')
@@ -634,7 +634,7 @@ class VirtualNetwork:
                     'time.') from None
         finally:
             # revert to non-blocking
-            self.commsock.settimeout(None)
+            self.comm_sock.settimeout(None)
 
     def wait_for_phase2_startup(self):
         '''Wait for all hosts to send a single null byte (i.e., b'\x00') over
@@ -643,34 +643,34 @@ class VirtualNetwork:
         not sent the null byte within 3 seconds, then raise HostNotStarted.'''
 
         # set to non-bocking with timeout 3
-        self.commsock.settimeout(3)
+        self.comm_sock.settimeout(3)
         try:
-            sock_files = {host.sock_file \
+            comm_sock_files = {host.comm_sock_file \
                     for _, host in self.host_by_name.items()}
             start_time = time.time()
             end_time = start_time + 3
-            while sock_files and time.time() < end_time:
-                _, peer = self.commsock.recvfrom(1)
-                if peer in sock_files:
-                    sock_files.remove(peer)
+            while comm_sock_files and time.time() < end_time:
+                _, peer = self.comm_sock.recvfrom(1)
+                if peer in comm_sock_files:
+                    comm_sock_files.remove(peer)
         except socket.timeout:
             pass
         finally:
             # revert to blocking
-            self.commsock.settimeout(None)
+            self.comm_sock.settimeout(None)
 
-        if not sock_files:
+        if not comm_sock_files:
             # we're done!
             return
 
-        # if there were some sock_files left over, map the file to its host,
-        # and raise an error
-        sock_file_to_hostname = {}
+        # if there were some comm_sock_files left over, map the file to its
+        # host, and raise an error
+        comm_sock_file_to_hostname = {}
         for hostname, host in self.host_by_name.items():
-            sock_file_to_hostname[host.sock_file] = hostname
+            comm_sock_file_to_hostname[host.comm_sock_file] = hostname
 
-        for sock_file in sock_files:
-            hostname = sock_file_to_hostname[sock_file]
+        for comm_sock_file in comm_sock_files:
+            hostname = comm_sock_file_to_hostname[comm_sock_file]
             host = self.host_by_name[hostname]
             cmd = ['ps', '-p', str(host.pid)]
             p = subprocess.run(cmd, stdout=subprocess.DEVNULL, check=False)
@@ -687,7 +687,7 @@ class VirtualNetwork:
 
         # start the hosts and wait for each to write its PID to the
         for _, host in self.host_by_name.items():
-            host.start(self.commsock_file)
+            host.start(self.comm_sock_file)
             self.wait_for_phase1_startup(host)
 
         # we have to wait to apply the links until the namespace is created
@@ -699,7 +699,7 @@ class VirtualNetwork:
         # let hosts know that virtual interfaces have been
         # created, so they can proceed with network configuration
         for _, host in self.host_by_name.items():
-            self.commsock.sendto(b'\x00', host.sock_file)
+            self.comm_sock.sendto(b'\x00', host.comm_sock_file)
 
         self.wait_for_phase2_startup()
         if wireshark_ints:
@@ -707,7 +707,7 @@ class VirtualNetwork:
 
         # let hosts know that they can start now
         for _, host in self.host_by_name.items():
-            self.commsock.sendto(b'\x00', host.sock_file)
+            self.comm_sock.sendto(b'\x00', host.comm_sock_file)
 
     def cleanup(self):
         '''Shut down and clean up resources allocated for the
@@ -722,8 +722,8 @@ class VirtualNetwork:
 
         os.unlink(self.hosts_file)
 
-        self.commsock.close()
-        os.unlink(self.commsock_file)
+        self.comm_sock.close()
+        os.unlink(self.comm_sock_file)
 
         for d in self.comm_dir, self.config_dir, self.hosts_dir, \
                 self.script_dir, self.tmux_dir:
@@ -799,7 +799,7 @@ class VirtualNetwork:
 
         start_time = time.time()
         while True:
-            data, peer = self.commsock.recvfrom(4096)
+            data, peer = self.comm_sock.recvfrom(4096)
             msg = data.decode('utf-8')
             if peer is not None:
                 hostname = self.hostname_by_sock[peer]

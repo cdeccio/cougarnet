@@ -49,11 +49,11 @@ class HostConfig:
             }
 
     def __init__(self, hostname, history_file,
-            sock_file, tmux_file, script_file, **kwargs):
+            comm_sock_file, tmux_file, script_file, **kwargs):
 
         self.hostname = hostname
         self.history_file = history_file
-        self.sock_file = sock_file
+        self.comm_sock_file = comm_sock_file
         self.tmux_file = tmux_file
         self.script_file = script_file
         self.pid = None
@@ -242,7 +242,7 @@ class HostConfig:
                     addr = addr[:slash]
                 fh.write(f'{addr} {self.hostname}\n')
 
-    def start(self, commsock_file):
+    def start(self, comm_sock_file):
         '''Start this virtual host.  Call unshare to create the new namespace,
         initialize the virtual network within the new namespace, and start the
         designated program within the new namespace.'''
@@ -264,7 +264,7 @@ class HostConfig:
         if not (self.type == 'switch' and self.native_apps):
             cmd += ['--mount-sys']
 
-        cmd += [self.config_file, commsock_file, self.sock_file]
+        cmd += [self.config_file, comm_sock_file, self.comm_sock_file]
 
         if self.terminal:
             cmd_quoted = []
@@ -355,7 +355,7 @@ class HostConfig:
                 cmd = ['sudo', 'ip', 'link', 'del', intf.name]
                 subprocess.run(cmd, check=False)
 
-        for f in self.sock_file, self.config_file, self.script_file, \
+        for f in self.comm_sock_file, self.config_file, self.script_file, \
                 self.hosts_file, self.tmux_file:
             if f is not None and os.path.exists(f):
                 os.unlink(f)
