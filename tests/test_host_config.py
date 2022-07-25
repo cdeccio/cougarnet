@@ -43,6 +43,7 @@ class BadConfigTestCase(unittest.TestCase):
                     cfg, [], {}, tmpdir, True)
             self.assertEqual(net.host_by_name['h1']._host_config(),
                     {'hostname': 'h1',
+                        'int_to_sock': {},
                         'interfaces': {},
                         'ip_forwarding': False,
                         'ipv6': True,
@@ -61,6 +62,7 @@ class BadConfigTestCase(unittest.TestCase):
                     cfg, ['none'], {}, tmpdir, False)
             self.assertEqual(net.host_by_name['h1']._host_config(),
                     {'hostname': 'h1',
+                        'int_to_sock': {},
                         'interfaces': {},
                         'ip_forwarding': False,
                         'ipv6': False,
@@ -81,6 +83,7 @@ class BadConfigTestCase(unittest.TestCase):
                     cfg, [], {}, tmpdir, True)
             self.assertEqual(net.host_by_name['h1']._host_config(),
                     {'hostname': 'h1',
+                        'int_to_sock': {},
                         'interfaces': {},
                         'ip_forwarding': False,
                         'ipv6': False,
@@ -99,6 +102,7 @@ class BadConfigTestCase(unittest.TestCase):
                     cfg, [], {}, tmpdir, True)
             self.assertEqual(net.host_by_name['h1']._host_config(),
                     {'hostname': 'h1',
+                        'int_to_sock': {},
                         'interfaces': {},
                         'ip_forwarding': False,
                         'ipv6': False,
