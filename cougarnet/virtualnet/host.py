@@ -379,6 +379,12 @@ class HostConfig:
                 cmd = ['sudo', 'ip', 'link', 'del', intf.name]
                 subprocess.run(cmd, check=False)
 
+        for intf in self.helper_sock_pair_by_int:
+            if os.path.exists(self.helper_sock_pair_by_int[intf][0]):
+                os.unlink(self.helper_sock_pair_by_int[intf][0])
+            if os.path.exists(self.helper_sock_pair_by_int[intf][1]):
+                os.unlink(self.helper_sock_pair_by_int[intf][1])
+
         for f in self.comm_sock_file, self.config_file, self.script_file, \
                 self.hosts_file, self.tmux_file:
             if f is not None and os.path.exists(f):

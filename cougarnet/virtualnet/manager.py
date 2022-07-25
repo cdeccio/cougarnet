@@ -46,11 +46,14 @@ MAIN_FILENAME='_main'
 COMM_SOCK_DIR='comm'
 HELPER_SOCK_RAW_DIR='helper_sock_raw'
 HELPER_SOCK_USER_DIR='helper_sock_user'
+SYS_HELPER_DIR='sys_helper'
 CONFIG_DIR='config'
 HOSTS_DIR='hosts'
 SCRIPT_DIR='scripts'
 TMUX_DIR='tmux'
 SCRIPT_EXTENSION='sh'
+
+SYS_HELPER_MODULE = "cougarnet.virtualnet.sys_helper"
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 
@@ -140,15 +143,40 @@ class VirtualNetwork:
         self.tmux_dir = os.path.join(self.tmpdir, TMUX_DIR)
         self.helper_sock_raw_dir = os.path.join(self.tmpdir, HELPER_SOCK_RAW_DIR)
         self.helper_sock_user_dir = os.path.join(self.tmpdir, HELPER_SOCK_USER_DIR)
+        self.sys_helper_dir = os.path.join(self.tmpdir, SYS_HELPER_DIR)
+        self.sys_helper_sock_local = os.path.join(self.sys_helper_dir, 'local')
+        self.sys_helper_sock_remote = os.path.join(self.sys_helper_dir, 'remote')
+        self.sys_helper_sock = None
 
         self.comm_sock_file = None
         self.comm_sock = None
 
         for d in self.comm_dir, self.config_dir, self.hosts_dir, \
                 self.script_dir, self.tmux_dir, self.helper_sock_raw_dir, \
-                self.helper_sock_user_dir:
+                self.helper_sock_user_dir, self.sys_helper_dir:
             cmd = ['mkdir', '-p', d]
             subprocess.run(cmd, check=True)
+
+        self._start_sys_helper()
+
+    def _start_sys_helper(self):
+        cmd = ['sudo', sys.executable, '-m', SYS_HELPER_MODULE,
+                '--user', os.environ.get("USER"),
+                self.sys_helper_sock_remote]
+        if not util.start_helper(cmd):
+            raise StartupError('Could not start system helper!')
+
+        self.sys_helper_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        self.sys_helper_sock.bind(self.sys_helper_sock_local)
+        self.sys_helper_sock.connect(self.sys_helper_sock_remote)
+
+    def sys_cmd(self, cmd):
+        self.sys_helper_sock.send(cmd.encode('utf-8'))
+        status = self.sys_helper_sock.recv(16).decode('utf-8')
+        if not status or status == '0':
+            return False
+        else:
+            return True
 
     def parse_int(self, hostname_addr):
         '''Parse a string containing hostname and address information for a
@@ -743,9 +771,11 @@ class VirtualNetwork:
 
         self.comm_sock.close()
         os.unlink(self.comm_sock_file)
+        os.unlink(self.sys_helper_sock_local)
 
         for d in self.comm_dir, self.config_dir, self.hosts_dir, \
-                self.script_dir, self.tmux_dir:
+                self.script_dir, self.tmux_dir, self.helper_sock_raw_dir, \
+                self.helper_sock_user_dir, self.sys_helper_dir:
             os.rmdir(d)
 
     def label_for_link(self, host1, int1, host2, int2):
