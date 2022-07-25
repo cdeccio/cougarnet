@@ -129,6 +129,10 @@ def _apply_config(info):
     if vlan_info:
         os.environ['COUGARNET_VLAN'] = json.dumps(vlan_info)
 
+    if info.get('int_to_sock', None) is not None:
+        os.environ['COUGARNET_INT_TO_SOCK'] = \
+                json.dumps(info['int_to_sock'])
+
     routes = info.get('routes', [])
     if not info.get('ipv6', True):
         routes = [r for r in routes if ':' not in r[0]]

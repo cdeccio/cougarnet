@@ -33,19 +33,23 @@ IP_ADDR_IPV6_RE = re.compile(r'^\s+inet6\s+([0-9a-f:]+)\/(\d{1,3})\s.*scope\s+(l
 from cougarnet.util import recv_raw, ETH_P_ALL, SOL_PACKET, PACKET_AUXDATA
 
 class BaseHost:
-    def __init__(self):
+    def __init__(self, user_mode=True):
         self.int_to_sock = {}
         self.int_to_info = {}
 
         self.hostname = socket.gethostname()
-        self._setup_sockets()
 
         self._setup_comm_sock()
 
+        if user_mode:
+            self._setup_sockets_user()
+        else:
+            self._setup_sockets_raw()
         self._set_interface_info()
 
     def __del__(self):
         self._remove_comm_sock()
+        self._remove_helper_socks()
 
     def _remove_comm_sock(self):
         try:
@@ -54,13 +58,21 @@ class BaseHost:
         except FileNotFoundError:
             pass
 
+    def _remove_helper_socks(self):
+        helper_socks = json.loads(os.environ['COUGARNET_INT_TO_SOCK'])
+        for intf in helper_socks:
+            try:
+                os.unlink(helper_socks[intf]['local'])
+            except FileNotFoundError:
+                pass
+
     def _setup_comm_sock(self):
         comm_sock_paths = json.loads(os.environ['COUGARNET_COMM_SOCK'])
         self.comm_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
         self.comm_sock.connect(comm_sock_paths['remote'])
         self.comm_sock.bind(comm_sock_paths['local'])
 
-    def _setup_sockets(self):
+    def _setup_sockets_raw(self):
         loop = asyncio.get_event_loop()
         ints = os.listdir('/sys/class/net/')
         for intf in ints:
@@ -71,14 +83,36 @@ class BaseHost:
             if not intf.startswith(f'{self.hostname}-'):
                 continue
 
-            # For receiving...
             sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_ALL))
             sock.bind((intf, 0))
             sock.setsockopt(SOL_PACKET, PACKET_AUXDATA, 1)
-            self.int_to_sock[intf] = sock
 
             sock.setblocking(False)
-            loop.add_reader(sock, self._handle_incoming_data, sock, intf)
+            loop.add_reader(sock, self._handle_incoming_data_raw, sock, intf)
+
+            self.int_to_sock[intf] = sock
+
+    def _setup_sockets_user(self):
+        int_sock_mapping = json.loads(os.environ['COUGARNET_INT_TO_SOCK'])
+
+        loop = asyncio.get_event_loop()
+        ints = os.listdir('/sys/class/net/')
+        for intf in ints:
+
+            #XXX this is a hack. fix this by putting it in its own namespace
+            #if intf.startswith('lo'):
+            #    continue
+            if not intf.startswith(f'{self.hostname}-'):
+                continue
+
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
+            sock.connect(int_sock_mapping[intf]['remote'])
+            sock.bind(int_sock_mapping[intf]['local'])
+
+            sock.setblocking(False)
+            loop.add_reader(sock, self._handle_incoming_data_user, sock, intf)
+
+            self.int_to_sock[intf] = sock
 
     @classmethod
     def _get_interface_info(cls, intf):
@@ -130,7 +164,15 @@ class BaseHost:
     def _handle_frame(self, frame, intf):
         pass
 
-    def _handle_incoming_data(self, sock, intf):
+    def _handle_incoming_data_user(self, sock, intf):
+        while True:
+            try:
+                frame = sock.recv(4096)
+            except BlockingIOError:
+                return
+            self._handle_frame(frame, intf)
+
+    def _handle_incoming_data_raw(self, sock, intf):
         while True:
             try:
                 frame, info = recv_raw(sock, 4096)

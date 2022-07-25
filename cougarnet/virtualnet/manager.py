@@ -44,6 +44,8 @@ MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
 TMPDIR=os.path.join(os.environ.get('HOME', '.'), 'cougarnet-tmp')
 MAIN_FILENAME='_main'
 COMM_SOCK_DIR='comm'
+HELPER_SOCK_RAW_DIR='helper_sock_raw'
+HELPER_SOCK_USER_DIR='helper_sock_user'
 CONFIG_DIR='config'
 HOSTS_DIR='hosts'
 SCRIPT_DIR='scripts'
@@ -136,12 +138,15 @@ class VirtualNetwork:
         self.hosts_dir = os.path.join(self.tmpdir, HOSTS_DIR)
         self.script_dir = os.path.join(self.tmpdir, SCRIPT_DIR)
         self.tmux_dir = os.path.join(self.tmpdir, TMUX_DIR)
+        self.helper_sock_raw_dir = os.path.join(self.tmpdir, HELPER_SOCK_RAW_DIR)
+        self.helper_sock_user_dir = os.path.join(self.tmpdir, HELPER_SOCK_USER_DIR)
 
         self.comm_sock_file = None
         self.comm_sock = None
 
         for d in self.comm_dir, self.config_dir, self.hosts_dir, \
-                self.script_dir, self.tmux_dir:
+                self.script_dir, self.tmux_dir, self.helper_sock_raw_dir, \
+                self.helper_sock_user_dir:
             cmd = ['mkdir', '-p', d]
             subprocess.run(cmd, check=True)
 
@@ -435,6 +440,15 @@ class VirtualNetwork:
         attrs['trunk'] = trunk2
         intf2 = host2.add_int(int2_name, host1, **attrs)
 
+        # Create the mappings from helper sock to raw- and user-side UNIX
+        # socket addresses
+        host1.helper_sock_pair_by_int[int1_name] = \
+                (os.path.join(self.helper_sock_raw_dir, int1_name),
+                        os.path.join(self.helper_sock_user_dir, int1_name))
+        host2.helper_sock_pair_by_int[int2_name] = \
+                (os.path.join(self.helper_sock_raw_dir, int2_name),
+                        os.path.join(self.helper_sock_user_dir, int2_name))
+
         return intf1, intf2
 
     def apply_links(self):
@@ -704,6 +718,11 @@ class VirtualNetwork:
         self.wait_for_phase2_startup()
         if wireshark_ints:
             self.start_wireshark(wireshark_ints)
+
+        # start the raw packet helper for each host
+        for _, host in self.host_by_name.items():
+            if not host.start_raw_packet_helper():
+                raise StartupError(f'Helper for {host.hostname} not started')
 
         # let hosts know that they can start now
         for _, host in self.host_by_name.items():

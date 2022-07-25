@@ -21,6 +21,7 @@ hosts.'''
 
 import json
 import os
+import signal
 import subprocess
 import sys
 
@@ -31,10 +32,14 @@ from .interface import PhysicalInterfaceConfig, VirtualInterfaceConfig
 #TERM="xfce4-terminal"
 TERM = "lxterminal"
 HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
+RAWPKT_HELPER_MODULE = "cougarnet.sim.rawpkt_helper"
 MAIN_WINDOW_NAME = "main"
 CMD_WINDOW_NAME = "prog"
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
+
+def raise_interrupt(signum, frame):
+    raise KeyboardInterrupt
 
 class HostConfig:
     '''The network configuration for a virtual host.'''
@@ -64,6 +69,7 @@ class HostConfig:
         self.int_by_vlan = {}
         self.neighbor_by_int = {}
         self.neighbor_by_hostname = {}
+        self.helper_sock_pair_by_int = {}
 
         self.type = 'host'
         self.native_apps = True
@@ -145,6 +151,15 @@ class HostConfig:
                         from None
             self.routes.append((prefix, intf.name, next_hop))
 
+    def _helper_sock_pair_for_user(self):
+        int_to_sock = {}
+        for intf in self.helper_sock_pair_by_int:
+            int_to_sock[intf] = {
+                    'remote': self.helper_sock_pair_by_int[intf][0],
+                    'local': self.helper_sock_pair_by_int[intf][1]
+                    }
+        return int_to_sock
+
     def _host_config(self):
         '''Return a dictionary containing the network configuration for this
         virtual host.'''
@@ -154,7 +169,8 @@ class HostConfig:
                 'routes': self.routes,
                 'native_apps': self.native_apps,
                 'type': self.type,
-                'ipv6': self.ipv6
+                'ipv6': self.ipv6,
+                'int_to_sock': self._helper_sock_pair_for_user()
                 }
         host_info['ip_forwarding'] = self.type == 'router' and self.native_apps
         int_infos = {}
@@ -241,6 +257,70 @@ class HostConfig:
                 if slash >= 0:
                     addr = addr[:slash]
                 fh.write(f'{addr} {self.hostname}\n')
+
+    def start_raw_packet_helper(self):
+        if self.native_apps:
+            # only start helper if in native apps mode
+            return True
+
+        # We use two pipes: one for letting the helper know that the cougarnet
+        # process has died, so it can terminate as well; and one for the helper
+        # to communicate back to the cougarnet process that it is up and
+        # running.  The second pipe will be closed once the "alive" message has
+        # been received.
+        readfd, writefd = os.pipe()
+        alive_readfd, alive_writefd = os.pipe()
+        pid = os.fork()
+
+        if pid == 0:
+            # This is the child process, which will become the helper process
+            # through the use of exec, once it is properly prepared.
+
+            # Close the ends of the pipe that will not be used by this process.
+            os.close(writefd)
+            os.close(alive_readfd)
+
+            # Duplicate readfd on stdin
+            os.dup2(readfd, sys.stdin.fileno())
+            os.close(readfd)
+
+            # Duplicate alive_writefd on stdout
+            os.dup2(alive_writefd, sys.stdout.fileno())
+            os.close(alive_writefd)
+
+            cmd = ['sudo', 'ip', 'netns', 'exec', self.hostname,
+                    sys.executable, '-m', RAWPKT_HELPER_MODULE,
+                    '--user', os.environ.get("USER")]
+            cmd += [f'{i}={s[0]}:{s[1]}' \
+                    for i, s in self.helper_sock_pair_by_int.items()]
+            os.execvp(cmd[0], cmd)
+            sys.exit(1)
+
+        # Close the ends of the pipe that will not be used by this process.
+        os.close(readfd)
+        os.close(alive_writefd)
+
+        # Use ALRM to let us know when we've waited too long for the child
+        # process to become ready.
+        old_handler = signal.getsignal(signal.SIGALRM)
+        signal.signal(signal.SIGALRM, raise_interrupt)
+        signal.alarm(3)
+        try:
+            if len(os.read(alive_readfd, 1)) < 1:
+                # read resulted in error
+                util.kill_until_terminated(pid)
+                return False
+        except KeyboardInterrupt:
+            # Timeout (ALRM signal was received)
+            util.kill_until_terminated(pid)
+            return False
+        finally:
+            # Reset alarm, restore previous ALRM handler, and close
+            # alive_readfd, which is no longer needed.
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, old_handler)
+            os.close(alive_readfd)
+        return True
 
     def start(self, comm_sock_file):
         '''Start this virtual host.  Call unshare to create the new namespace,
