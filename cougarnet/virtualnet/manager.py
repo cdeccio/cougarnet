@@ -520,74 +520,69 @@ class VirtualNetwork:
                 # "ghost" interface that will be on the host.
                 ghost1 = f'{int1.name}-ghost'
                 ghost2 = f'{int2.name}-ghost'
-                cmd = ['sudo', 'ip', 'link', 'add', int1.name,
-                        'type', 'veth', 'peer', 'name', ghost1]
-                subprocess.run(cmd, check=True)
-                cmd = ['sudo', 'ip', 'link', 'add', int2.name,
-                        'type', 'veth', 'peer', 'name', ghost2]
-                subprocess.run(cmd, check=True)
+                if not self.sys_cmd(f'add_link_veth|{int1.name}|{ghost1}'):
+                    raise StartupError(f'Adding {int1.name}-{int2.name}')
+                if not self.sys_cmd(f'add_link_veth|{int2.name}|{ghost2}'):
+                    raise StartupError(f'Adding {int1.name}-{int2.name}')
 
                 # We now connect to the two ghost interfaces together with a
                 # bridge.
                 br = f'{int1.name}-br'
-                cmd = ['sudo', 'ip', 'link', 'add', br, 'type', 'bridge',
-                        'stp_state', '0', 'vlan_filtering', '0']
-                subprocess.run(cmd, check=True)
-                cmd = ['sudo', 'ip', 'link', 'set', ghost1, 'master', br]
-                subprocess.run(cmd, check=True)
-                cmd = ['sudo', 'ip', 'link', 'set', ghost2, 'master', br]
-                subprocess.run(cmd, check=True)
-                cmd = ['sudo', 'ip', 'link', 'set', ghost1, 'up']
-                subprocess.run(cmd, check=True)
-                cmd = ['sudo', 'ip', 'link', 'set', ghost2, 'up']
-                subprocess.run(cmd, check=True)
-                cmd = ['sudo', 'ip', 'link', 'set', br, 'up']
-                subprocess.run(cmd, check=True)
+                if not self.sys_cmd(f'add_link_bridge|{br}'):
+                    raise StartupError(f'Adding {int1.name}-{int2.name}')
+                if not self.sys_cmd(f'set_link_master|{ghost1}|{br}'):
+                    raise StartupError(f'Adding {int1.name}-{int2.name}')
+                if not self.sys_cmd(f'set_link_master|{ghost2}|{br}'):
+                    raise StartupError(f'Adding {int1.name}-{int2.name}')
+                if not self.sys_cmd(f'set_link_up|{ghost1}'):
+                    raise StartupError(f'Adding {int1.name}-{int2.name}')
+                if not self.sys_cmd(f'set_link_up|{ghost2}'):
+                    raise StartupError(f'Adding {int1.name}-{int2.name}')
+                if not self.sys_cmd(f'set_link_up|{br}'):
+                    raise StartupError(f'Adding {int1.name}-{int2.name}')
                 self.bridge_interfaces.add(br)
 
                 # These interfaces should have *no* addresses, including IPv6
-                cmd = ['sudo', 'sysctl', f'net.ipv6.conf.{ghost1}.disable_ipv6=1']
-                subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
-                cmd = ['sudo', 'sysctl', f'net.ipv6.conf.{ghost2}.disable_ipv6=1']
-                subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
-                cmd = ['sudo', 'sysctl', f'net.ipv6.conf.{br}.disable_ipv6=1']
-                subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
+                if not self.sys_cmd(f'disable_ipv6|{ghost1}'):
+                    raise StartupError(f'Adding {int1.name}-{int2.name}')
+                if not self.sys_cmd(f'disable_ipv6|{ghost2}'):
+                    raise StartupError(f'Adding {int1.name}-{int2.name}')
+                if not self.sys_cmd(f'disable_ipv6|{br}'):
+                    raise StartupError(f'Adding {int1.name}-{int2.name}')
 
                 if host1.type == 'switch' and host1.native_apps:
                     if not host1.has_bridge:
-                        cmd = ['sudo', 'ovs-vsctl', 'add-br',
-                                host1.hostname]
-                        subprocess.run(cmd, check=True)
+                        if not self.sys_cmd(f'ovs_add_bridge|{host1.hostname}'):
+                            raise StartupError(f'Adding {int1.name}-{int2.name}')
                         host1.has_bridge = True
 
-                    cmd = ['sudo', 'ovs-vsctl', 'add-port',
-                            host1.hostname, int1.name]
+                    cmd = f'ovs_add_port|{host1.hostname}|{int1.name}'
                     if host1.type == 'switch':
                         if int1.vlan is not None:
-                            cmd.append(f'tag={int1.vlan}')
+                            cmd += f'|{int1.vlan}'
                         elif int1.trunk:
                             pass
                         else:
-                            cmd.append('tag=0')
-                    subprocess.run(cmd, check=True)
+                            cmd += '|0'
+                    if not self.sys_cmd(cmd):
+                        raise StartupError(f'Adding {int1.name}-{int2.name}')
 
                 if host2.type == 'switch' and host2.native_apps:
                     if not host2.has_bridge:
-                        cmd = ['sudo', 'ovs-vsctl', 'add-br',
-                                host2.hostname]
-                        subprocess.run(cmd, check=True)
+                        if not self.sys_cmd(f'ovs_add_bridge|{host2.hostname}'):
+                            raise StartupError(f'Adding {int1.name}-{int2.name}')
                         host2.has_bridge = True
 
-                    cmd = ['sudo', 'ovs-vsctl', 'add-port',
-                            host2.hostname, int2.name]
+                    cmd = f'ovs_add_port|{host2.hostname}|{int2.name}'
                     if host2.type == 'switch':
                         if int2.vlan is not None:
-                            cmd.append(f'tag={int2.vlan}')
+                            cmd += f'|{int2.vlan}'
                         elif int2.trunk:
                             pass
                         else:
-                            cmd.append('tag=0')
-                    subprocess.run(cmd, check=True)
+                            cmd += '|0'
+                    if not self.sys_cmd(cmd):
+                        raise StartupError(f'Adding {int1.name}-{int2.name}')
 
     def apply_vlans(self):
         '''Create the virtual interfaces associated with a router.'''
