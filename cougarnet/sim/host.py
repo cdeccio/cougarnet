@@ -38,8 +38,7 @@ class BaseHost:
         self.int_to_info = {}
 
         self.hostname = socket.gethostname()
-        self._setup_send_sockets()
-        self._setup_receive_sockets()
+        self._setup_sockets()
 
         self._setup_comm_sock()
 
@@ -61,7 +60,7 @@ class BaseHost:
         self.comm_sock.connect(comm_sock_paths['remote'])
         self.comm_sock.bind(comm_sock_paths['local'])
 
-    def _setup_receive_sockets(self):
+    def _setup_sockets(self):
         loop = asyncio.get_event_loop()
         ints = os.listdir('/sys/class/net/')
         for intf in ints:
@@ -76,22 +75,10 @@ class BaseHost:
             sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_ALL))
             sock.bind((intf, 0))
             sock.setsockopt(SOL_PACKET, PACKET_AUXDATA, 1)
+            self.int_to_sock[intf] = sock
 
             sock.setblocking(False)
             loop.add_reader(sock, self._handle_incoming_data, sock, intf)
-
-    def _setup_send_sockets(self):
-        ints = os.listdir('/sys/class/net/')
-        for intf in ints:
-            #XXX this is a hack. fix this by putting it in its own namespace
-            #if intf.startswith('lo'):
-            #    continue
-            if not intf.startswith(f'{self.hostname}-'):
-                continue
-
-            sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_ALL))
-            sock.bind((intf, 0))
-            self.int_to_sock[intf] = sock
 
     @classmethod
     def _get_interface_info(cls, intf):
