@@ -81,7 +81,7 @@ class NetConfigTestCase(unittest.TestCase):
 
             for intf in ['cn-foo', 'cn-bar', 'cn-bar1', 'cn-bar2',
                     'cn-bar.vlan100', 'cn-br0']:
-                subprocess.run(['sudo', 'ip', 'link', 'del', intf],
+                subprocess.run(['ip', 'link', 'del', intf],
                         check=False)
 
     def test_sysctl(self):
@@ -111,7 +111,7 @@ class NetConfigTestCase(unittest.TestCase):
             os.unlink(tmp.name)
 
             for intf in ['cn-foo', 'cn-bar']:
-                subprocess.run(['sudo', 'ip', 'link', 'del', intf],
+                subprocess.run(['ip', 'link', 'del', intf],
                         check=False)
 
     def test_ovs(self):
@@ -165,9 +165,9 @@ class NetConfigTestCase(unittest.TestCase):
             os.unlink(tmp.name)
 
             for intf in ['cn-foo', 'cn-bar']:
-                subprocess.run(['sudo', 'ip', 'link', 'del', intf],
+                subprocess.run(['ip', 'link', 'del', intf],
                         check=False)
-            subprocess.run(['sudo', 'ovs-vsctl', 'del-br', 'cn-br0'],
+            subprocess.run(['ovs-vsctl', 'del-br', 'cn-br0'],
                     check=False)
 
     def test_netns(self):
@@ -216,10 +216,9 @@ class NetConfigTestCase(unittest.TestCase):
                     set())
 
         finally:
-            subprocess.run(['sudo', 'umount',
-                    '/run/netns/cn-bar'], check=False)
+            subprocess.run(['umount', '/run/netns/cn-bar'], check=False)
             for intf in ['cn-foo', 'cn-bar']:
-                subprocess.run(['sudo', 'rm',
+                subprocess.run(['rm',
                         os.path.join('/run/netns/', intf)],
                         check=False)
             os.unlink(tmp.name)
