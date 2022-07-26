@@ -82,6 +82,7 @@ class NetConfigTestCase(unittest.TestCase):
             for intf in ['cn-foo', 'cn-bar', 'cn-bar1', 'cn-bar2',
                     'cn-bar.vlan100', 'cn-br0']:
                 subprocess.run(['ip', 'link', 'del', intf],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
                         check=False)
 
     def test_sysctl(self):
@@ -112,6 +113,7 @@ class NetConfigTestCase(unittest.TestCase):
 
             for intf in ['cn-foo', 'cn-bar']:
                 subprocess.run(['ip', 'link', 'del', intf],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
                         check=False)
 
     def test_ovs(self):
@@ -134,7 +136,6 @@ class NetConfigTestCase(unittest.TestCase):
             self.assertEqual(
                     helper.ovs_ports,
                     {'cn-br0': set()})
-
 
             # interface doesn't exist
             self.assertEqual(
@@ -166,8 +167,10 @@ class NetConfigTestCase(unittest.TestCase):
 
             for intf in ['cn-foo', 'cn-bar']:
                 subprocess.run(['ip', 'link', 'del', intf],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
                         check=False)
             subprocess.run(['ovs-vsctl', 'del-br', 'cn-br0'],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
                     check=False)
 
     def test_netns(self):
@@ -216,10 +219,12 @@ class NetConfigTestCase(unittest.TestCase):
                     set())
 
         finally:
-            subprocess.run(['umount', '/run/netns/cn-bar'], check=False)
+            subprocess.run(['umount', '/run/netns/cn-bar'],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
+                    check=False)
             for intf in ['cn-foo', 'cn-bar']:
-                subprocess.run(['rm',
-                        os.path.join('/run/netns/', intf)],
+                subprocess.run(['rm', os.path.join('/run/netns/', intf)],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
                         check=False)
             os.unlink(tmp.name)
 
