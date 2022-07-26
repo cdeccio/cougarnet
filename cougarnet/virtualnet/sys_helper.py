@@ -33,7 +33,7 @@ def _delete_softly(path):
         pass
 
 def _raise():
-    raise KeyboardInterrupt 
+    raise KeyboardInterrupt()
 
 class NetConfigHelper:
     def __init__(self):
@@ -134,8 +134,8 @@ class NetConfigHelper:
         return True
 
     def touch_netns(self, ns):
-        path = os.path.join(RUN_NETNS_DIR, ns)   
-        
+        path = os.path.join(RUN_NETNS_DIR, ns)
+
         if os.path.exists(path) and \
                 path not in self.netns:
             return False
@@ -152,8 +152,8 @@ class NetConfigHelper:
         return True
 
     def umount_netns(self, ns):
-        path = os.path.join(RUN_NETNS_DIR, ns)   
-        
+        path = os.path.join(RUN_NETNS_DIR, ns)
+
         if path not in self.netns:
             return False
 
@@ -167,8 +167,8 @@ class NetConfigHelper:
         return True
 
     def del_netns(self, ns):
-        path = os.path.join(RUN_NETNS_DIR, ns)   
-        
+        path = os.path.join(RUN_NETNS_DIR, ns)
+
         if path not in self.netns:
             return False
 
