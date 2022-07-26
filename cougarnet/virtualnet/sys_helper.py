@@ -183,6 +183,24 @@ class NetConfigHelper:
 
         return True
 
+    def set_link_netns(self, intf, ns):
+        path = os.path.join(RUN_NETNS_DIR, ns)
+
+        if intf not in self.links:
+            return False
+        if path not in self.netns:
+            return False
+
+        cmd = ['sudo', 'ip', 'link', 'set',
+                intf, 'netns', ns]
+
+        try:
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError:
+            return False
+
+        return True
+
     def ovs_add_bridge(self, bridge):
         cmd = ['sudo', 'ovs-vsctl', 'add-br', bridge]
 
@@ -270,6 +288,8 @@ class NetConfigHelper:
                 status = self.umount_netns(*parts[1:])
             elif parts[0] == 'del_netns':
                 status = self.del_netns(*parts[1:])
+            elif parts[0] == 'set_link_netns':
+                status = self.set_link_netns(*parts[1:])
             elif parts[0] == 'ovs_add_bridge':
                 status = self.ovs_add_bridge(*parts[1:])
             elif parts[0] == 'ovs_del_bridge':

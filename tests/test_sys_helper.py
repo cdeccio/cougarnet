@@ -174,8 +174,7 @@ class NetConfigTestCase(unittest.TestCase):
                     check=False)
 
     def test_netns(self):
-        tmp = tempfile.NamedTemporaryFile(delete=False)
-        tmp.close()
+        p = None
 
         try:
             helper = NetConfigHelper()
@@ -183,21 +182,51 @@ class NetConfigTestCase(unittest.TestCase):
             subprocess.run(['touch', '/run/netns/cn-foo'])
 
             self.assertEqual(
-                    helper.touch_netns('cn-foo'),
+                    helper.add_netns('cn-foo'),
                     False)
             self.assertEqual(
-                    helper.touch_netns('cn-bar'),
+                    helper.add_netns('cn-bar'),
                     True)
             self.assertEqual(
-                    helper.touch_netns('cn-bar'),
+                    helper.add_netns('cn-bar'),
                     True)
             self.assertEqual(
                     helper.netns,
                     {'/run/netns/cn-bar'})
 
-            subprocess.run(['touch', tmp.name])
-            subprocess.run(['mount', '-o', 'bind',
-                tmp.name, '/run/netns/cn-bar'], check=True)
+            p = subprocess.Popen(['unshare', '--net=/run/netns/cn-bar'],
+                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+
+            # add interface
+            self.assertEqual(
+                    helper.add_link_veth('cn-baz', None),
+                    True)
+
+            # interface doesn't exist
+            self.assertEqual(
+                    helper.set_link_netns('cn-foo', 'cn-bar'),
+                    False)
+            # netns doesn't exist
+            self.assertEqual(
+                    helper.set_link_netns('cn-baz', 'cn-foo'),
+                    False)
+
+            # this should work
+            self.assertEqual(
+                    helper.set_link_netns('cn-baz', 'cn-bar'),
+                    True)
+            output = subprocess.run(['ls', '/sys/class/net'],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE).stdout
+            ints = output.decode('utf-8').splitlines()
+            self.assertEqual('cn-baz' not in ints, True)
+
+            output = subprocess.run(['ip', 'netns',
+                        'exec', 'cn-bar', 'ls', '/sys/class/net'],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE).stdout
+            ints = output.decode('utf-8').splitlines()
+            self.assertEqual('cn-baz' in ints, True)
 
             # netns doesn't exist
             self.assertEqual(
@@ -226,7 +255,13 @@ class NetConfigTestCase(unittest.TestCase):
                 subprocess.run(['rm', os.path.join('/run/netns/', intf)],
                         stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
                         check=False)
-            os.unlink(tmp.name)
+            subprocess.run(['ip', 'link', 'del', 'cn-baz'],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
+                    check=False)
+            if p is not None:
+                subprocess.run(['kill', str(p.pid)],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
+                    check=False)
 
 if __name__ == '__main__':
     unittest.main()
