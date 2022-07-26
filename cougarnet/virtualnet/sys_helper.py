@@ -26,12 +26,6 @@ import sys
 
 RUN_NETNS_DIR='/run/netns/'
 
-def _delete_softly(path):
-    try:
-        os.unlink(path)
-    except FileNotFoundError:
-        pass
-
 def _raise():
     raise KeyboardInterrupt()
 
@@ -307,9 +301,40 @@ class NetConfigHelper:
                 msg = '0'.encode('utf-8')
             sock.sendto(msg, peer)
 
+def _setup_socket(path, user):
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        sock.bind(path)
+    except OSError as e:
+        sys.stderr.write(f'Invalid path: {path} ({str(e)})\n')
+        sys.exit(1)
+
+    # delete the file on program exit
+    atexit.register(os.unlink, path)
+
+    # set permissions and ownership
+    try:
+        subprocess.run(['chmod', '700', path], check=True)
+    except subprocess.CalledProcessError as e:
+        sys.stderr.write(f'Changing socket permissions unsuccessful: ({str(e)})\n')
+        sys.exit(1)
+    try:
+        subprocess.run(['chown', user, path], check=True)
+    except subprocess.CalledProcessError as e:
+        sys.stderr.write(f'Changing socket ownership unsuccessful: ({str(e)})\n')
+        sys.exit(1)
+
+    # set non-blocking, so it can be used with the listener
+    sock.setblocking(False)
+    return sock
+
+def _send_byte_to_stdout():
+    sys.stdout.buffer.write(b'\x00')
+    sys.stdout.close()
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--user', '-u',
+    parser.add_argument('user',
             action='store', type=str,
             help='User that should own the socket')
     parser.add_argument('socket',
@@ -318,27 +343,25 @@ def main():
 
     args = parser.parse_args(sys.argv[1:])
 
-    loop = asyncio.get_event_loop()
-    loop.add_reader(sys.stdin, _raise)
-
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
-    try:
-        sock.bind(args.socket)
-    except OSError as e:
-        sys.stderr.write(f'Invalid path: {args.socket} ({str(e)})\n')
+    # make sure we are running as root
+    if os.geteuid() != 0:
+        sys.stderr.write('Please run this program as root.\n')
         sys.exit(1)
-    atexit.register(_delete_softly, args.socket)
-    subprocess.run(['chmod', '700', args.socket], check=True)
-    if args.user is not None:
-        subprocess.run(['chown', args.user, args.socket], check=True)
-
-    sock.setblocking(False)
 
     helper = NetConfigHelper()
+    loop = asyncio.get_event_loop()
+
+    # exit as soon stdin is closed
+    # (an indicator from our parent that we should terminate)
+    loop.add_reader(sys.stdin, _raise)
+
+    sock = _setup_socket(args.socket, args.user)
+
+    # register the socket with the event loop
     loop.add_reader(sock, helper.handle_request, sock)
 
-    sys.stdout.buffer.write(b'\x00')
-    sys.stdout.close()
+    # communicate to the parent that everything is set up
+    _send_byte_to_stdout()
 
     try:
         loop.run_forever()
