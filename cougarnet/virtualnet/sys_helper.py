@@ -133,7 +133,7 @@ class NetConfigHelper:
 
         return True
 
-    def touch_netns(self, ns):
+    def add_netns(self, ns):
         path = os.path.join(RUN_NETNS_DIR, ns)
 
         if os.path.exists(path) and \
@@ -282,8 +282,8 @@ class NetConfigHelper:
                 status = self.set_link_up(*parts[1:])
             elif parts[0] == 'del_link':
                 status = self.del_link(*parts[1:])
-            elif parts[0] == 'touch_netns':
-                status = self.touch_netns(*parts[1:])
+            elif parts[0] == 'add_netns':
+                status = self.add_netns(*parts[1:])
             elif parts[0] == 'umount_netns':
                 status = self.umount_netns(*parts[1:])
             elif parts[0] == 'del_netns':
