@@ -17,60 +17,60 @@ class NetConfigTestCase(unittest.TestCase):
 
             # interface doesn't exist
             self.assertEqual(
-                    helper.add_link_vlan('cn-foo', 'cn-foo.vlan100', '100'),
-                    False)
+                    helper.add_link_vlan('cn-foo', 'cn-foo.vlan100', '100')[:2],
+                    '1,')
             self.assertEqual(
-                    helper.set_link_master('cn-foo', 'cn-br'),
-                    False)
+                    helper.set_link_master('cn-foo', 'cn-br')[:2],
+                    '1,')
             self.assertEqual(
-                    helper.set_link_up('cn-foo'),
-                    False)
+                    helper.set_link_up('cn-foo')[:2],
+                    '1,')
             self.assertEqual(
-                    helper.del_link('cn-foo'),
-                    False)
+                    helper.del_link('cn-foo')[:2],
+                    '1,')
 
             # add interfaces
             self.assertEqual(
-                    helper.add_link_veth('cn-bar', None),
-                    True)
+                    helper.add_link_veth('cn-bar', None)[:2],
+                    '0,')
             self.assertEqual(
-                    helper.add_link_veth('cn-bar1', 'cn-bar2'),
-                    True)
+                    helper.add_link_veth('cn-bar1', 'cn-bar2')[:2],
+                    '0,')
             self.assertEqual(
-                    helper.add_link_vlan('cn-bar', 'cn-bar.vlan100', '100'),
-                    True)
+                    helper.add_link_vlan('cn-bar', 'cn-bar.vlan100', '100')[:2],
+                    '0,')
             self.assertEqual(
                     helper.links,
                     {'cn-bar1', 'cn-bar', 'cn-bar2', 'cn-bar.vlan100'})
             self.assertEqual(
-                    helper.add_link_bridge('cn-br0'),
-                    True)
+                    helper.add_link_bridge('cn-br0')[:2],
+                    '0,')
             self.assertEqual(
                     helper.links,
                     {'cn-bar1', 'cn-br0', 'cn-bar2', 'cn-bar.vlan100', 'cn-bar'})
 
             # interface doesn't exist
             self.assertEqual(
-                    helper.set_link_master('cn-bar1', 'cn-foo'),
-                    False)
+                    helper.set_link_master('cn-bar1', 'cn-foo')[:2],
+                    '1,')
             # interface not a bridge
             self.assertEqual(
-                    helper.set_link_master('cn-bar1', 'cn-bar2'),
-                    False)
+                    helper.set_link_master('cn-bar1', 'cn-bar2')[:2],
+                    '2,')
             # this should work
             self.assertEqual(
-                    helper.set_link_master('cn-bar1', 'cn-br0'),
-                    True)
+                    helper.set_link_master('cn-bar1', 'cn-br0')[:2],
+                    '0,')
 
             # this should work
             self.assertEqual(
-                    helper.set_link_up('cn-bar1'),
-                    True)
+                    helper.set_link_up('cn-bar1')[:2],
+                    '0,')
 
             # this should work
             self.assertEqual(
-                    helper.del_link('cn-bar1'),
-                    True)
+                    helper.del_link('cn-bar1')[:2],
+                    '0,')
 
             self.assertEqual(
                     helper.links,
@@ -95,18 +95,18 @@ class NetConfigTestCase(unittest.TestCase):
 
             # interface doesn't exist
             self.assertEqual(
-                    helper.disable_ipv6('cn-foo'),
-                    False)
+                    helper.disable_ipv6('cn-foo')[:2],
+                    '1,')
 
             # add interfaces
             self.assertEqual(
-                    helper.add_link_veth('cn-bar', None),
-                    True)
+                    helper.add_link_veth('cn-bar', None)[:2],
+                    '0,')
 
             # this should work
             self.assertEqual(
-                    helper.disable_ipv6('cn-bar'),
-                    True)
+                    helper.disable_ipv6('cn-bar')[:2],
+                    '0,')
 
         finally:
             os.unlink(tmp.name)
@@ -126,38 +126,38 @@ class NetConfigTestCase(unittest.TestCase):
 
             # add interfaces
             self.assertEqual(
-                    helper.add_link_veth('cn-bar', None),
-                    True)
+                    helper.add_link_veth('cn-bar', None)[:2],
+                    '0,')
 
             # add bridge
             self.assertEqual(
-                    helper.ovs_add_bridge('cn-br0'),
-                    True)
+                    helper.ovs_add_bridge('cn-br0')[:2],
+                    '0,')
             self.assertEqual(
                     helper.ovs_ports,
                     {'cn-br0': set()})
 
             # interface doesn't exist
             self.assertEqual(
-                    helper.ovs_add_port('cn-br0', 'cn-foo'),
-                    False)
+                    helper.ovs_add_port('cn-br0', 'cn-foo')[:2],
+                    '1,')
 
             # add port
             self.assertEqual(
-                    helper.ovs_add_port('cn-br0', 'cn-bar'),
-                    True)
+                    helper.ovs_add_port('cn-br0', 'cn-bar')[:2],
+                    '0,')
             self.assertEqual(
                     helper.ovs_ports,
                     {'cn-br0': { 'cn-bar' }})
 
             # bridge doesn't exist
             self.assertEqual(
-                    helper.ovs_del_bridge('cn-foo'),
-                    False)
+                    helper.ovs_del_bridge('cn-foo')[:2],
+                    '1,')
             # delete bridge
             self.assertEqual(
-                    helper.ovs_del_bridge('cn-br0'),
-                    True)
+                    helper.ovs_del_bridge('cn-br0')[:2],
+                    '0,')
             self.assertEqual(
                     helper.ovs_ports,
                     {})
@@ -182,16 +182,16 @@ class NetConfigTestCase(unittest.TestCase):
             subprocess.run(['touch', '/run/netns/cn-foo'])
 
             self.assertEqual(
-                    helper.add_netns('cn-foo'),
-                    False)
+                    helper.add_netns('cn-foo')[:2],
+                    '1,')
             self.assertEqual(
-                    helper.add_netns('cn-bar'),
-                    True)
+                    helper.add_netns('cn-bar')[:2],
+                    '0,')
             self.assertEqual(
-                    helper.add_netns('cn-bar'),
-                    True)
+                    helper.add_netns('cn-bar')[:2],
+                    '0,')
             self.assertEqual(
-                    helper.netns,
+                    helper.netns_exists,
                     {'/run/netns/cn-bar'})
 
             p = subprocess.Popen(['unshare', '--net=/run/netns/cn-bar'],
@@ -199,22 +199,22 @@ class NetConfigTestCase(unittest.TestCase):
 
             # add interface
             self.assertEqual(
-                    helper.add_link_veth('cn-baz', None),
-                    True)
+                    helper.add_link_veth('cn-baz', None)[:2],
+                    '0,')
 
             # interface doesn't exist
             self.assertEqual(
-                    helper.set_link_netns('cn-foo', 'cn-bar'),
-                    False)
+                    helper.set_link_netns('cn-foo', 'cn-bar')[:2],
+                    '1,')
             # netns doesn't exist
             self.assertEqual(
-                    helper.set_link_netns('cn-baz', 'cn-foo'),
-                    False)
+                    helper.set_link_netns('cn-baz', 'cn-foo')[:2],
+                    '1,')
 
             # this should work
             self.assertEqual(
-                    helper.set_link_netns('cn-baz', 'cn-bar'),
-                    True)
+                    helper.set_link_netns('cn-baz', 'cn-bar')[:2],
+                    '0,')
             output = subprocess.run(['ls', '/sys/class/net'],
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE).stdout
@@ -228,23 +228,25 @@ class NetConfigTestCase(unittest.TestCase):
             ints = output.decode('utf-8').splitlines()
             self.assertEqual('cn-baz' in ints, True)
 
+            helper.netns_mounted.add('/run/netns/cn-bar')
+
             # netns doesn't exist
             self.assertEqual(
-                    helper.umount_netns('cn-foo'),
-                    False)
+                    helper.umount_netns('cn-foo')[:2],
+                    '1,')
             self.assertEqual(
-                    helper.del_netns('cn-foo'),
-                    False)
+                    helper.del_netns('cn-foo')[:2],
+                    '1,')
 
             # unmount and delete netns
             self.assertEqual(
-                    helper.umount_netns('cn-bar'),
-                    True)
+                    helper.umount_netns('cn-bar')[:2],
+                    '0,')
             self.assertEqual(
-                    helper.del_netns('cn-bar'),
-                    True)
+                    helper.del_netns('cn-bar')[:2],
+                    '0,')
             self.assertEqual(
-                    helper.netns,
+                    helper.netns_exists,
                     set())
 
         finally:
