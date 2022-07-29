@@ -160,6 +160,7 @@ class SysCmdHelper:
     def add_netns(self, ns):
         nspath = os.path.join(RUN_NETNS_DIR, ns)
 
+        val = '0,'
         if nspath not in self.netns_exists:
             if os.path.exists(nspath):
                 return f'1,Namespace already exists: {nspath}'
