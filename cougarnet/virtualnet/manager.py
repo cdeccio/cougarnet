@@ -35,6 +35,9 @@ import tempfile
 import time
 
 from cougarnet import util
+from cougarnet.sys_helper.manager import SysCmdHelperManager
+
+from .errors import ConfigurationError, StartupError
 from .host import HostConfig
 from .interface import PhysicalInterfaceConfig
 
@@ -44,9 +47,10 @@ MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
 TMPDIR=os.path.join(os.environ.get('HOME', '.'), 'cougarnet-tmp')
 MAIN_FILENAME='_main'
 COMM_SOCK_DIR='comm'
-HELPER_SOCK_RAW_DIR='helper_sock_raw'
-HELPER_SOCK_USER_DIR='helper_sock_user'
-SYS_HELPER_DIR='sys_helper'
+SYS_NET_HELPER_RAW_DIR='helper_sock_raw'
+SYS_NET_HELPER_USER_DIR='helper_sock_user'
+SYS_CMD_HELPER_SRV='sys_helper_srv'
+SYS_CMD_HELPER_DIR='sys_helper'
 CONFIG_DIR='config'
 HOSTS_DIR='hosts'
 SCRIPT_DIR='scripts'
@@ -56,21 +60,6 @@ SCRIPT_EXTENSION='sh'
 SYS_HELPER_MODULE = "cougarnet.virtualnet.sys_helper"
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
-
-class CougarnetError(Exception):
-    '''Base class for errors related to Cougarnet.'''
-
-class ConfigurationError(CougarnetError):
-    '''An error raised when there was an error with content in the Cougarnet
-    configuration file.'''
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.lineno = 0
-
-class StartupError(CougarnetError):
-    '''An error raised when there was an error with starting up a Cougarnet
-    configuration.'''
 
 def sort_addresses(addrs):
     '''Sort a list of addresses into MAC address, IPv4 addresses, and IPv6
@@ -141,12 +130,10 @@ class VirtualNetwork:
         self.hosts_dir = os.path.join(self.tmpdir, HOSTS_DIR)
         self.script_dir = os.path.join(self.tmpdir, SCRIPT_DIR)
         self.tmux_dir = os.path.join(self.tmpdir, TMUX_DIR)
-        self.helper_sock_raw_dir = os.path.join(self.tmpdir, HELPER_SOCK_RAW_DIR)
-        self.helper_sock_user_dir = os.path.join(self.tmpdir, HELPER_SOCK_USER_DIR)
-        self.sys_helper_dir = os.path.join(self.tmpdir, SYS_HELPER_DIR)
-        self.sys_helper_sock_local = os.path.join(self.sys_helper_dir, 'local')
-        self.sys_helper_sock_remote = os.path.join(self.sys_helper_dir, 'remote')
-        self.sys_helper_sock = None
+        self.helper_sock_raw_dir = os.path.join(self.tmpdir, SYS_NET_HELPER_RAW_DIR)
+        self.helper_sock_user_dir = os.path.join(self.tmpdir, SYS_NET_HELPER_USER_DIR)
+        self.sys_helper_dir = os.path.join(self.tmpdir, SYS_CMD_HELPER_DIR)
+        self.sys_cmd_helper = None
 
         self.comm_sock_file = None
         self.comm_sock = None
@@ -157,26 +144,25 @@ class VirtualNetwork:
             cmd = ['mkdir', '-p', d]
             subprocess.run(cmd, check=True)
 
-        self._start_sys_helper()
+        self._start_sys_cmd_helper()
 
-    def _start_sys_helper(self):
-        cmd = ['sudo', sys.executable, '-m', SYS_HELPER_MODULE,
-                '--user', os.environ.get("USER"),
-                self.sys_helper_sock_remote]
-        if not util.start_helper(cmd):
+    def _start_sys_cmd_helper(self):
+        local_sock_path = os.path.join(self.sys_helper_dir, MAIN_FILENAME)
+        remote_sock_path = os.path.join(self.tmpdir, SYS_CMD_HELPER_SRV)
+
+        self.sys_cmd_helper = SysCmdHelperManager(
+                remote_sock_path, local_sock_path)
+        if not self.sys_cmd_helper.start():
             raise StartupError('Could not start system helper!')
 
-        self.sys_helper_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
-        self.sys_helper_sock.bind(self.sys_helper_sock_local)
-        self.sys_helper_sock.connect(self.sys_helper_sock_remote)
-
-    def sys_cmd(self, cmd):
-        self.sys_helper_sock.send(cmd.encode('utf-8'))
-        status = self.sys_helper_sock.recv(16).decode('utf-8')
-        if not status or status == '0':
-            return False
-        else:
-            return True
+    def sys_cmd(self, cmd, check=False):
+        status = self.sys_cmd_helper.cmd(cmd)
+        if not status.startswith('0,') and check:
+            try:
+                err = status.split(',', maxsplit=1)[1]
+            except ValueError:
+                err = ''
+            raise StartupError(err)
 
     def parse_int(self, hostname_addr):
         '''Parse a string containing hostname and address information for a
@@ -365,6 +351,7 @@ class VirtualNetwork:
         comm_sock_file = os.path.join(self.comm_dir, hostname)
         script_file = os.path.join(self.script_dir, f'{hostname}.sh')
         tmux_file = os.path.join(self.tmux_dir, hostname)
+        sys_cmd_helper_local = os.path.join(self.sys_helper_dir, hostname)
         if len(parts) > 1:
             s = io.StringIO(parts[1])
             csv_reader = csv.reader(s)
@@ -392,7 +379,8 @@ class VirtualNetwork:
 
         self.hostname_by_sock[comm_sock_file] = hostname
         self.host_by_name[hostname] = \
-                HostConfig(hostname, '/dev/null',
+                HostConfig(hostname, '/dev/null', self.sys_cmd_helper,
+                        sys_cmd_helper_local,
                         comm_sock_file, tmux_file, script_file, **attrs)
 
     def add_link(self, host1, host2, **attrs):
@@ -516,73 +504,68 @@ class VirtualNetwork:
                                         'or as a trunk or none of them must.')
                     host2.has_vlans = has_vlans
 
-                # For each interface, we create both the interface itself and a
-                # "ghost" interface that will be on the host.
-                ghost1 = f'{int1.name}-ghost'
-                ghost2 = f'{int2.name}-ghost'
-                if not self.sys_cmd(f'add_link_veth|{int1.name}|{ghost1}'):
-                    raise StartupError(f'Adding {int1.name}-{int2.name}')
-                if not self.sys_cmd(f'add_link_veth|{int2.name}|{ghost2}'):
-                    raise StartupError(f'Adding {int1.name}-{int2.name}')
+                try:
+                    # For each interface, we create both the interface itself and a
+                    # "ghost" interface that will be on the host.
+                    ghost1 = f'{int1.name}-ghost'
+                    ghost2 = f'{int2.name}-ghost'
+                    self.sys_cmd(['add_link_veth', int1.name, ghost1],
+                            check=True)
+                    self.sys_cmd(['add_link_veth', int2.name, ghost2],
+                            check=True)
 
-                # We now connect to the two ghost interfaces together with a
-                # bridge.
-                br = f'{int1.name}-br'
-                if not self.sys_cmd(f'add_link_bridge|{br}'):
-                    raise StartupError(f'Adding {int1.name}-{int2.name}')
-                if not self.sys_cmd(f'set_link_master|{ghost1}|{br}'):
-                    raise StartupError(f'Adding {int1.name}-{int2.name}')
-                if not self.sys_cmd(f'set_link_master|{ghost2}|{br}'):
-                    raise StartupError(f'Adding {int1.name}-{int2.name}')
-                if not self.sys_cmd(f'set_link_up|{ghost1}'):
-                    raise StartupError(f'Adding {int1.name}-{int2.name}')
-                if not self.sys_cmd(f'set_link_up|{ghost2}'):
-                    raise StartupError(f'Adding {int1.name}-{int2.name}')
-                if not self.sys_cmd(f'set_link_up|{br}'):
-                    raise StartupError(f'Adding {int1.name}-{int2.name}')
-                self.bridge_interfaces.add(br)
+                    # We now connect to the two ghost interfaces together with a
+                    # bridge.
+                    br = f'{int1.name}-br'
+                    self.sys_cmd(['add_link_bridge', br], check=True)
+                    self.sys_cmd(['set_link_master', ghost1, br], check=True)
+                    self.sys_cmd(['set_link_master', ghost2, br], check=True)
+                    self.sys_cmd(['set_link_up', ghost1], check=True)
+                    self.sys_cmd(['set_link_up', ghost2], check=True)
+                    self.sys_cmd(['set_link_up', br], check=True)
+                    self.bridge_interfaces.add(br)
 
-                # These interfaces should have *no* addresses, including IPv6
-                if not self.sys_cmd(f'disable_ipv6|{ghost1}'):
-                    raise StartupError(f'Adding {int1.name}-{int2.name}')
-                if not self.sys_cmd(f'disable_ipv6|{ghost2}'):
-                    raise StartupError(f'Adding {int1.name}-{int2.name}')
-                if not self.sys_cmd(f'disable_ipv6|{br}'):
-                    raise StartupError(f'Adding {int1.name}-{int2.name}')
+                    # These interfaces should have *no* addresses, including IPv6
+                    self.sys_cmd(['disable_ipv6', ghost1], check=True)
+                    self.sys_cmd(['disable_ipv6', ghost2], check=True)
+                    self.sys_cmd(['disable_ipv6', br], check=True)
 
-                if host1.type == 'switch' and host1.native_apps:
-                    if not host1.has_bridge:
-                        if not self.sys_cmd(f'ovs_add_bridge|{host1.hostname}'):
-                            raise StartupError(f'Adding {int1.name}-{int2.name}')
-                        host1.has_bridge = True
+                    if host1.type == 'switch' and host1.native_apps:
+                        if not host1.has_bridge:
+                            self.sys_cmd(['ovs_add_bridge', host1.hostname],
+                                    check=True)
+                            host1.has_bridge = True
 
-                    cmd = f'ovs_add_port|{host1.hostname}|{int1.name}'
-                    if host1.type == 'switch':
-                        if int1.vlan is not None:
-                            cmd += f'|{int1.vlan}'
-                        elif int1.trunk:
-                            pass
-                        else:
-                            cmd += '|0'
-                    if not self.sys_cmd(cmd):
-                        raise StartupError(f'Adding {int1.name}-{int2.name}')
+                        cmd = ['ovs_add_port', host1.hostname, int1.name]
+                        if host1.type == 'switch':
+                            if int1.vlan is not None:
+                                cmd.append(int1.vlan)
+                            elif int1.trunk:
+                                cmd.append('')
+                            else:
+                                cmd.append('0')
+                        self.sys_cmd(cmd, check=True)
 
-                if host2.type == 'switch' and host2.native_apps:
-                    if not host2.has_bridge:
-                        if not self.sys_cmd(f'ovs_add_bridge|{host2.hostname}'):
-                            raise StartupError(f'Adding {int1.name}-{int2.name}')
-                        host2.has_bridge = True
+                    if host2.type == 'switch' and host2.native_apps:
+                        if not host2.has_bridge:
+                            self.sys_cmd(['ovs_add_bridge', host2.hostname],
+                                    check=True)
+                            host2.has_bridge = True
 
-                    cmd = f'ovs_add_port|{host2.hostname}|{int2.name}'
-                    if host2.type == 'switch':
-                        if int2.vlan is not None:
-                            cmd += f'|{int2.vlan}'
-                        elif int2.trunk:
-                            pass
-                        else:
-                            cmd += '|0'
-                    if not self.sys_cmd(cmd):
-                        raise StartupError(f'Adding {int1.name}-{int2.name}')
+                        cmd = ['ovs_add_port', host2.hostname, int2.name]
+                        if host2.type == 'switch':
+                            if int2.vlan is not None:
+                                cmd.append(int2.vlan)
+                            elif int2.trunk:
+                                cmd.append('')
+                            else:
+                                cmd.append('0')
+                        self.sys_cmd(cmd, check=True)
+
+                except StartupError as e:
+                    raise StartupError('Error creating link ' + \
+                            f'{host1.hostname}-{host2.hostname}: {str(e)}') \
+                            from None
 
     def apply_vlans(self):
         '''Create the virtual interfaces associated with a router.'''
@@ -597,14 +580,10 @@ class VirtualNetwork:
                                     'routers; {host.hostname} is not a router.')
 
                 if host.native_apps:
-                    cmd = ['sudo', 'ip', 'link', 'add', 'link',
-                            intf.phys_int.name, 'name', intf.name, 'type',
-                            'vlan', 'id', str(vlan)]
-                    subprocess.run(cmd, check=True)
+                    self.sys_cmd(['add_link_vlan', intf.phys_int.name,
+                            intf.name, str(vlan)], check=True)
                 else:
-                    cmd = ['sudo', 'ip', 'link', 'add',
-                            intf.name, 'type', 'veth']
-                    subprocess.run(cmd, check=True)
+                    self.sys_cmd(['add_link_veth', intf.name, ''], check=True)
 
     def set_interfaces_up_netns(self):
         '''For each virtual interface, either bring it up (switches in
@@ -617,12 +596,11 @@ class VirtualNetwork:
 
                 if host.type == 'switch' and host.native_apps:
                     # Move interfaces to their appropriate namespaces
-                    cmd = ['sudo', 'ip', 'link', 'set', intf.name, 'up']
-                    subprocess.run(cmd, check=True)
+                    self.sys_cmd(['set_link_up', intf.name],
+                            check=True)
                 else:
-                    cmd = ['sudo', 'ip', 'link', 'set', intf.name, 'netns',
-                            host.hostname]
-                    subprocess.run(cmd, check=True)
+                    self.sys_cmd(['set_link_netns', intf.name, host.hostname],
+                            check=True)
 
     def create_hosts_file(self):
         '''Create a hosts file containing the hostname-address mappings for all
@@ -711,6 +689,7 @@ class VirtualNetwork:
             host = self.host_by_name[hostname]
             cmd = ['ps', '-p', str(host.pid)]
             p = subprocess.run(cmd, stdout=subprocess.DEVNULL, check=False)
+            #XXX
             if p.returncode != 0:
                 raise StartupError(f'Host {host.hostname} ' + \
                         'terminated early.')
@@ -744,12 +723,16 @@ class VirtualNetwork:
 
         # start the raw packet helper for each host
         for _, host in self.host_by_name.items():
-            if not host.start_raw_packet_helper():
-                raise StartupError(f'Helper for {host.hostname} not started')
+            host.start_raw_packet_helper()
 
         # let hosts know that they can start now
         for _, host in self.host_by_name.items():
             self.comm_sock.sendto(b'\x00', host.comm_sock_file)
+
+        # attach terminals
+        for _, host in self.host_by_name.items():
+            if host.terminal:
+                host.attach_terminal()
 
     def cleanup(self):
         '''Shut down and clean up resources allocated for the
@@ -759,19 +742,31 @@ class VirtualNetwork:
             host.cleanup()
 
         for intf in self.bridge_interfaces:
-            cmd = ['sudo', 'ip', 'link', 'del', intf]
-            subprocess.run(cmd, check=False)
+            self.sys_cmd(['del_link', intf], check=False)
+
+        self.sys_cmd_helper.close()
 
         os.unlink(self.hosts_file)
 
         self.comm_sock.close()
         os.unlink(self.comm_sock_file)
-        os.unlink(self.sys_helper_sock_local)
+        os.unlink(self.sys_cmd_helper.local_sock_path)
 
         for d in self.comm_dir, self.config_dir, self.hosts_dir, \
                 self.script_dir, self.tmux_dir, self.helper_sock_raw_dir, \
-                self.helper_sock_user_dir, self.sys_helper_dir:
+                self.helper_sock_user_dir:
             os.rmdir(d)
+
+        # With sys_helper_dir, there might be a race condition in which we try
+        # to remove the directory, but the files have not yet been removed.
+        # This is because another process removes the remote socket from this
+        # directory.  However, even if we fail to remove the directory, the
+        # entire tmpfile directory will be removed when the process exits.
+        # This is merely due diligence.
+        try:
+            os.rmdir(self.sys_helper_dir)
+        except OSError:
+            pass
 
     def label_for_link(self, host1, int1, host2, int2):
         '''Return a GraphViz label for a given link.'''

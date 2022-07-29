@@ -32,14 +32,33 @@ import sys
 import time
 import traceback
 
+from cougarnet.sys_helper.manager import SysCmdHelperManagerStarted
+from cougarnet.virtualnet.errors import StartupError
+
+#XXX show debug to terminal until very end
+
+#XXX this code is in three places; consolidate it
+sys_cmd_helper = None
+def sys_cmd(cmd, check=False):
+    status = sys_cmd_helper.cmd(cmd)
+    if not status.startswith('0,') and check:
+        try:
+            err = status.split(',', maxsplit=1)[1]
+        except ValueError:
+            err = ''
+        raise StartupError(err)
+
 def _apply_config(info):
     '''Apply the network configuration contained in the dictionary info.  Set
     the hostname, configure and set interfaces, and set environment variables
     related to VLANs and routes.'''
 
+    hostname = info['hostname']
+    pid = str(os.getpid())
+
     if info.get('hostname', None) is not None:
-        cmd = ['hostname', info['hostname']]
-        subprocess.run(cmd, check=True)
+        cmd = ['set_hostname', pid, hostname]
+        sys_cmd(cmd, check=True)
 
     native_apps = info.get('native_apps', True)
 
@@ -47,48 +66,49 @@ def _apply_config(info):
 
     if not native_apps:
         # enable iptables
-        cmd = ['iptables', '-t', 'filter', '-I', 'INPUT', '-j', 'DROP']
-        subprocess.run(cmd, check=True)
-        cmd = ['ip6tables', '-t', 'filter', '-I', 'INPUT', '-j', 'DROP']
-        subprocess.run(cmd, check=True)
+        cmd = ['set_iptables_drop', pid]
+        sys_cmd(cmd, check=True)
+        cmd = ['set_ip6tables_drop', pid]
+        sys_cmd(cmd, check=True)
 
     if info.get('ip_forwarding', False):
-        cmd = ['sysctl', 'net.ipv4.ip_forward=1']
-        subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
-        cmd = ['sysctl', 'net.ipv6.conf.all.forwarding=1']
-        subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
+        # enable iptables
+        cmd = ['enable_ip_forwarding', pid]
+        sys_cmd(cmd, check=True)
+        cmd = ['enable_ip6_forwarding', pid]
+        sys_cmd(cmd, check=True)
 
     # bring lo up
-    cmd = ['ip', 'link', 'set', 'lo', 'up']
-    subprocess.run(cmd, check=True)
+    cmd = ['set_lo_up', pid]
+    sys_cmd(cmd, check=True)
 
     if not info.get('ipv6', True):
-        cmd = ['sysctl', 'net.ipv6.conf.lo.disable_ipv6=1']
-        subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
+        cmd = ['disable_lo_ipv6', pid]
+        sys_cmd(cmd, check=True)
 
     for intf in info.get('interfaces', []):
         int_info = info['interfaces'][intf]
         if int_info.get('mac_addr', None):
             # set MAC address, if specified
-            cmd = ['ip', 'link', 'set', intf, 'address', int_info['mac_addr']]
-            subprocess.run(cmd, check=True)
+            cmd = ['set_link_mac_addr', intf, int_info['mac_addr']]
+            sys_cmd(cmd, check=True)
 
         # bring link up
-        cmd = ['ip', 'link', 'set', intf, 'up']
-        subprocess.run(cmd, check=True)
+        cmd = ['set_link_up', intf]
+        sys_cmd(cmd, check=True)
 
         if not native_apps:
             # disable ARP
-            cmd = ['ip', 'link', 'set', intf, 'arp', 'off']
-            subprocess.run(cmd, check=True)
+            cmd = ['disable_arp', intf]
+            sys_cmd(cmd, check=True)
 
         if not info.get('ipv6', True):
-            cmd = ['sysctl', f'net/ipv6/conf/{intf}/disable_ipv6=1']
-            subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
+            cmd = ['disable_ipv6', intf]
+            sys_cmd(cmd, check=True)
 
         # disable router solicitations
-        cmd = ['sysctl', f'net/ipv6/conf/{intf}/router_solicitations=0']
-        subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
+        cmd = ['disable_router_solicitations', intf]
+        sys_cmd(cmd, check=True)
 
         # add each IP address
         addrs = int_info.get('ipv4_addrs', [])[:]
@@ -96,12 +116,8 @@ def _apply_config(info):
             addrs += int_info.get('ipv6_addrs', [])
 
         for addr in addrs:
-            if ':' in addr:
-                cmd = ['ip', 'addr', 'add', addr, 'dev', intf]
-            else:
-                # set broadcast for IPv4 only
-                cmd = ['ip', 'addr', 'add', addr, 'broadcast', '+', 'dev', intf]
-            subprocess.run(cmd, check=True)
+            cmd = ['set_link_ip_addr', intf, addr]
+            sys_cmd(cmd, check=True)
 
         cmd_suffix = []
         if int_info.get('bw', None) is not None:
@@ -111,13 +127,12 @@ def _apply_config(info):
         if int_info.get('loss', None) is not None:
             cmd_suffix += ['loss', int_info['loss']]
         if cmd_suffix:
-            cmd = ['tc', 'qdisc', 'add', 'dev', intf, 'root', 'netem'] + \
-                    cmd_suffix
-            subprocess.run(cmd, check=True)
+            cmd = ['set_link_attrs', intf] + cmd_suffix
+            sys_cmd(cmd, check=True)
 
         if int_info.get('mtu', None) is not None:
-            cmd = ['ip', 'link', 'set', intf, 'mtu', int_info['mtu']]
-            subprocess.run(cmd, check=True)
+            cmd = ['set_link_mtu', intf, mtu]
+            sys_cmd(cmd, check=True)
 
         if int_info.get('vlan', None) is not None:
             vlan_info[intf] = f"vlan{int_info['vlan']}"
@@ -140,36 +155,20 @@ def _apply_config(info):
 
     if native_apps:
         for prefix, intf, next_hop in routes:
-            cmd = ['ip', 'route', 'add', prefix]
-            if next_hop is not None:
-                cmd += ['via', next_hop]
-            cmd += ['dev', intf]
-            subprocess.run(cmd, check=True)
+            if next_hop is None:
+                next_hop = ''
+            cmd = ['add_route', pid, prefix, intf, next_hop]
+            sys_cmd(cmd, check=True)
 
-def user_group_info(user):
-    '''Return the user ID and group ID(s) associated with the specified
-    user.'''
-
-    pwinfo = pwd.getpwnam(user)
-    uid = pwinfo.pw_uid
-
-    groups = [pwinfo.pw_gid]
-    for gr in grp.getgrall():
-        if user in gr.gr_mem:
-            groups.append(gr.gr_gid)
-
-    return uid, groups
-
-def close_file_descriptors(exceptions):
+def close_file_descriptors():
     '''Close all open file descriptors except those specified.'''
 
     fds = [int(fd) for fd in os.listdir(f'/proc/{os.getpid()}/fd')]
     for fd in fds:
-        if fd not in exceptions:
-            try:
-                os.close(fd)
-            except OSError:
-                pass
+        try:
+            os.close(fd)
+        except OSError:
+            pass
 
 def main():
     '''Parse command-line arguments, synchronize with virtual network manager,
@@ -179,95 +178,93 @@ def main():
     parser.add_argument('--hosts-file', '-f',
             action='store', type=str, default=None,
             help='Specify the hosts file')
-    parser.add_argument('--prog', '-p',
-            action='store', type=str, default=None,
-            help='Path to program that should be executed at start')
     parser.add_argument('--mount-sys',
             action='store_const', const=True, default=False,
             help='Whether or not to mount sysfs on /sys')
-    parser.add_argument('--user', '-u',
-            type=str, action='store', default=None,
-            help='Change effective user')
     parser.add_argument('config_file',
             type=argparse.FileType('r'), action='store',
             help='File containing the network configuration for host')
-    parser.add_argument('comm_sock',
+    parser.add_argument('sys_cmd_helper_sock_remote',
+            type=str, action='store',
+            help='The remote "address" (path) of a UNIX domain socket to ' + \
+                    'which commands requiring privileges are executed on ' + \
+                    'behalf of this process.')
+    parser.add_argument('sys_cmd_helper_sock_local',
+            type=str, action='store',
+            help='The local "address" (path) of a UNIX domain socket to ' + \
+                    'which commands requiring privileges are executed on ' + \
+                    'behalf of this process.')
+    parser.add_argument('comm_sock_remote',
             action='store', type=str, default=None,
-            help='Path to UNIX socket with which we communicate with the' + \
-                    'coordinating process')
-    parser.add_argument('my_sock',
+            help='Remote "address" (path) for UNIX domain socket with which we ' + \
+                    'communicate with the coordinating process')
+    parser.add_argument('comm_sock_local',
             action='store', type=str, default=None,
-            help='Path to UNIX socket with which with coordinating process' + \
-                    'communicattes with us')
+            help='Local "address" (path) for UNIX domain socket with which we ' + \
+                    'communicate with the coordinating process')
+    parser.add_argument('prog',
+            action='store', type=str, default=None,
+            help='Path to program that should be executed at start')
 
     try:
         args = parser.parse_args(sys.argv[1:])
 
-        comm_sock = {
-                'local': args.my_sock,
-                'remote': args.comm_sock
+        comm_sock_paths = {
+                'local': args.comm_sock_local,
+                'remote': args.comm_sock_remote
                 }
-        os.environ['COUGARNET_COMM_SOCK'] = json.dumps(comm_sock)
+        os.environ['COUGARNET_COMM_SOCK'] = json.dumps(comm_sock_paths)
 
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
-        sock.bind(comm_sock['local'])
+        global sys_cmd_helper
+        sys_cmd_helper = SysCmdHelperManagerStarted(
+                args.sys_cmd_helper_sock_remote, args.sys_cmd_helper_sock_local)
+        sys_cmd_helper.start()
 
-        # make the socket file readable by everyone, so the other process can
-        # communicate back to us
-        cmd = ['chmod', '777', comm_sock['local']]
+        comm_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
+        comm_sock.bind(comm_sock_paths['local'])
+        comm_sock.connect(comm_sock_paths['remote'])
+
+        cmd = ['chmod', '700', comm_sock_paths['local']]
         subprocess.run(cmd, check=True)
 
         # Tell the coordinating process that the the process has started--and
         # thus that the namespaces have been created
-        sock.connect(comm_sock['remote'])
         pid = os.getpid()
-        sock.send(f'{pid}'.encode('utf-8'))
+        comm_sock.send(f'{pid}'.encode('utf-8'))
 
         # wait for UDP datagram from coordinating process to let us know that
         # interfaces have been added and configured
-        sock.recv(1)
+        comm_sock.recv(1)
 
         config = json.loads(args.config_file.read())
         args.config_file.close()
         _apply_config(config)
 
         if args.mount_sys:
-            cmd = ['mount', '-t', 'sysfs', '/sys', '/sys']
-            subprocess.run(cmd, check=True)
+            cmd = ['mount_sys', pid]
+            sys_cmd(cmd, check=True)
 
         if args.hosts_file is not None:
-            cmd = ['mount', '-o', 'bind', args.hosts_file, '/etc/hosts']
-            subprocess.run(cmd, check=True)
-
-        if args.user is not None:
-            uid, groups = user_group_info(args.user)
+            cmd = ['mount_hosts', pid, args.hosts_file]
+            sys_cmd(cmd, check=True)
 
         # tell the coordinating process that everything is ready to go
-        sock.send(b'\x00')
+        comm_sock.send(b'\x00')
 
         # wait for return packet indicating that we can start
-        sock.recv(1)
+        comm_sock.recv(1)
 
         # close socket and remove the associated file
-        sock.close()
-        os.unlink(comm_sock['local'])
+        comm_sock.close()
+        os.unlink(comm_sock_paths['local'])
 
-        if args.user is not None:
-            os.setgroups(groups)
-            os.setuid(uid)
+        # close all file descriptors, except stdin, stdout, stderr
+        #close_file_descriptors([0, 1, 2])
+        close_file_descriptors()
 
-        # close all file descriptors, except stdin, stdout, stderr, and
-        # sock.fileno()
-        close_file_descriptors([0, 1, 2])
-
-        if args.prog is not None:
-            prog_args = args.prog.split('|')
-            os.execvp(prog_args[0], prog_args)
-        else:
-            cmd = [os.environ.get('SHELL')]
-            if sys.stdin.isatty():
-                cmd.append('-i')
-            os.execvp(cmd[0], cmd)
+        #XXX maybe put prog in config file?
+        prog_args = args.prog.split('|')
+        os.execvp(prog_args[0], prog_args)
 
     except Exception:
         traceback.print_exc()

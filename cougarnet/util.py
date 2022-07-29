@@ -110,7 +110,7 @@ def is_valid_hostname(hostname):
         return False
     return True
 
-def kill(pid, sig, elevate_if_needed=False):
+def kill(pid, sig):
     '''Send a signal (e.g., TERM, KILL) to a process.  If a permissions error
     is detected, and elevate_if_needed is True, then send the same signal again
     as root.  Return True if the signal was sent successfully; False
@@ -119,23 +119,23 @@ def kill(pid, sig, elevate_if_needed=False):
     cmd = ['kill', f'-{sig}', str(pid)]
     p = subprocess.run(cmd, stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE, check=False)
-    if p.returncode != 0:
-        stderr = p.stderr.decode('utf-8').lower()
-        #XXX this does not work for non-English
-        if 'not permitted' in stderr and elevate_if_needed:
-            cmd.insert(0, 'sudo')
-            p = subprocess.run(cmd, check=False,
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    #if p.returncode != 0:
+    #    stderr = p.stderr.decode('utf-8').lower()
+    #    #XXX this does not work for non-English
+    #    if 'not permitted' in stderr and elevate_if_needed:
+    #        cmd.insert(0, 'sudo')
+    #        p = subprocess.run(cmd, check=False,
+    #                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return p.returncode == 0
 
-def kill_until_terminated(pid, elevate_if_needed=False):
+def kill_until_terminated(pid):
     '''Send TERM to a process.  If the process continues to run, then send
     KILL.  In both cases, elevate if a permissions error is detected, and
     elevate_if_needed is True.'''
 
     sigs = ('TERM', 'KILL')
     for sig in sigs:
-        kill(pid, sig, elevate_if_needed=elevate_if_needed)
+        kill(pid, sig)
         if pid_is_running(pid):
             time.sleep(0.2)
         if pid_is_running(pid):

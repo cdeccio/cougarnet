@@ -1,9 +1,10 @@
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 
-from cougarnet.virtualnet.sys_helper import NetConfigHelper
+from cougarnet.sys_helper.cmd_helper import SysCmdHelper
 
 class NetConfigTestCase(unittest.TestCase):
     def test_interfaces(self):
@@ -13,7 +14,7 @@ class NetConfigTestCase(unittest.TestCase):
         try:
             subprocess.run(['ip', 'link', 'add', 'cn-foo', 'type', 'veth'])
 
-            helper = NetConfigHelper()
+            helper = SysCmdHelper(1000, 1000)
 
             # interface doesn't exist
             self.assertEqual(
@@ -41,13 +42,15 @@ class NetConfigTestCase(unittest.TestCase):
                     '0,')
             self.assertEqual(
                     helper.links,
-                    {'cn-bar1', 'cn-bar', 'cn-bar2', 'cn-bar.vlan100'})
+                    {'cn-bar': None, 'cn-bar1': None,
+                            'cn-bar2': None, 'cn-bar.vlan100': None})
             self.assertEqual(
                     helper.add_link_bridge('cn-br0')[:2],
                     '0,')
             self.assertEqual(
                     helper.links,
-                    {'cn-bar1', 'cn-br0', 'cn-bar2', 'cn-bar.vlan100', 'cn-bar'})
+                    {'cn-bar': None, 'cn-bar1': None, 'cn-br0': None,
+                            'cn-bar2': None, 'cn-bar.vlan100': None})
 
             # interface doesn't exist
             self.assertEqual(
@@ -74,7 +77,8 @@ class NetConfigTestCase(unittest.TestCase):
 
             self.assertEqual(
                     helper.links,
-                    {'cn-br0', 'cn-bar2', 'cn-bar.vlan100', 'cn-bar'})
+                    {'cn-bar': None, 'cn-bar2': None,
+                        'cn-bar.vlan100': None, 'cn-br0': None})
 
         finally:
             os.unlink(tmp.name)
@@ -91,7 +95,7 @@ class NetConfigTestCase(unittest.TestCase):
         try:
             subprocess.run(['ip', 'link', 'add', 'cn-foo', 'type', 'veth'])
 
-            helper = NetConfigHelper()
+            helper = SysCmdHelper(1000, 1000)
 
             # interface doesn't exist
             self.assertEqual(
@@ -122,7 +126,7 @@ class NetConfigTestCase(unittest.TestCase):
         try:
             subprocess.run(['ip', 'link', 'add', 'cn-foo', 'type', 'veth'])
 
-            helper = NetConfigHelper()
+            helper = SysCmdHelper(1000, 1000)
 
             # add interfaces
             self.assertEqual(
@@ -139,12 +143,12 @@ class NetConfigTestCase(unittest.TestCase):
 
             # interface doesn't exist
             self.assertEqual(
-                    helper.ovs_add_port('cn-br0', 'cn-foo')[:2],
+                    helper.ovs_add_port('cn-br0', 'cn-foo', '')[:2],
                     '1,')
 
             # add port
             self.assertEqual(
-                    helper.ovs_add_port('cn-br0', 'cn-bar')[:2],
+                    helper.ovs_add_port('cn-br0', 'cn-bar', '')[:2],
                     '0,')
             self.assertEqual(
                     helper.ovs_ports,
@@ -177,7 +181,7 @@ class NetConfigTestCase(unittest.TestCase):
         p = None
 
         try:
-            helper = NetConfigHelper()
+            helper = SysCmdHelper(1000, 1000)
 
             subprocess.run(['touch', '/run/netns/cn-foo'])
 
@@ -211,24 +215,25 @@ class NetConfigTestCase(unittest.TestCase):
                     helper.set_link_netns('cn-baz', 'cn-foo')[:2],
                     '1,')
 
-            # this should work
-            self.assertEqual(
-                    helper.set_link_netns('cn-baz', 'cn-bar')[:2],
-                    '0,')
             output = subprocess.run(['ls', '/sys/class/net'],
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE).stdout
-            ints = output.decode('utf-8').splitlines()
-            self.assertEqual('cn-baz' not in ints, True)
-
-            output = subprocess.run(['ip', 'netns',
-                        'exec', 'cn-bar', 'ls', '/sys/class/net'],
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE).stdout
             ints = output.decode('utf-8').splitlines()
             self.assertEqual('cn-baz' in ints, True)
 
-            helper.netns_mounted.add('/run/netns/cn-bar')
+            helper.netns_mounted.add('cn-bar')
+
+            # this should work
+            self.assertEqual(
+                    helper.set_link_netns('cn-baz', 'cn-bar')[:2],
+                    '0,')
+
+            #output = subprocess.run(['ip', 'netns',
+            #            'exec', 'cn-bar', 'ls', '/sys/class/net'],
+            #    stdin=subprocess.DEVNULL,
+            #    stdout=subprocess.PIPE).stdout
+            #ints = output.decode('utf-8').splitlines()
+            #self.assertEqual('cn-baz' in ints, False)
 
             # netns doesn't exist
             self.assertEqual(
