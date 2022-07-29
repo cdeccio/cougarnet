@@ -35,7 +35,8 @@ import tempfile
 import time
 
 from cougarnet import util
-from cougarnet.sys_helper.manager import SysCmdHelperManager
+from cougarnet.sys_helper.manager import \
+        SysCmdHelperManager, SYSCMD_HELPER_SCRIPT
 
 from .errors import ConfigurationError, StartupError
 from .host import HostConfig
@@ -858,15 +859,16 @@ def check_requirements(args):
 
     try:
         subprocess.run(['sudo', '-k'], check=True)
-        subprocess.run(['sudo', '-n', '-v'], check=True)
+        subprocess.run(['sudo', '-n', SYSCMD_HELPER_SCRIPT, '-h'],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.STDOUT, check=True)
     except subprocess.CalledProcessError as e:
         sys.stderr.write('Please run visudo to allow your user to run ' + \
-                'sudo without a password, using the NOPASSWD option.\n')
+                f'{SYSCMD_HELPER_SCRIPT} without a password, using the ' + \
+                'NOPASSWD option.\n')
         sys.exit(1)
 
     # make sure working directories exist
-    cmd = ['sudo', 'mkdir', '-p', '/run/netns']
-    subprocess.run(cmd, check=True)
     cmd = ['mkdir', '-p', TMPDIR]
     subprocess.run(cmd, check=True)
 
@@ -900,7 +902,7 @@ def check_requirements(args):
             sys.exit(1)
 
     try:
-        subprocess.run(['sudo', 'ovs-vsctl', '-V'], stdout=subprocess.DEVNULL,
+        subprocess.run(['ovs-vsctl', '-V'], stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL, check=True)
     except subprocess.CalledProcessError as e:
         sys.stderr.write(f'Open vSwitch is required: {str(e)}\n')
