@@ -68,12 +68,13 @@ $ sudo apt install openvswitch-switch tmux lxterminal python3-pygraphviz libgrap
 Of course, this assumes that you already have `sudo` installed and that your user is
 allowed to call it.
 
-Additionally, `sudo` should be configured such that your user can call it without requiring a
-password (i.e., with the `NOPASSWD` option).  For example, your `/etc/sudoers`
-file might contain the following:
+Additionally, `sudo` should be configured such that your user can run the
+cougarnet support script `/usr/libexec/cougarnet/syscmd_helper` as a privileged
+user without requiring a password (i.e., with the `NOPASSWD` option).  For
+example, your `/etc/sudoers` file might contain the following:
 
 ```sudoers
-%sudo   ALL=(ALL:ALL) NOPASSWD: ALL
+%cougarnet  ALL=(ALL:ALL) NOPASSWD:SETENV: /usr/libexec/cougarnet/syscmd_helper
 ```
 
 To install Cougarnet, run the following:
