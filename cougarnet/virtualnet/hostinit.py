@@ -170,6 +170,33 @@ def close_file_descriptors():
         except OSError:
             pass
 
+def _update_environment_sudo():
+    if 'SUDO_USER' in os.environ:
+        os.environ['USER'] = os.environ['SUDO_USER']
+        del os.environ['SUDO_USER']
+
+    if 'SUDO_GROUP' in os.environ:
+        os.environ['GROUP'] = os.environ['SUDO_GROUP']
+        del os.environ['SUDO_GROUP']
+
+    if 'LOGNAME' in os.environ:
+        os.environ['LOGNAME'] = os.environ['USER']
+
+    try:
+        del os.environ['SUDO_UID']
+    except KeyError:
+        pass
+
+    try:
+        del os.environ['SUDO_GID']
+    except KeyError:
+        pass
+
+    try:
+        del os.environ['SUDO_COMMAND']
+    except KeyError:
+        pass
+
 def main():
     '''Parse command-line arguments, synchronize with virtual network manager,
     apply network configuration, and set appropriate environment variables.'''
@@ -208,6 +235,8 @@ def main():
 
     try:
         args = parser.parse_args(sys.argv[1:])
+
+        _update_environment_sudo()
 
         comm_sock_paths = {
                 'local': args.comm_sock_local,
