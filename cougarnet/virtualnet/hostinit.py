@@ -233,71 +233,65 @@ def main():
             action='store', type=str, default=None,
             help='Path to program that should be executed at start')
 
-    try:
-        args = parser.parse_args(sys.argv[1:])
+    args = parser.parse_args(sys.argv[1:])
 
-        _update_environment_sudo()
+    _update_environment_sudo()
 
-        comm_sock_paths = {
-                'local': args.comm_sock_local,
-                'remote': args.comm_sock_remote
-                }
-        os.environ['COUGARNET_COMM_SOCK'] = json.dumps(comm_sock_paths)
+    comm_sock_paths = {
+            'local': args.comm_sock_local,
+            'remote': args.comm_sock_remote
+            }
+    os.environ['COUGARNET_COMM_SOCK'] = json.dumps(comm_sock_paths)
 
-        global sys_cmd_helper
-        sys_cmd_helper = SysCmdHelperManagerStarted(
-                args.sys_cmd_helper_sock_remote, args.sys_cmd_helper_sock_local)
-        sys_cmd_helper.start()
+    global sys_cmd_helper
+    sys_cmd_helper = SysCmdHelperManagerStarted(
+            args.sys_cmd_helper_sock_remote, args.sys_cmd_helper_sock_local)
+    sys_cmd_helper.start()
 
-        comm_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
-        comm_sock.bind(comm_sock_paths['local'])
-        comm_sock.connect(comm_sock_paths['remote'])
+    comm_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
+    comm_sock.bind(comm_sock_paths['local'])
+    comm_sock.connect(comm_sock_paths['remote'])
 
-        cmd = ['chmod', '700', comm_sock_paths['local']]
-        subprocess.run(cmd, check=True)
+    cmd = ['chmod', '700', comm_sock_paths['local']]
+    subprocess.run(cmd, check=True)
 
-        # Tell the coordinating process that the the process has started--and
-        # thus that the namespaces have been created
-        pid = os.getpid()
-        comm_sock.send(f'{pid}'.encode('utf-8'))
+    # Tell the coordinating process that the the process has started--and
+    # thus that the namespaces have been created
+    pid = os.getpid()
+    comm_sock.send(f'{pid}'.encode('utf-8'))
 
-        # wait for UDP datagram from coordinating process to let us know that
-        # interfaces have been added and configured
-        comm_sock.recv(1)
+    # wait for UDP datagram from coordinating process to let us know that
+    # interfaces have been added and configured
+    comm_sock.recv(1)
 
-        config = json.loads(args.config_file.read())
-        args.config_file.close()
-        _apply_config(config)
+    config = json.loads(args.config_file.read())
+    args.config_file.close()
+    _apply_config(config)
 
-        if args.mount_sys:
-            cmd = ['mount_sys', pid]
-            sys_cmd(cmd, check=True)
+    if args.mount_sys:
+        cmd = ['mount_sys', pid]
+        sys_cmd(cmd, check=True)
 
-        if args.hosts_file is not None:
-            cmd = ['mount_hosts', pid, args.hosts_file]
-            sys_cmd(cmd, check=True)
+    if args.hosts_file is not None:
+        cmd = ['mount_hosts', pid, args.hosts_file]
+        sys_cmd(cmd, check=True)
 
-        # tell the coordinating process that everything is ready to go
-        comm_sock.send(b'\x00')
+    # tell the coordinating process that everything is ready to go
+    comm_sock.send(b'\x00')
 
-        # wait for return packet indicating that we can start
-        comm_sock.recv(1)
+    # wait for return packet indicating that we can start
+    comm_sock.recv(1)
 
-        # close socket and remove the associated file
-        comm_sock.close()
-        os.unlink(comm_sock_paths['local'])
+    # close socket and remove the associated file
+    comm_sock.close()
+    os.unlink(comm_sock_paths['local'])
 
-        # close all file descriptors, except stdin, stdout, stderr
-        #close_file_descriptors([0, 1, 2])
-        close_file_descriptors()
+    # close all file descriptors, except stdin, stdout, stderr
+    close_file_descriptors()
 
-        #XXX maybe put prog in config file?
-        prog_args = args.prog.split('|')
-        os.execvp(prog_args[0], prog_args)
-
-    except Exception:
-        traceback.print_exc()
-        time.sleep(10)
+    #XXX maybe put prog in config file?
+    prog_args = args.prog.split('|')
+    os.execvp(prog_args[0], prog_args)
 
 if __name__ == '__main__':
     main()
