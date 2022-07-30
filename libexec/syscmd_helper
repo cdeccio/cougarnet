@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+#
+# This file is a part of Cougarnet, a tool for creating virtual networks.
+#
+# Copyright 2021-2022 Casey Deccio (casey@deccio.net)
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, see <http://www.gnu.org/licenses/>.
+#
+
+import argparse
+import asyncio
+import atexit
+import os
+import socket
+import subprocess
+import sys
+
+from cougarnet.sys_helper.cmd_helper import SysCmdHelper
+
+# From /usr/include/linux/if_ether.h
+ETH_P_ALL = 0x0003
+
+def _raise_int():
+    raise KeyboardInterrupt()
+
+def _try_unlink(path):
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        # It is possible that the file has been removed by the parent process
+        # before we call unlink(), so just ignore this error.
+        pass
+
+def _setup_socket(path, uid, gid):
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        sock.bind(path)
+    except OSError as e:
+        sys.stderr.write(f'Invalid path: {path} ({str(e)})\n')
+        sys.exit(1)
+
+    # (try to) delete the file on program exit
+    atexit.register(_try_unlink, path)
+
+    # set permissions and ownership
+    try:
+        subprocess.run(['chmod', '700', path], check=True)
+    except subprocess.CalledProcessError as e:
+        sys.stderr.write(f'Changing socket permissions unsuccessful: ({str(e)})\n')
+        sys.exit(1)
+    try:
+        subprocess.run(['chown', f'{str(uid)}:{str(gid)}', path], check=True)
+    except subprocess.CalledProcessError as e:
+        sys.stderr.write(f'Changing socket ownership unsuccessful: ({str(e)})\n')
+        sys.exit(1)
+
+    # set non-blocking, so it can be used with the listener
+    sock.setblocking(False)
+    return sock
+
+def _send_byte_to_stdout():
+    sys.stdout.buffer.write(b'\x00')
+    sys.stdout.close()
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--uid',
+            action='store', type=int,
+            help='UID that should own the socket')
+    parser.add_argument('--gid',
+            action='store', type=int,
+            help='GID that should own the socket')
+    parser.add_argument('socket',
+            action='store', type=str,
+            help='Socket path ')
+
+    args = parser.parse_args(sys.argv[1:])
+
+    # make sure we are running as root
+    if os.geteuid() != 0:
+        sys.stderr.write('Please run this program as root.\n')
+        sys.exit(1)
+
+    uid = int(os.environ.get('SUDO_UID', '0'))
+    gid = int(os.environ.get('SUDO_GID', '0'))
+    if args.uid is not None:
+        uid = args.uid
+    if args.gid is not None:
+        gid = args.gid
+
+    if uid == 0 or gid == 0:
+        sys.stderr.write('If SUDO_UID and SUDO_GID are not set, ' + \
+                'then the --uid and --gid options must be used.\n')
+        sys.exit(1)
+
+    helper = SysCmdHelper(uid, gid)
+    loop = asyncio.get_event_loop()
+
+    # exit as soon stdin is closed
+    # (an indicator from our parent that we should terminate)
+    loop.add_reader(sys.stdin, _raise_int)
+
+    sock = _setup_socket(args.socket, uid, gid)
+
+    # register the socket with the event loop
+    loop.add_reader(sock, helper.handle_request, sock)
+
+    # communicate to the parent that everything is set up
+    _send_byte_to_stdout()
+
+    try:
+        loop.run_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        loop.close()
+
+if __name__ == '__main__':
+    main()

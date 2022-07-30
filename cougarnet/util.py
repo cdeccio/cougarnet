@@ -21,12 +21,42 @@ Various utility functions for Cougarnet.
 '''
 
 import binascii
+import ctypes
+import os
 import re
+import signal
 import socket
 import subprocess
+import struct
+import sys
 import time
 
+# From /usr/include/linux/if_ether.h
+ETH_P_ALL = 0x0003
+ETH_P_8021Q = 0x8100
+
+# From /usr/include/x86_64-linux-gnu/bits/socket.h:
+SOL_PACKET = 263
+
+# /usr/include/linux/if_packet.h
+PACKET_AUXDATA = 8
+TP_STATUS_VLAN_VALID = 1 << 4 # auxdata has valid tp_vlan_tci
+
 HOST_RE = re.compile(r'^[a-z]([a-z0-9-]*[a-z0-9])?$')
+
+class tpacket_auxdata(ctypes.Structure):
+    _fields_ = [
+        ("tp_status", ctypes.c_uint),
+        ("tp_len", ctypes.c_uint),
+        ("tp_snaplen", ctypes.c_uint),
+        ("tp_mac", ctypes.c_ushort),
+        ("tp_net", ctypes.c_ushort),
+        ("tp_vlan_tci", ctypes.c_ushort),
+        ("tp_padding", ctypes.c_ushort),
+    ]
+
+def raise_interrupt(signum, frame):
+    raise KeyboardInterrupt()
 
 def mac_str_to_binary(mac_str):
     '''Given a MAC address in presentation format as a string, return the
@@ -80,34 +110,53 @@ def is_valid_hostname(hostname):
         return False
     return True
 
-def kill(pid, sig, elevate_if_needed=False):
-    '''Send a signal (e.g., TERM, KILL) to a process.  If a permissions error
-    is detected, and elevate_if_needed is True, then send the same signal again
-    as root.  Return True if the signal was sent successfully; False
-    otherwise.'''
+def kill(pid, sig):
+    '''Send a signal (e.g., TERM, KILL) to a process.  Return True if the
+    signal was sent successfully; False otherwise.'''
 
     cmd = ['kill', f'-{sig}', str(pid)]
     p = subprocess.run(cmd, stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE, check=False)
-    if p.returncode != 0:
-        stderr = p.stderr.decode('utf-8').lower()
-        #XXX this does not work for non-English
-        if 'not permitted' in stderr and elevate_if_needed:
-            cmd.insert(0, 'sudo')
-            p = subprocess.run(cmd, check=False,
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return p.returncode == 0
 
-def kill_until_terminated(pid, elevate_if_needed=False):
+def kill_until_terminated(pid):
     '''Send TERM to a process.  If the process continues to run, then send
-    KILL.  In both cases, elevate if a permissions error is detected, and
-    elevate_if_needed is True.'''
+    KILL.'''
 
     sigs = ('TERM', 'KILL')
     for sig in sigs:
-        kill(pid, sig, elevate_if_needed=elevate_if_needed)
+        kill(pid, sig)
         if pid_is_running(pid):
             time.sleep(0.2)
         if pid_is_running(pid):
             continue
         break
+
+def recv_raw(sock, bufsize):
+    """Internal function to receive a Packet,
+    and process ancillary data.
+
+    From: https://github.com/secdev/scapy/pull/2091/files
+    """
+
+    flags_len = socket.CMSG_LEN(4096)
+    pkt, ancdata, flags, sa_ll = sock.recvmsg(bufsize, flags_len)
+
+    if not pkt:
+        return pkt, sa_ll
+
+    for cmsg_lvl, cmsg_type, cmsg_data in ancdata:
+        # Check available ancillary data
+        if (cmsg_lvl == SOL_PACKET and cmsg_type == PACKET_AUXDATA):
+            # Parse AUXDATA
+            auxdata = tpacket_auxdata.from_buffer_copy(cmsg_data)
+            if auxdata.tp_vlan_tci != 0 or \
+                    auxdata.tp_status & TP_STATUS_VLAN_VALID:
+                # Insert VLAN tag
+                tag = struct.pack(
+                    "!HH",
+                    ETH_P_8021Q,
+                    auxdata.tp_vlan_tci
+                )
+                pkt = pkt[:12] + tag + pkt[12:]
+    return pkt, sa_ll

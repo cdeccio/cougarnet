@@ -23,14 +23,16 @@ import json
 import os
 import subprocess
 import sys
+import time
 
 from cougarnet import util
 
 from .interface import PhysicalInterfaceConfig, VirtualInterfaceConfig
+from .errors import StartupError
 
-#TERM="xfce4-terminal"
 TERM = "lxterminal"
 HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
+RAWPKT_HELPER_MODULE = "cougarnet.sim.rawpkt_helper"
 MAIN_WINDOW_NAME = "main"
 CMD_WINDOW_NAME = "prog"
 
@@ -48,12 +50,15 @@ class HostConfig:
             'routes': None,
             }
 
-    def __init__(self, hostname, history_file,
-            sock_file, tmux_file, script_file, **kwargs):
+    def __init__(self, hostname, history_file, sys_cmd_helper,
+            sys_cmd_helper_local,
+            comm_sock_file, tmux_file, script_file, **kwargs):
 
         self.hostname = hostname
         self.history_file = history_file
-        self.sock_file = sock_file
+        self.sys_cmd_helper = sys_cmd_helper
+        self.sys_cmd_helper_local = sys_cmd_helper_local
+        self.comm_sock_file = comm_sock_file
         self.tmux_file = tmux_file
         self.script_file = script_file
         self.pid = None
@@ -64,6 +69,7 @@ class HostConfig:
         self.int_by_vlan = {}
         self.neighbor_by_int = {}
         self.neighbor_by_hostname = {}
+        self.helper_sock_pair_by_int = {}
 
         self.type = 'host'
         self.native_apps = True
@@ -105,6 +111,15 @@ class HostConfig:
     def __str__(self):
         return self.hostname
 
+    def sys_cmd(self, cmd, check=False):
+        status = self.sys_cmd_helper.cmd(cmd)
+        if not status.startswith('0,') and check:
+            try:
+                err = status.split(',', maxsplit=1)[1]
+            except ValueError:
+                err = ''
+            raise StartupError(err)
+
     def _get_tmux_server_pid(self):
         '''Return the PID associated with the tmux server for this virtual
         host, or None, if there is no tmux server running.'''
@@ -145,6 +160,15 @@ class HostConfig:
                         from None
             self.routes.append((prefix, intf.name, next_hop))
 
+    def _helper_sock_pair_for_user(self):
+        int_to_sock = {}
+        for intf in self.helper_sock_pair_by_int:
+            int_to_sock[intf] = {
+                    'remote': self.helper_sock_pair_by_int[intf][0],
+                    'local': self.helper_sock_pair_by_int[intf][1]
+                    }
+        return int_to_sock
+
     def _host_config(self):
         '''Return a dictionary containing the network configuration for this
         virtual host.'''
@@ -154,7 +178,8 @@ class HostConfig:
                 'routes': self.routes,
                 'native_apps': self.native_apps,
                 'type': self.type,
-                'ipv6': self.ipv6
+                'ipv6': self.ipv6,
+                'int_to_sock': self._helper_sock_pair_for_user()
                 }
         host_info['ip_forwarding'] = self.type == 'router' and self.native_apps
         int_infos = {}
@@ -184,16 +209,9 @@ class HostConfig:
             fh.write('#!/bin/bash\n')
             fh.write(f'export HISTFILE={self.history_file}\n\n')
             fh.write(f'exec tmux -S {self.tmux_file} ' + \
-                    f'new-session -s "{self.hostname}" -n "{MAIN_WINDOW_NAME}"')
-
-            if self.terminal:
-                # start attached
-                fh.write(' \\; \\\n')
-                # have server terminate when client detaches
-                fh.write('    set exit-unattached on \\; \\\n')
-            else:
-                # start detached
-                fh.write(' -d \\; \\\n')
+                    f'set -g default-terminal "tmux-256color" \\; \\\n' + \
+                    f'new-session -s "{self.hostname}" ' + \
+                    f'-n "{MAIN_WINDOW_NAME}" -d \\; \\\n')
 
             if self.prog is not None:
                 # start script in window
@@ -242,7 +260,17 @@ class HostConfig:
                     addr = addr[:slash]
                 fh.write(f'{addr} {self.hostname}\n')
 
-    def start(self, commsock_file):
+    def start_raw_packet_helper(self):
+        if self.native_apps:
+            # only start helper if in native apps mode
+            return True
+
+        ints = [f'{i}={s[0]}:{s[1]}' \
+                for i, s in self.helper_sock_pair_by_int.items()]
+        self.sys_cmd(['start_rawpkt_helper', self.hostname] + ints,
+                check=True)
+
+    def start(self, comm_sock_file):
         '''Start this virtual host.  Call unshare to create the new namespace,
         initialize the virtual network within the new namespace, and start the
         designated program within the new namespace.'''
@@ -250,34 +278,38 @@ class HostConfig:
         assert self.config_file is not None, \
                 "create_config() must be called before start()"
 
-        cmd = ['sudo', 'touch', f'/run/netns/{self.hostname}']
-        subprocess.run(cmd, check=False)
+        self.sys_cmd(['add_netns', self.hostname], check=True)
 
-        cmd = ['sudo', '-E', 'unshare', '--mount']
+        cmd = ['unshare_hostinit', self.hostname]
         if not (self.type == 'switch' and self.native_apps):
-            cmd += [f'--net=/run/netns/{self.hostname}']
-        cmd += ['--uts', sys.executable, '-m', HOSTINIT_MODULE,
-                    '--hosts-file', self.hosts_file,
-                    '--user', os.environ.get("USER")]
-
-        cmd += ['--prog', self.script_file]
+            cmd += [self.hostname]
+        else:
+            cmd += ['']
+        cmd += [self.hosts_file]
         if not (self.type == 'switch' and self.native_apps):
-            cmd += ['--mount-sys']
+            cmd += ['1']
+        else:
+            cmd += ['']
+        cmd += [self.config_file,
+                self.sys_cmd_helper.remote_sock_path,
+                self.sys_cmd_helper_local,
+                comm_sock_file, self.comm_sock_file,
+                self.script_file]
 
-        cmd += [self.config_file, commsock_file, self.sock_file]
+        self.sys_cmd(cmd, check=True)
 
-        if self.terminal:
-            cmd_quoted = []
-            for c in cmd:
-                c = c.replace('"', r'\"')
-                c = f'"{c}"'
-                cmd_quoted.append(c)
-            subcmd = ' '.join(cmd_quoted)
+    def attach_terminal(self):
+        if self.terminal and self.tmux_file is not None:
+            #XXX fix this - either make a notification or add a timeout
+            while not os.path.exists(self.tmux_file):
+                time.sleep(0.1)
 
-            cmd = [TERM, '-t', f'{self.type.capitalize()}: {self.hostname}', '-e', subcmd]
-
-        subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            cmd = [TERM, '-t',
+                f'{self.type.capitalize()}: {self.hostname}',
+                '-e', f'tmux -S {self.tmux_file} attach \\; ' + \
+                        'set exit-unattached on \\;']
+            subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def add_int(self, name, neighbor, **kwargs):
         '''Add a new interface on this virtual host with the specified name,
@@ -318,12 +350,12 @@ class HostConfig:
         persists, then send signals to it, until it is terminated.'''
 
         if self.pid is not None:
-            util.kill_until_terminated(self.pid, elevate_if_needed=True)
+            util.kill_until_terminated(self.pid)
 
         if self.tmux_file is not None:
             tmux_pid = self._get_tmux_server_pid()
             if tmux_pid is not None:
-                util.kill_until_terminated(tmux_pid, elevate_if_needed=False)
+                util.kill_until_terminated(tmux_pid)
 
     def cleanup(self):
         '''Shut down and clean up resources allocated for the this virtual
@@ -331,31 +363,25 @@ class HostConfig:
 
         self.kill()
 
-        #XXX not sure why this while loop is necessary (i.e., why we need to
-        #XXX umount several times)
-        while True:
-            cmd = ['sudo', 'umount', f'/run/netns/{self.hostname}']
-            try:
-                subprocess.run(cmd, stderr=subprocess.DEVNULL, check=True)
-            except subprocess.CalledProcessError:
-                break
-
-        if os.path.exists(f'/run/netns/{self.hostname}'):
-            cmd = ['sudo', 'rm', f'/run/netns/{self.hostname}']
-            subprocess.run(cmd, check=False)
+        self.sys_cmd(['umount_netns', self.hostname], check=False)
+        self.sys_cmd(['del_netns', self.hostname], check=False)
 
         if self.type == 'switch' and self.native_apps:
-            cmd = ['sudo', 'ovs-vsctl', 'del-br', self.hostname]
-            subprocess.run(cmd, check=False)
+            self.sys_cmd(['ovs_del_bridge', self.hostname], check=False)
 
             # Explicitly deleting interfaces is only needed when this is a
             # switch running in "native apps" mode; otherwise, the interfaces
             # were deleted when the process with the namespace ended.
             for intf in self.neighbor_by_int:
-                cmd = ['sudo', 'ip', 'link', 'del', intf.name]
-                subprocess.run(cmd, check=False)
+                self.sys_cmd(['del_link', intf.name], check=False)
 
-        for f in self.sock_file, self.config_file, self.script_file, \
+        for intf in self.helper_sock_pair_by_int:
+            if os.path.exists(self.helper_sock_pair_by_int[intf][0]):
+                os.unlink(self.helper_sock_pair_by_int[intf][0])
+            if os.path.exists(self.helper_sock_pair_by_int[intf][1]):
+                os.unlink(self.helper_sock_pair_by_int[intf][1])
+
+        for f in self.comm_sock_file, self.config_file, self.script_file, \
                 self.hosts_file, self.tmux_file:
             if f is not None and os.path.exists(f):
                 os.unlink(f)
