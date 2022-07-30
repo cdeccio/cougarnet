@@ -209,6 +209,7 @@ class HostConfig:
             fh.write('#!/bin/bash\n')
             fh.write(f'export HISTFILE={self.history_file}\n\n')
             fh.write(f'exec tmux -S {self.tmux_file} ' + \
+                    f'set -g default-terminal "tmux-256color" \\; \\\n' + \
                     f'new-session -s "{self.hostname}" ' + \
                     f'-n "{MAIN_WINDOW_NAME}" -d \\; \\\n')
 
