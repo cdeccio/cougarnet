@@ -79,7 +79,7 @@ class SysHelperManager:
             os.dup2(c2p_writefd, 1)
             os.close(c2p_writefd)
 
-            sys.stderr.write(str(list(self._cmd)) + '\n')
+            #sys.stderr.write(str(list(self._cmd)) + '\n')
             os.execvp(self._cmd[0], self._cmd)
             sys.exit(1)
 

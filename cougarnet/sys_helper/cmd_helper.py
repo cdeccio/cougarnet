@@ -28,7 +28,7 @@ RUN_NETNS_DIR = '/run/netns/'
 HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
 
 def _run_cmd(cmd):
-    sys.stderr.write(str(cmd) + '\n')
+    #sys.stderr.write(str(cmd) + '\n')
     proc = subprocess.run(cmd,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
     output = proc.stdout.decode('utf-8')
