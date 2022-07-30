@@ -235,6 +235,10 @@ def main():
 
     args = parser.parse_args(sys.argv[1:])
 
+    if os.geteuid() == 0:
+        sys.stderr.write('Please run this program as a non-privileged user.\n')
+        sys.exit(1)
+
     _update_environment_sudo()
 
     comm_sock_paths = {
