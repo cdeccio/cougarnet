@@ -160,15 +160,16 @@ def _apply_config(info):
             cmd = ['add_route', pid, prefix, intf, next_hop]
             sys_cmd(cmd, check=True)
 
-def close_file_descriptors():
+def close_file_descriptors(exceptions):
     '''Close all open file descriptors except those specified.'''
 
     fds = [int(fd) for fd in os.listdir(f'/proc/{os.getpid()}/fd')]
     for fd in fds:
-        try:
-            os.close(fd)
-        except OSError:
-            pass
+        if fd not in exceptions:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
 
 def _update_environment_sudo():
     if 'SUDO_USER' in os.environ:
@@ -291,9 +292,8 @@ def main():
     os.unlink(comm_sock_paths['local'])
 
     # close all file descriptors, except stdin, stdout, stderr
-    close_file_descriptors()
+    close_file_descriptors([2])
 
-    #XXX maybe put prog in config file?
     prog_args = args.prog.split('|')
     os.execvp(prog_args[0], prog_args)
 
