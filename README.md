@@ -771,7 +771,7 @@ then the program will have access to the standard input, standard output, and
 standard error for a given host.
 
 In either case (terminal or not), the program will have access to all the
-[environment variables](#environment-variables) associated with the virtual
+[environment variables](#environment) associated with the virtual
 host.
 
 Suppose `loop.sh` (in the current directory) contains the following:
