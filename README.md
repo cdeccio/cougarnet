@@ -22,6 +22,7 @@ stack and some that do not.
    - [Two Hosts, Directly Connected](#two-hosts-directly-connected)
    - [Three Hosts, Connected by a Switch](#three-hosts-connected-by-a-switch)
    - [Hosts Connected Across Multiple Switches and Routers](#hosts-connected-across-multiple-switches-and-routers)
+   - [Hosts from Multiple VLANs Connected with a Switch and Router](#hosts-from-multiple-vlans-connected-with-a-switch-and-router)
  - [Virtual Hosts](#virtual-hosts)
    - [Configuration](#configuration)
    - [Hostnames](#hostnames)
@@ -87,7 +88,7 @@ $ sudo python3 setup.py install
 
 # Working Examples
 
-This section provides three examples of Cougarnet usage.
+This section provides four examples of Cougarnet usage.
 
 
 ## Two Hosts, Directly Connected
@@ -163,8 +164,6 @@ Now, enter `Ctrl`+`c` on each terminal to stop the two programs.  Finally,
 return to the terminal on which you ran the `cougarnet` command, and enter
 `Ctrl`+`c`.
 
-Congratulations!  You have just completed a simple Cougarnet excercise!
-
 
 ## Three Hosts, Connected by a Switch
 
@@ -239,15 +238,11 @@ and `10.0.0.2` (`h2`) and between `10.0.0.1` (`h1`) and `10.0.0.3` (`h3`).
 Now return to the terminal on which you ran the `cougarnet` command, and enter
 `Ctrl`+`c`.  Then close Wireshark.
 
-See the sections on [Virtual Links](#virtual-links) and
-[VLAN Attributes](#vlan-attributes) to see what else is possible with switches.
-
 
 ## Hosts Connected Across Multiple Switches and Routers
 
-In our final introductory example, we introduce routers, for network-layer
-forwarding.  Create a new file called `four-node-multi-lan.cfg` with the
-following contents:
+In our next example, we introduce routers, for network-layer forwarding.
+Create a new file called `four-node-multi-lan.cfg` with the following contents:
 
 ```
 NODES
@@ -300,11 +295,97 @@ interface.  You might also notice that the packets arriving from 10.0.0.1 have
 a smaller time-to-live (TTL) value, as it has decreased by one for each hop
 (router) traversed.
 
-You can copy and paste from the terminal by holding down `Shift` and
-highlighting text, then clicking `Shift`+`Ctrl`+`C`.
+You can copy text from the terminal (i.e., for later pasting) by holding down
+`Shift` and highlighting text, then clicking `Shift`+`Ctrl`+`C`.
 
-Again return to the terminal on which you ran the `cougarnet` command, and enter
-`Ctrl`+`c`.  Then close Wireshark.
+Again return to the terminal on which you ran the `cougarnet` command, and
+enter `Ctrl`+`c`.
+
+
+## Hosts from Multiple VLANs Connected with a Switch and Router
+
+Finally, in this last working example we introduce VLANs that involve both a
+switch and a router. Create a new file called `three-node-multi-vlan.cfg` with
+the following contents:
+
+```
+NODES
+h1 routes=0.0.0.0/0|s1|10.0.1.2
+h2 routes=0.0.0.0/0|s1|10.0.2.2
+h3 routes=0.0.0.0/0|s1|10.0.3.2
+s1 type=switch,terminal=false
+
+r1 type=router
+
+LINKS
+h1,10.0.1.1/24 s1 vlan=100
+h2,10.0.2.1/24 s1 vlan=200
+h3,10.0.3.1/24 s1 vlan=300
+s1 r1 trunk=true
+
+VLANS
+100 r1,s1,10.0.1.2/24
+200 r1,s1,10.0.2.2/24
+300 r1,s1,10.0.3.2/24
+```
+
+This simple configuration consists of three hosts, all connected to the same
+switch, but each a member of its own distinct VLAN.  A router is also connected
+to the switch, via a trunk.  Each VLAN has an IP address on the router (i.e.,
+defined under the `VLANS` section), and each host uses the router IP address
+corresponding to its own VLAN as its gateway (i.e., in the `routes`
+attribute).
+
+Now start the scenario with the following command:
+
+```bash
+$ cougarnet --disable-ipv6 --display --wireshark h1-s1,r1-s1 three-node-multi-vlan.cfg
+```
+
+With this command line, Cougarnet displays the topology and automatically
+launches Wireshark and begins capturing on `h1-s1`, `h2-s1`, _and_ `r1-s1`.
+Note that it also disables IPv6, only because it is easier to point out some of
+the observations related to VLANs being illustrated in this scenario.
+
+Now enter the following command on `h1`'s terminal:
+
+```bash
+h1$ ping h3
+```
+
+After a few packets have been sent, interrupt the `ping` command with
+`Ctrl`+`c`.  If you sort the packets in the Wireshark display window by "Time",
+you will notice a few things.  First, the ARP request broadcasted from `h1` is
+never seen by `h2` (or `h3`, but we're not capturing on that interface) because
+it does not leave the VLAN.  Second, the frame capturing the ARP request uses a
+standard Ethernet frame when observed on the `h1-s1` link, but an 802.1q frame
+when observed on the `r1-s1` link.  This is because the latter is a trunk.
+
+When you are done analyzing, return to the terminal on which you ran the
+`cougarnet` command, and enter `Ctrl`+`c`.
+
+See the sections on [VLAN Attributes](#vlan-attributes) and
+[VLAN Endpoints](#vlan-endpoints) for more information on VLANs.
+
+
+# Virtual Hosts
+
+Each virtual host is actually just a process that is running in its own Linux
+namespace (see the `man` page for `namespaces(7)`).  Specifically, it is a
+process spawned with the `unshare` command.  The `--mount`, `--net`, and
+`--uts` options are passed to `unshare` command, the result of which is that
+(respectively):
+ - any filesystem mounts created (i.e., with the `mount` command) are only seen
+   by the process, not by the whole system;
+ - the network stack, including interfaces, address configuration, firewall,
+   and more, are specific to the process and are not seen by the rest of the
+   system; and
+ - the hostname is specific to the process.
+
+With only these options in use, the virtual hosts all still have access to the
+system-wide filesystem and all system processes (Note that the former could be
+changed if `unshare` were called with `--root`, and the latter could be changed
+if `unshare` were called with `--pid`, but currently that is not an option).
 
 
 # Virtual Hosts
