@@ -248,7 +248,8 @@ class HostConfig:
         '''Create the hosts file entries associated with the hostname-interface
         mappings for this virtual host.'''
 
-        for intf in self.neighbor_by_int:
+        for intf in list(self.neighbor_by_int) + \
+                [i for v, i in self.int_by_vlan.items()]:
             for addr in intf.ipv4_addrs:
                 slash = addr.find('/')
                 if slash >= 0:
