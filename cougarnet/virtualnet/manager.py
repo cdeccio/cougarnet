@@ -837,6 +837,9 @@ class VirtualNetwork:
         '''Loop until interrupted, printing messages received over the
         communications socket.'''
 
+        show_colors = sys.stdout.isatty() and \
+                os.environ.get('TERM', 'dumb') != 'dumb'
+
         start_time = time.time()
         while True:
             data, peer = self.comm_sock.recvfrom(4096)
@@ -846,7 +849,11 @@ class VirtualNetwork:
             else:
                 hostname = '??'
             ts = time.time() - start_time
-            print('%000.3f \033[1m%4s\033[0m  %s' % (ts, hostname, msg))
+
+            if show_colors:
+                print('%000.3f \033[1m%4s\033[0m  %s' % (ts, hostname, msg))
+            else:
+                print('%000.3f %4s  %s' % (ts, hostname, msg))
 
 def check_requirements(args):
     '''Check the basic requirements for Cougarnet to run, including effective
