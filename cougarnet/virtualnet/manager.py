@@ -1032,8 +1032,10 @@ def main():
         net.display_to_file(args.display_file)
 
     try:
+        oldmask = signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGINT])
         net.config()
         net.start(wireshark_ints)
+        signal.pthread_sigmask(signal.SIG_SETMASK, oldmask)
         sys.stdout.write('Ctrl-c to quit\n')
         net.message_loop(args.stop)
     except KeyboardInterrupt:
