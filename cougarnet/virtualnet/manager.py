@@ -833,7 +833,7 @@ class VirtualNetwork:
             cmd.append('-k')
         subprocess.Popen(cmd)
 
-    def message_loop(self):
+    def message_loop(self, stop):
         '''Loop until interrupted, printing messages received over the
         communications socket.'''
 
@@ -842,7 +842,16 @@ class VirtualNetwork:
 
         start_time = time.time()
         while True:
-            data, peer = self.comm_sock.recvfrom(4096)
+            # set to non-bocking with timeout 1
+            self.comm_sock.settimeout(1)
+            try:
+                data, peer = self.comm_sock.recvfrom(4096)
+            except socket.timeout:
+                if stop is not None and \
+                        time.time() - start_time > stop:
+                    return
+                continue
+
             msg = data.decode('utf-8')
             if peer is not None:
                 hostname = self.hostname_by_sock[peer]
@@ -939,6 +948,10 @@ def main():
             action='store', type=str, default=None,
             help='Specify variables to be replaced in the ' + \
                     'configuration file (name=value[,name=value,...])')
+    parser.add_argument('--stop',
+            action='store', type=int, default=None,
+            help='Specify a number of seconds after which the scenario ' + \
+                    'should be halted.')
     parser.add_argument('--terminal',
             action='store', type=str, default=None,
             metavar='HOSTNAMES',
@@ -1022,7 +1035,7 @@ def main():
         net.config()
         net.start(wireshark_ints)
         sys.stdout.write('Ctrl-c to quit\n')
-        net.message_loop()
+        net.message_loop(args.stop)
     except KeyboardInterrupt:
         pass
     finally:
