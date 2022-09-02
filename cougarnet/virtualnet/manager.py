@@ -521,15 +521,17 @@ class VirtualNetwork:
                     self.sys_cmd(['add_link_bridge', br], check=True)
                     self.sys_cmd(['set_link_master', ghost1, br], check=True)
                     self.sys_cmd(['set_link_master', ghost2, br], check=True)
-                    self.sys_cmd(['set_link_up', ghost1], check=True)
-                    self.sys_cmd(['set_link_up', ghost2], check=True)
-                    self.sys_cmd(['set_link_up', br], check=True)
-                    self.bridge_interfaces.add(br)
 
                     # These interfaces should have *no* addresses, including IPv6
                     self.sys_cmd(['disable_ipv6', ghost1], check=True)
                     self.sys_cmd(['disable_ipv6', ghost2], check=True)
                     self.sys_cmd(['disable_ipv6', br], check=True)
+
+                    # bring interfaces up
+                    self.sys_cmd(['set_link_up', ghost1], check=True)
+                    self.sys_cmd(['set_link_up', ghost2], check=True)
+                    self.sys_cmd(['set_link_up', br], check=True)
+                    self.bridge_interfaces.add(br)
 
                     if host1.type == 'switch' and host1.native_apps:
                         if not host1.has_bridge:
