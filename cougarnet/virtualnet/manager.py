@@ -125,6 +125,7 @@ class VirtualNetwork:
         self.ipv6 = ipv6
 
         self.bridge_interfaces = set()
+        self.ghost_interfaces = set()
 
         self.comm_dir = os.path.join(self.tmpdir, COMM_SOCK_DIR)
         self.config_dir = os.path.join(self.tmpdir, CONFIG_DIR)
@@ -532,6 +533,8 @@ class VirtualNetwork:
                     self.sys_cmd(['set_link_up', ghost2], check=True)
                     self.sys_cmd(['set_link_up', br], check=True)
                     self.bridge_interfaces.add(br)
+                    self.ghost_interfaces.add(ghost1)
+                    self.ghost_interfaces.add(ghost2)
 
                     if host1.type == 'switch' and host1.native_apps:
                         if not host1.has_bridge:
@@ -723,6 +726,18 @@ class VirtualNetwork:
         self.wait_for_phase2_startup()
         if wireshark_ints:
             self.start_wireshark(wireshark_ints)
+
+        #XXX Debian's connman package ignores and resets disable_ipv6 when
+        # bringing up interfaces, so after the interfaces are all up,
+        # explicitly disable IPv6 again on all bridge and ghost interfaces, and
+        # flush the forwarding table for each.
+        # See https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1018999
+        for intf in self.bridge_interfaces:
+            self.sys_cmd(['disable_ipv6', intf], check=True)
+        for intf in self.ghost_interfaces:
+            self.sys_cmd(['disable_ipv6', intf], check=True)
+        for _, host in self.host_by_name.items():
+            host.flush_forwarding_table()
 
         # start the raw packet helper for each host
         for _, host in self.host_by_name.items():
