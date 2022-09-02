@@ -123,6 +123,10 @@ class SysCmdHelper:
         cmd = ['ip', 'link', 'set', intf, 'up']
         return self._run_cmd_netns_or_not(cmd, intf)
 
+    def set_link_down(self, intf):
+        cmd = ['ip', 'link', 'set', intf, 'down']
+        return self._run_cmd_netns_or_not(cmd, intf)
+
     def set_link_mac_addr(self, intf, addr):
         cmd = ['ip', 'link', 'set', intf, 'address', addr]
         return self._run_cmd_netns_or_not(cmd, intf)
@@ -246,6 +250,14 @@ class SysCmdHelper:
         if val.startswith('0,'):
             del self.ovs_ports[bridge]
         return val
+
+    def ovs_flush_bridge(self, bridge):
+        if bridge not in self.ovs_ports:
+            return f'1,Bridge does not exist: {bridge}'
+
+        cmd = ['ovs-appctl', 'fdb/flush', bridge]
+
+        return _run_cmd(cmd)
 
     def ovs_add_port(self, bridge, intf, vlan):
         if bridge not in self.ovs_ports:
