@@ -299,6 +299,10 @@ class HostConfig:
 
         self.sys_cmd(cmd, check=True)
 
+    def flush_forwarding_table(self):
+        if self.type == 'switch' and self.native_apps:
+            self.sys_cmd(['ovs_flush_bridge', self.hostname], check=True)
+
     def attach_terminal(self):
         if self.terminal and self.tmux_file is not None:
             #XXX fix this - either make a notification or add a timeout

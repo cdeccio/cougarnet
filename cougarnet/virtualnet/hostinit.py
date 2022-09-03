@@ -78,13 +78,13 @@ def _apply_config(info):
         cmd = ['enable_ip6_forwarding', pid]
         sys_cmd(cmd, check=True)
 
-    # bring lo up
-    cmd = ['set_lo_up', pid]
-    sys_cmd(cmd, check=True)
-
     if not info.get('ipv6', True):
         cmd = ['disable_lo_ipv6', pid]
         sys_cmd(cmd, check=True)
+
+    # bring lo up
+    cmd = ['set_lo_up', pid]
+    sys_cmd(cmd, check=True)
 
     for intf in info.get('interfaces', []):
         int_info = info['interfaces'][intf]
@@ -92,10 +92,6 @@ def _apply_config(info):
             # set MAC address, if specified
             cmd = ['set_link_mac_addr', intf, int_info['mac_addr']]
             sys_cmd(cmd, check=True)
-
-        # bring link up
-        cmd = ['set_link_up', intf]
-        sys_cmd(cmd, check=True)
 
         if not native_apps:
             # disable ARP
@@ -108,6 +104,10 @@ def _apply_config(info):
 
         # disable router solicitations
         cmd = ['disable_router_solicitations', intf]
+        sys_cmd(cmd, check=True)
+
+        # bring link up
+        cmd = ['set_link_up', intf]
         sys_cmd(cmd, check=True)
 
         # add each IP address
