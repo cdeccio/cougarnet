@@ -16,6 +16,9 @@
 # with this program; if not, see <http://www.gnu.org/licenses/>.
 #
 
+'''A base class for classes running network host-like functionality in a
+virtual host environment.'''
+
 import asyncio
 import json
 import os
@@ -23,16 +26,24 @@ import re
 import socket
 import subprocess
 
+from cougarnet.util import recv_raw, ETH_P_ALL, SOL_PACKET, PACKET_AUXDATA
 from .interface import InterfaceInfo
 
 IP_ADDR_MTU_RE = re.compile(r'^\d:\s+.*\smtu\s+(\d+)(\s|$)')
-IP_ADDR_MAC_RE = re.compile(r'^\s+link/ether\s+([0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5})(\s|$)')
-IP_ADDR_IPV4_RE = re.compile(r'^\s+inet\s+([0-9]{1,3}(\.[0-9]{1,3}){3})\/(\d{1,2})\s+brd\s+([0-9]{1,3}(\.[0-9]{1,3}){3})(\s|$)')
-IP_ADDR_IPV6_RE = re.compile(r'^\s+inet6\s+([0-9a-f:]+)\/(\d{1,3})\s.*scope\s+(link|global)(\s|$)')
-
-from cougarnet.util import recv_raw, ETH_P_ALL, SOL_PACKET, PACKET_AUXDATA
+IP_ADDR_MAC_RE = re.compile(r'^\s+link/ether\s+' + \
+        r'([0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5})(\s|$)')
+IP_ADDR_IPV4_RE = re.compile(r'^\s+inet\s+([0-9]{1,3}(\.[0-9]{1,3}){3})' + \
+        r'\/(\d{1,2})\s+brd\s+([0-9]{1,3}(\.[0-9]{1,3}){3})(\s|$)')
+IP_ADDR_IPV6_RE = re.compile(r'^\s+inet6\s+([0-9a-f:]+)\/(\d{1,3})\s.*' + \
+        r'scope\s+(link|global)(\s|$)')
 
 class BaseHost:
+    '''A base class for classes running network host-like functionality in a
+    virtual host environment.  It gathers information on all the interfaces
+    associated with this virtual host, sets up the raw sockets for each
+    interface for send/recv functions, and sets up logging with the cougarnet
+    process.'''
+
     def __init__(self, user_mode=True):
         self.int_to_sock = {}
         self.int_to_info = {}
@@ -48,10 +59,16 @@ class BaseHost:
         self._set_interface_info()
 
     def __del__(self):
+        '''Clean up by removing the files associated with the communication
+        socket and the raw packet helper sockets.'''
+
         self._remove_comm_sock()
         self._remove_helper_socks()
 
     def _remove_comm_sock(self):
+        '''Attempt to remove the file associated with the socket used for
+        logging to the cougarnet process.'''
+
         try:
             comm_sock_paths = json.loads(os.environ['COUGARNET_COMM_SOCK'])
             os.unlink(comm_sock_paths['local'])
@@ -59,6 +76,9 @@ class BaseHost:
             pass
 
     def _remove_helper_socks(self):
+        '''Attempt to remove the files associated with the sockets used for
+        communicating with raw packet helper process.'''
+
         helper_socks = json.loads(os.environ['COUGARNET_INT_TO_SOCK'])
         for intf in helper_socks:
             try:
@@ -67,12 +87,18 @@ class BaseHost:
                 pass
 
     def _setup_comm_sock(self):
+        '''Create and configure the socket used for logging to the cougarnet
+        process.'''
+
         comm_sock_paths = json.loads(os.environ['COUGARNET_COMM_SOCK'])
         self.comm_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
         self.comm_sock.connect(comm_sock_paths['remote'])
         self.comm_sock.bind(comm_sock_paths['local'])
 
     def _setup_sockets_raw(self):
+        '''Create and configure a raw socket for send/recv on each
+        interface.'''
+
         loop = asyncio.get_event_loop()
         ints = os.listdir('/sys/class/net/')
         for intf in ints:
@@ -90,6 +116,11 @@ class BaseHost:
             self.int_to_sock[intf] = sock
 
     def _setup_sockets_user(self):
+        '''Create and configure a the UNIX domain sockets used for send/recv on
+        each interface.  The messages send on these sockets will be received by
+        a helper process and then sent on the raw socket corresponding to the
+        interface.'''
+
         int_sock_mapping = json.loads(os.environ['COUGARNET_INT_TO_SOCK'])
 
         loop = asyncio.get_event_loop()
@@ -110,6 +141,9 @@ class BaseHost:
 
     @classmethod
     def _get_interface_info(cls, intf):
+        '''Retrieve the information for a given interface (i.e., using the "ip
+        addr" command), instantiate an InterfaceInfo object, and return it.'''
+
         mac_addr = None
         mtu = None
         ipv4_prefix_len = None
@@ -118,9 +152,11 @@ class BaseHost:
         ipv6_prefix_len = None
         ipv6_addrs = []
         ipv6_addr_link_local = None
-        output = subprocess.run(['ip', 'addr', 'show', intf], \
-                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout
-        output = output.decode('utf-8')
+        p = subprocess.run(['ip', 'addr', 'show', intf],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                check=True)
+        output = p.stdout.decode('utf-8')
         for line in output.splitlines():
             m = IP_ADDR_MAC_RE.match(line)
             if m is not None:
@@ -156,9 +192,15 @@ class BaseHost:
                         ipv6_addrs, ipv6_addr_link_local, ipv6_prefix_len, mtu)
 
     def _handle_frame(self, frame, intf):
-        pass
+        '''Handle an incoming frame (bytes) received on the given interface
+        (str).  This method is called as a callback every time a frame is
+        received.  It is intended to be overridden by a child class.'''
 
     def _handle_incoming_data_user(self, sock, intf):
+        '''Receive one or more Ethernet frames from the specified UNIX domain
+        socket, corresponding to the given interface.  Call _handle_frame() for
+        each frame received.'''
+
         while True:
             try:
                 frame = sock.recv(4096)
@@ -167,6 +209,10 @@ class BaseHost:
             self._handle_frame(frame, intf)
 
     def _handle_incoming_data_raw(self, sock, intf):
+        '''Receive one or more Ethernet frames from the specified raw socket,
+        corresponding to the given interface.  Call _handle_frame() for each
+        frame received.'''
+
         while True:
             try:
                 frame, info = recv_raw(sock, 4096)
@@ -178,12 +224,19 @@ class BaseHost:
             self._handle_frame(frame, intf)
 
     def _set_interface_info(self):
+        '''Populate the information for each interface by calling
+        self._get_interface_info() on each.'''
+
         for intf in self.int_to_sock:
             self.int_to_info[intf] = self._get_interface_info(intf)
 
     def get_interface(self):
+        '''Get the name of the single interface associated with this host.
+        Note that this is meant to be used as a convenience method for systems
+        with a single interface.'''
+
         if len(self.int_to_sock) > 1:
-            raise ValueError(f'There is more than one interface on ' + \
+            raise ValueError('There is more than one interface on ' + \
                     f'{self.hostname}')
         try:
             return [i for i in self.int_to_sock][0]
@@ -191,7 +244,12 @@ class BaseHost:
             return None
 
     def send_frame(self, frame, intf):
+        '''Send a single frame (bytes) on the given interface, intf (str).'''
+
         self.int_to_sock[intf].send(frame)
 
     def log(self, msg):
+        '''Log a message, msg (str), by sending it to the socket designated for
+        communications to the cougarnet process.'''
+
         self.comm_sock.send(msg.encode('utf-8'))

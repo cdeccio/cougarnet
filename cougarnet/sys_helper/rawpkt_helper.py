@@ -16,11 +16,17 @@
 # with this program; if not, see <http://www.gnu.org/licenses/>.
 #
 
+'''Functions for receiving packets on a raw socket and sending them to a UNIX
+domain socket, and vice-versa.'''
+
 import socket
 
 from cougarnet import util
 
 def send_raw_to_user(raw_sock, helper_sock_raw, dst_sock):
+    '''Receive one or more messages on raw_sock and send them on
+    helper_sock_raw to dst_sock.'''
+
     while True:
         try:
             frame, info = util.recv_raw(raw_sock, 4096)
@@ -35,6 +41,9 @@ def send_raw_to_user(raw_sock, helper_sock_raw, dst_sock):
                 pass
 
 def send_user_to_raw(helper_sock_raw, raw_sock):
+    '''Receive one or more messages on helper_sock_raw and send them to
+    raw_sock.'''
+
     while True:
         try:
             frame = helper_sock_raw.recv(4096)

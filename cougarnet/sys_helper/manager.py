@@ -16,6 +16,10 @@
 # with this program; if not, see <http://www.gnu.org/licenses/>.
 #
 
+'''Functions and classes used to create and manage processes running as root.
+The cougarnet process, running as an unprivileged user, issues requests to
+these processes for help with things for which it needs privileges.'''
+
 import csv
 import io
 import os
@@ -23,16 +27,20 @@ import signal
 import socket
 import subprocess
 import sys
-import tempfile
 
 LIBEXEC_DIR = os.path.join(sys.prefix, 'libexec', 'cougarnet')
 SYSCMD_HELPER_SCRIPT = os.path.join(LIBEXEC_DIR, 'syscmd_helper')
 RAWPKT_HELPER_SCRIPT = os.path.join(LIBEXEC_DIR, 'rawpkt_helper')
 
 def raise_interrupt(signum, frame):
+    '''When a given signal is received, raise KeyboardInterrupt.'''
+
     raise KeyboardInterrupt()
 
 def _setup_unix_sock(local_addr, remote_addr):
+    '''Create and configured a UNIX domain socket of type SOCK_DGRAM with the
+    given local and remote addresses.'''
+
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
     sock.bind(local_addr)
     sock.connect(remote_addr)
@@ -44,6 +52,9 @@ def _setup_unix_sock(local_addr, remote_addr):
     return sock
 
 class SysHelperManager:
+    '''A class for creating and managing a process running as a privileged
+    user.'''
+
     _cmd_base = ()
 
     def __init__(self, *args):
@@ -51,6 +62,12 @@ class SysHelperManager:
         self._pipe_fd = None
 
     def start(self):
+        '''Create the new process by calling fork.  Create two pipes, one for
+        letting the helper know when it should terminate (upon termination of
+        parent process) and one for communicating back to the parent that it
+        has started successfully. Return True  if the process starts up
+        successfully and False otherwise.'''
+
         # We use two pipes: one for letting the helper know that the cougarnet
         # process has died, so it can terminate as well; and one for the helper
         # to communicate back to the cougarnet process that it is up and
@@ -112,9 +129,16 @@ class SysHelperManager:
         return True
 
     def close(self):
+        '''Explicitly close the pipe on which the child is listening.  This
+        will make the child exit.'''
+
         os.close(self._pipe_fd)
 
 class SysCmdHelperManager(SysHelperManager):
+    '''A class for creating and managing a process that listens for incoming
+    requests for commands that require privileges and executes those
+    commands.'''
+
     _cmd_base = ('sudo', '-E', SYSCMD_HELPER_SCRIPT)
 
     def __init__(self, remote_sock, local_sock):
@@ -124,16 +148,28 @@ class SysCmdHelperManager(SysHelperManager):
         self.sock = None
 
     def start(self):
+        '''Start the helper process.  If it started successfully, then also
+        create and configure the socket that will be used for sending the
+        commands to the process.  Return True if the process started properly
+        and False otherwise.'''
+
         val = super().start()
         if val:
             self._setup_sock()
         return val
 
     def _setup_sock(self):
+        '''Create the socket that will be used for issuing commands to the
+        privilged process.'''
+
         self.sock = _setup_unix_sock(
                 self.local_sock_path, self.remote_sock_path)
 
     def cmd(self, cmd):
+        '''Issue the provided command, a list, to the privileged process, by
+        sending it to the socket as a string with commas separating the command
+        and its arguments.'''
+
         s = io.StringIO()
         csv_writer = csv.writer(s)
         csv_writer.writerow(cmd)
@@ -142,10 +178,17 @@ class SysCmdHelperManager(SysHelperManager):
         return self.sock.recv(1024).decode('utf-8')
 
 class SysCmdHelperManagerStarted(SysCmdHelperManager):
+    '''A subclass of SysCmdHelperManager that is used when the privileged
+    process is already running and we simply want to connect to it to issue
+    commands.'''
+
     def start(self):
         self._setup_sock()
 
 class RawPktHelperManager(SysHelperManager):
+    '''A class for creating and managing a process that captures packets from a
+    raw socket and sends them to a UNIX domain socket, and vice-versa.'''
+
     def __init__(self, namespace, *ints):
         super().__init__('ip', 'netns', 'exec', namespace,
                 RAWPKT_HELPER_SCRIPT, *ints)

@@ -16,6 +16,9 @@
 # with this program; if not, see <http://www.gnu.org/licenses/>.
 #
 
+'''Functions and classes for running a set of canned commands that require
+privileges.'''
+
 import csv
 import io
 import os
@@ -28,6 +31,9 @@ RUN_NETNS_DIR = '/run/netns/'
 HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
 
 def _run_cmd(cmd):
+    '''Run the specified command.  Return a string with the return code
+    followed by the combined stdout/stderr output.'''
+
     #sys.stderr.write(str(cmd) + '\n')
     proc = subprocess.run(cmd,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
@@ -35,10 +41,16 @@ def _run_cmd(cmd):
     return f'{proc.returncode},{output}'
 
 def _run_cmd_netns(cmd, pid):
+    '''Run a command in the same namespace as the process with the given
+    pid.'''
+
     cmd = ['nsenter', '--target', pid, '--all'] + cmd
     return _run_cmd(cmd)
 
 class SysCmdHelper:
+    '''A class for executing a set of canned commands that require
+    privileges.'''
+
     def __init__(self, uid, gid):
         self._uid = uid
         self._gid = gid
@@ -54,6 +66,10 @@ class SysCmdHelper:
         self.pid_to_netns = {}
 
     def require_netns(func):
+        '''A decorator for ensuring that a method is called with a pid that has
+        been created by this running process, so we're not messing with
+        processes that we haven't created.'''
+
         def _func(self, pid, *args, **kwargs):
             if pid not in self.pid_to_netns:
                 return '1,Not within a mounted namespace'
@@ -61,6 +77,11 @@ class SysCmdHelper:
         return _func
 
     def _run_cmd_netns_or_not(self, cmd, intf):
+        '''Run a command, either in a specific namespace, if the interface
+        corresponds to one, or in the default namespace otherwise.  If the
+        interface is not one that we have created, then return an error.
+        Otherwise, return the result.'''
+
         if intf not in self.links:
             return f'1,Interface does not exist: {intf}'
 
@@ -73,10 +94,13 @@ class SysCmdHelper:
             # execute using nsenter and pid
             return _run_cmd_netns(cmd, self.netns_to_pid[netns])
 
-        # execute using ip netns exec
         return '1,No PID associated with namespace'
 
     def add_link_veth(self, intf1, intf2):
+        '''Add one or two interaces of type veth (virtual interfaces) with the
+        specified name(s).  If intf2 is not empty, then two interfaces are
+        created; otherwise, only one is created. Return the result.'''
+
         cmd = ['ip', 'link', 'add', intf1, 'type', 'veth']
         if intf2:
             cmd += ['peer', intf2]
@@ -89,6 +113,9 @@ class SysCmdHelper:
         return val
 
     def add_link_vlan(self, phys_intf, vlan_intf, vlan):
+        '''Add an interface of type vlan with the specified physical interface,
+        name, and VLAN ID. Return the result.'''
+
         if phys_intf not in self.links:
             return f'1,Interface does not exist: {phys_intf}'
 
@@ -101,6 +128,9 @@ class SysCmdHelper:
         return val
 
     def add_link_bridge(self, intf):
+        '''Add an interface of type bridge with the specified name, with STP
+        disabled and no VLAN filtering.  Return the result.'''
+
         cmd = ['ip', 'link', 'add',
                 intf, 'type', 'bridge',
                 'stp_state', '0', 'vlan_filtering', '0']
@@ -111,6 +141,9 @@ class SysCmdHelper:
         return val
 
     def set_link_master(self, intf, bridge_intf):
+        '''Associate the given interface (intf) with a bridge (bridge_intf).
+        Return the result.'''
+
         if intf not in self.links:
             return f'1,Interface does not exist: {intf}'
         if bridge_intf not in self.links:
@@ -120,27 +153,41 @@ class SysCmdHelper:
         return _run_cmd(cmd)
 
     def set_link_up(self, intf):
+        '''Bring up a given interface, and return the result.'''
+
         cmd = ['ip', 'link', 'set', intf, 'up']
         return self._run_cmd_netns_or_not(cmd, intf)
 
     def set_link_down(self, intf):
+        '''Bring down a given interface, and return the result.'''
+
         cmd = ['ip', 'link', 'set', intf, 'down']
         return self._run_cmd_netns_or_not(cmd, intf)
 
     def set_link_mac_addr(self, intf, addr):
+        '''Set the MAC address for a given interface, and return the result.'''
+
         cmd = ['ip', 'link', 'set', intf, 'address', addr]
         return self._run_cmd_netns_or_not(cmd, intf)
 
     def set_link_mtu(self, intf, mtu):
+        '''Set the MTU for a given interface, and return the result.'''
+
         cmd = ['ip', 'link', 'set', intf, 'mtu', mtu]
         return self._run_cmd_netns_or_not(cmd, intf)
 
     def set_link_attrs(self, intf, *attrs):
+        '''Set the given link attributes (delay, bandwidth, loss) for a given
+        interface, and return the result.'''
+
         cmd = ['tc', 'qdisc', 'add', 'dev', intf, 'root', 'netem'] + \
                 list(attrs)
         return self._run_cmd_netns_or_not(cmd, intf)
 
     def set_link_ip_addr(self, intf, addr):
+        '''Associate an IP address with a given interface, and return the
+        result.'''
+
         if ':' in addr:
             cmd = ['ip', 'addr', 'add', addr, 'dev', intf]
         else:
@@ -150,10 +197,15 @@ class SysCmdHelper:
 
     @require_netns
     def set_lo_up(self, pid):
+        '''Bring up the lo interface in the namespace associated with pid, and
+        return the result.'''
+
         cmd = [ 'ip', 'link', 'set', 'lo', 'up']
         return _run_cmd_netns(cmd, pid)
 
     def del_link(self, intf):
+        '''Delete the given interface, and return the result.'''
+
         cmd = ['ip', 'link', 'del', intf]
 
         val = self._run_cmd_netns_or_not(cmd, intf)
@@ -162,6 +214,9 @@ class SysCmdHelper:
         return val
 
     def add_netns(self, ns):
+        '''Create the mountpoint for a named namespace, and return the
+        result.'''
+
         nspath = os.path.join(RUN_NETNS_DIR, ns)
 
         val = '0,'
@@ -184,6 +239,9 @@ class SysCmdHelper:
         return val
 
     def umount_netns(self, ns):
+        '''Unmount the specified mountpoint for a named namespace, and return
+        the result.'''
+
         nspath = os.path.join(RUN_NETNS_DIR, ns)
 
         if ns not in self.netns_mounted:
@@ -204,6 +262,9 @@ class SysCmdHelper:
         return val
 
     def del_netns(self, ns):
+        '''Delete the specified mountpoint for a named namespace, and return
+        the result.'''
+
         nspath = os.path.join(RUN_NETNS_DIR, ns)
 
         if nspath not in self.netns_exists:
@@ -218,6 +279,9 @@ class SysCmdHelper:
         return val
 
     def set_link_netns(self, intf, ns):
+        '''Move the specified interface into a given namespace (ns), and return
+        the result.'''
+
         nspath = os.path.join(RUN_NETNS_DIR, ns)
 
         if intf not in self.links:
@@ -233,6 +297,9 @@ class SysCmdHelper:
         return val
 
     def ovs_add_bridge(self, bridge):
+        '''Create a bridge within Open vSwitch with the specified name, and
+        return the result.'''
+
         cmd = ['ovs-vsctl', 'add-br', bridge]
 
         val = _run_cmd(cmd)
@@ -241,6 +308,9 @@ class SysCmdHelper:
         return val
 
     def ovs_del_bridge(self, bridge):
+        '''Delete the bridge within Open vSwitch with the specified name, and
+        return the result.'''
+
         if bridge not in self.ovs_ports:
             return f'1,Bridge does not exist: {bridge}'
 
@@ -252,6 +322,9 @@ class SysCmdHelper:
         return val
 
     def ovs_flush_bridge(self, bridge):
+        '''Flush the forwarding tables of the bridge with the specified name,
+        and return the result.'''
+
         if bridge not in self.ovs_ports:
             return f'1,Bridge does not exist: {bridge}'
 
@@ -260,6 +333,10 @@ class SysCmdHelper:
         return _run_cmd(cmd)
 
     def ovs_add_port(self, bridge, intf, vlan):
+        '''Add a port with the given name to the existing bridge.  If vlan is
+        not blank, then associate the port with that VLAN.  Otherwise,
+        associate it with VLAN 0.  Return the result.'''
+
         if bridge not in self.ovs_ports:
             return f'1,Bridge does not exist: {bridge}'
         if intf not in self.links:
@@ -275,25 +352,37 @@ class SysCmdHelper:
         return val
 
     def disable_ipv6(self, intf):
+        '''Disable IPv6 on a given interface, and return the result.'''
+
         cmd = ['sysctl', f'net/ipv6/conf/{intf}/disable_ipv6=1']
         return self._run_cmd_netns_or_not(cmd, intf)
 
     @require_netns
     def disable_lo_ipv6(self, pid):
-        cmd = ['sysctl', f'net/ipv6/conf/lo/disable_ipv6=1']
+        '''Disable IPv6 on the lo interface in the namespace associated with
+        pid, and return the result.'''
+
+        cmd = ['sysctl', 'net/ipv6/conf/lo/disable_ipv6=1']
         return _run_cmd_netns(cmd, pid)
 
     def disable_arp(self, intf):
+        '''Disable ARP on a given interface, and return the result.'''
+
         cmd = ['ip', 'link', 'set', intf, 'arp', 'off']
         return self._run_cmd_netns_or_not(cmd, intf)
 
     def disable_router_solicitations(self, intf):
+        '''Disable router solicitations on a given interface, and return the
+        result.'''
+
         cmd = ['sysctl', f'net/ipv6/conf/{intf}/router_solicitations=0']
         return self._run_cmd_netns_or_not(cmd, intf)
 
     def unshare_hostinit(self, hostname, net, hosts_file, mount_sys,
             config_file, sys_cmd_helper_sock_remote, sys_cmd_helper_sock_local,
             comm_sock_remote, comm_sock_local, script_file):
+        '''Run the hostinit module in a namespace that we have created, and
+        return the result.'''
 
         nspath = os.path.join(RUN_NETNS_DIR, hostname)
 
@@ -324,6 +413,10 @@ class SysCmdHelper:
         return '0,'
 
     def start_rawpkt_helper(self, ns, *ints):
+        '''Launch a process for passing packets from raw sockets to UNIX domain
+        sockets and vice-versa using the RawPktHelperManager. Return the
+        result.'''
+
         nspath = os.path.join(RUN_NETNS_DIR, ns)
 
         if ns not in self.netns_mounted:
@@ -336,11 +429,16 @@ class SysCmdHelper:
 
     @require_netns
     def set_hostname(self, pid, hostname):
+        '''Set the hostname within the namespace associated with a given
+        pid.'''
+
         cmd = ['hostname', hostname]
         return _run_cmd_netns(cmd, pid)
 
     @require_netns
     def add_route(self, pid, prefix, intf, next_hop):
+        '''Add a route within the namespace associated with a given pid.'''
+
         cmd = ['ip', 'route', 'add', prefix]
         if next_hop:
             cmd += ['via', next_hop]
@@ -349,35 +447,59 @@ class SysCmdHelper:
 
     @require_netns
     def set_iptables_drop(self, pid):
+        '''Set an iptables rule to drop all incoming packets within the
+        namespace associated with a given pid.'''
+
         cmd = ['iptables', '-t', 'filter', '-I', 'INPUT', '-j', 'DROP']
         return _run_cmd_netns(cmd, pid)
 
     @require_netns
     def set_ip6tables_drop(self, pid):
+        '''Set an ip6tables rule to drop all incoming packets within the
+        namespace associated with a given pid.'''
+
         cmd = ['ip6tables', '-t', 'filter', '-I', 'INPUT', '-j', 'DROP']
         return _run_cmd_netns(cmd, pid)
 
     @require_netns
     def enable_ip_forwarding(self, pid):
+        '''Enable IPv4 forwarding within the namespace associated with a given
+        pid.'''
+
         cmd = ['sysctl', 'net.ipv4.ip_forward=1']
         return _run_cmd_netns(cmd, pid)
 
     @require_netns
     def enable_ip6_forwarding(self, pid):
+        '''Enable IPv6 forwarding within the namespace associated with a given
+        pid.'''
+
         cmd = ['sysctl', 'net.ipv6.conf.all.forwarding=1']
         return _run_cmd_netns(cmd, pid)
 
     @require_netns
     def mount_sys(self, pid):
+        '''Mount the /sys filesystem within the namespace associated with a
+        given pid.'''
+
         cmd = ['mount', '-t', 'sysfs', '/sys', '/sys']
         return _run_cmd_netns(cmd, pid)
 
     @require_netns
     def mount_hosts(self, pid, hosts_file):
+        '''Mount /etc/hosts onto the specified file within the namespace
+        associated with a given pid.'''
+
         cmd = ['mount', '-o', 'bind', hosts_file, '/etc/hosts']
         return _run_cmd_netns(cmd, pid)
 
     def handle_request(self, sock):
+        '''Receive one or more requests from a given socket, and handle each.
+        The command and its arguments are received a comma-separated list of
+        items and converted into an actual list.  The method to call is the one
+        corresponding to the command name received.  Return the result of
+        calling the command to the client over the socket.'''
+
         while True:
             try:
                 msg, peer = sock.recvfrom(4096)

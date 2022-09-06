@@ -22,7 +22,6 @@ hosts.'''
 import json
 import os
 import subprocess
-import sys
 import time
 
 from cougarnet import util
@@ -112,6 +111,9 @@ class HostConfig:
         return self.hostname
 
     def sys_cmd(self, cmd, check=False):
+        '''Send a command to the helper process running as a privileged user.
+        If there is an error, then raise StartupError.'''
+
         status = self.sys_cmd_helper.cmd(cmd)
         if not status.startswith('0,') and check:
             try:
@@ -262,9 +264,12 @@ class HostConfig:
                 fh.write(f'{addr} {self.hostname}\n')
 
     def start_raw_packet_helper(self):
+        '''Start a process that will listen for packets on a raw socket and
+        immediately send them to a specified UNIX domain socket, so they can be
+        seen by an unprivileged process.'''
         if self.native_apps:
             # only start helper if in native apps mode
-            return True
+            return
 
         ints = [f'{i}={s[0]}:{s[1]}' \
                 for i, s in self.helper_sock_pair_by_int.items()]
@@ -300,10 +305,17 @@ class HostConfig:
         self.sys_cmd(cmd, check=True)
 
     def flush_forwarding_table(self):
+        '''If we are a switch running native_apps mode, send the OVS command
+        to flush the forwarding table.'''
+
         if self.type == 'switch' and self.native_apps:
             self.sys_cmd(['ovs_flush_bridge', self.hostname], check=True)
 
     def attach_terminal(self):
+        '''If terminal mode is enabled for this host, launch the terminal and
+        run tmux to attach it with the tmux session already created for the
+        virtual host.'''
+
         if self.terminal and self.tmux_file is not None:
             #XXX fix this - either make a notification or add a timeout
             while not os.path.exists(self.tmux_file):

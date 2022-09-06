@@ -22,15 +22,11 @@ virtual network.
 '''
 
 import argparse
-import grp
 import json
 import os
-import pwd
 import socket
 import subprocess
 import sys
-import time
-import traceback
 
 from cougarnet.sys_helper.manager import SysCmdHelperManagerStarted
 from cougarnet.virtualnet.errors import StartupError
@@ -40,6 +36,10 @@ from cougarnet.virtualnet.errors import StartupError
 #XXX this code is in three places; consolidate it
 sys_cmd_helper = None
 def sys_cmd(cmd, check=False):
+    '''Send a command to the helper process running as a privileged user.  If
+    there is an error, then raise StartupError.'''
+
+
     status = sys_cmd_helper.cmd(cmd)
     if not status.startswith('0,') and check:
         try:
@@ -131,7 +131,7 @@ def _apply_config(info):
             sys_cmd(cmd, check=True)
 
         if int_info.get('mtu', None) is not None:
-            cmd = ['set_link_mtu', intf, mtu]
+            cmd = ['set_link_mtu', intf, int_info['mtu']]
             sys_cmd(cmd, check=True)
 
         if int_info.get('vlan', None) is not None:

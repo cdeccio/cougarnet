@@ -22,13 +22,10 @@ Various utility functions for Cougarnet.
 
 import binascii
 import ctypes
-import os
 import re
-import signal
 import socket
 import subprocess
 import struct
-import sys
 import time
 
 # From /usr/include/linux/if_ether.h
@@ -44,7 +41,10 @@ TP_STATUS_VLAN_VALID = 1 << 4 # auxdata has valid tp_vlan_tci
 
 HOST_RE = re.compile(r'^[a-z]([a-z0-9-]*[a-z0-9])?$')
 
-class tpacket_auxdata(ctypes.Structure):
+class TpacketAuxdata(ctypes.Structure):
+    '''A class with fields defined for copying and holding the auxiliary data
+    from a captured network packet.'''
+
     _fields_ = [
         ("tp_status", ctypes.c_uint),
         ("tp_len", ctypes.c_uint),
@@ -56,6 +56,8 @@ class tpacket_auxdata(ctypes.Structure):
     ]
 
 def raise_interrupt(signum, frame):
+    '''When a given signal is received, raise KeyboardInterrupt.'''
+
     raise KeyboardInterrupt()
 
 def mac_str_to_binary(mac_str):
@@ -149,7 +151,7 @@ def recv_raw(sock, bufsize):
         # Check available ancillary data
         if (cmsg_lvl == SOL_PACKET and cmsg_type == PACKET_AUXDATA):
             # Parse AUXDATA
-            auxdata = tpacket_auxdata.from_buffer_copy(cmsg_data)
+            auxdata = TpacketAuxdata.from_buffer_copy(cmsg_data)
             if auxdata.tp_vlan_tci != 0 or \
                     auxdata.tp_status & TP_STATUS_VLAN_VALID:
                 # Insert VLAN tag
