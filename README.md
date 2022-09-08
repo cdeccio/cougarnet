@@ -852,6 +852,10 @@ frames in Cougarnet.  The key components are the following:
    - `ipv6_prefix_len` - the length of the IPv6 prefix associated with this
      interface.
    - `mtu` - the MTU of the link associated with the interface.
+   - `vlan` - the VLAN associated with the link, an `int` with value greater
+     than or equal to 0.  In the case that the link is a trunk, then the value
+     will be -1.  In the case that there are no VLANs or trunks configured for
+     interfaces on the host, then the value is 0.
  - `hostname` - a `str` whose value is the [hostname](#hostnames) of the virtual host.
  - `comm_sock` - a socket (`socket.socket`) that is connected to the
    [communications socket](#communicating-with-the-calling-process) on which
