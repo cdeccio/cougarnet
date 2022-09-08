@@ -30,3 +30,4 @@ class InterfaceInfo:
         self.ipv6_addr_link_local = ipv6_addr_link_local
         self.ipv6_prefix_len = ipv6_prefix_len
         self.mtu = mtu
+        self.vlan = None

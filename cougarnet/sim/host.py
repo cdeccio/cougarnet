@@ -36,6 +36,7 @@ IP_ADDR_IPV4_RE = re.compile(r'^\s+inet\s+([0-9]{1,3}(\.[0-9]{1,3}){3})' + \
         r'\/(\d{1,2})\s+brd\s+([0-9]{1,3}(\.[0-9]{1,3}){3})(\s|$)')
 IP_ADDR_IPV6_RE = re.compile(r'^\s+inet6\s+([0-9a-f:]+)\/(\d{1,3})\s.*' + \
         r'scope\s+(link|global)(\s|$)')
+VLAN_INT_NAME_RE = re.compile(r'\.vlan(\d+)$')
 
 class BaseHost:
     '''A base class for classes running network host-like functionality in a
@@ -45,6 +46,9 @@ class BaseHost:
     process.'''
 
     def __init__(self, user_mode=True):
+        self.all_interfaces = []
+        self.physical_interfaces = []
+        self.vlan_interfaces = []
         self.int_to_sock = {}
         self.int_to_info = {}
 
@@ -56,9 +60,21 @@ class BaseHost:
             self._setup_sockets_user()
         else:
             self._setup_sockets_raw()
+        self._detect_interfaces()
         self._set_interface_info()
+        self._set_vlan_info()
 
-    def __del__(self):
+    def __enter__(self):
+        '''Simply return the object.'''
+
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        '''Call cleanup to clean resources on exit.'''
+
+        self.cleanup()
+
+    def cleanup(self):
         '''Clean up by removing the files associated with the communication
         socket and the raw packet helper sockets.'''
 
@@ -95,16 +111,19 @@ class BaseHost:
         self.comm_sock.connect(comm_sock_paths['remote'])
         self.comm_sock.bind(comm_sock_paths['local'])
 
+    def _detect_interfaces(self):
+        self.all_interfaces = os.listdir('/sys/class/net/')
+        self.physical_interfaces = [i for i in self.all_interfaces \
+            if not i.startswith('lo') and VLAN_INT_NAME_RE.search(i) is None]
+        self.vlan_interfaces = [i for i in self.all_interfaces \
+            if not i.startswith('lo') and VLAN_INT_NAME_RE.search(i) is not None]
+
     def _setup_sockets_raw(self):
         '''Create and configure a raw socket for send/recv on each
         interface.'''
 
         loop = asyncio.get_event_loop()
-        ints = os.listdir('/sys/class/net/')
-        for intf in ints:
-
-            if intf.startswith('lo'):
-                continue
+        for intf in self.physical_interfaces:
 
             sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_ALL))
             sock.bind((intf, 0))
@@ -124,11 +143,7 @@ class BaseHost:
         int_sock_mapping = json.loads(os.environ['COUGARNET_INT_TO_SOCK'])
 
         loop = asyncio.get_event_loop()
-        ints = os.listdir('/sys/class/net/')
-        for intf in ints:
-
-            if intf.startswith('lo'):
-                continue
+        for intf in self.physical_interfaces:
 
             sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
             sock.connect(int_sock_mapping[intf]['remote'])
@@ -191,6 +206,13 @@ class BaseHost:
         return InterfaceInfo(mac_addr, ipv4_addrs, ipv4_prefix_len,
                         ipv6_addrs, ipv6_addr_link_local, ipv6_prefix_len, mtu)
 
+    def _is_trunk_link(self, intf):
+        '''Return True if the given interface is on a trunk link; False
+        otherwise.'''
+
+        return self.int_to_info[intf].vlan is not None and \
+                self.int_to_info[intf].vlan < 0
+
     def _handle_frame(self, frame, intf):
         '''Handle an incoming frame (bytes) received on the given interface
         (str).  This method is called as a callback every time a frame is
@@ -227,8 +249,36 @@ class BaseHost:
         '''Populate the information for each interface by calling
         self._get_interface_info() on each.'''
 
-        for intf in self.int_to_sock:
+        for intf in self.all_interfaces:
             self.int_to_info[intf] = self._get_interface_info(intf)
+
+    def _set_vlan_info(self):
+        '''Set the VLAN for each interface by using the environment variable
+        set by cougarnet.'''
+
+        info = json.loads(os.environ.get('COUGARNET_VLAN', '{}'))
+
+        if info:
+            non_vlan_interfaces = set(self.physical_interfaces)
+            interfaces_from_env = set(info)
+
+            # Sanity check
+            if non_vlan_interfaces.difference(interfaces_from_env):
+                raise ValueError('Not all interfaces from /sys/class/net ' + \
+                        'exist in COUGARNET_VLAN!')
+            if interfaces_from_env.difference(non_vlan_interfaces):
+                raise ValueError('Not all interfaces in COUGARNET_VLAN ' + \
+                        'exist in /sys/class/net!')
+
+            for intf in info:
+                if info[intf].startswith('vlan'):
+                    self.int_to_info[intf].vlan = \
+                            int(info[intf].replace('vlan', ''))
+                elif info[intf] == 'trunk':
+                    self.int_to_info[intf].vlan = -1
+        else:
+            for intf in self.int_to_info:
+                self.int_to_info[intf].vlan = 0
 
     def get_interface(self):
         '''Get the name of the single interface associated with this host.
