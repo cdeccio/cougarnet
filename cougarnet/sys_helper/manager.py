@@ -139,7 +139,8 @@ class SysCmdHelperManager(SysHelperManager):
     requests for commands that require privileges and executes those
     commands.'''
 
-    _cmd_base = ('sudo', '-E', SYSCMD_HELPER_SCRIPT)
+    _cmd_base = ('sudo', '-u', 'root', '-g', f'#{os.getegid()}', '-P', '-E',
+            SYSCMD_HELPER_SCRIPT)
 
     def __init__(self, remote_sock, local_sock):
         super().__init__(remote_sock)

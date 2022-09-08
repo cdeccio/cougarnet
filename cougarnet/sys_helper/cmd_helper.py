@@ -389,8 +389,7 @@ class SysCmdHelper:
         if net and nspath not in self.netns_exists:
             return f'1,Namespace does not exist: {nspath}'
 
-        cmd = ['unshare', '--mount', '--uts',
-                f'--setuid={self._uid}', f'--setgid={self._gid}']
+        cmd = ['unshare', '--mount', '--uts', f'--setuid={self._uid}']
         if net:
             cmd += [f'--net={nspath}']
         cmd += [sys.executable, '-m', HOSTINIT_MODULE,
