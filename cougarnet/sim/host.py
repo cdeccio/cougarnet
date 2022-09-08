@@ -56,13 +56,14 @@ class BaseHost:
 
         self._setup_comm_sock()
 
+        self._detect_interfaces()
+        self._set_interface_info()
+        self._set_vlan_info()
+
         if user_mode:
             self._setup_sockets_user()
         else:
             self._setup_sockets_raw()
-        self._detect_interfaces()
-        self._set_interface_info()
-        self._set_vlan_info()
 
     def __enter__(self):
         '''Simply return the object.'''
@@ -285,11 +286,13 @@ class BaseHost:
         Note that this is meant to be used as a convenience method for systems
         with a single interface.'''
 
-        if len(self.int_to_sock) > 1:
+        #XXX this should probably be renamed to get_physical_interface
+
+        if len(self.physical_interfaces) > 1:
             raise ValueError('There is more than one interface on ' + \
                     f'{self.hostname}')
         try:
-            return [i for i in self.int_to_sock][0]
+            return self.physical_interfaces[0]
         except IndexError:
             return None
 
