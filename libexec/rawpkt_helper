@@ -29,8 +29,7 @@ import sys
 from cougarnet.sys_helper.rawpkt_helper import \
         send_raw_to_user, send_user_to_raw
 
-# From /usr/include/linux/if_ether.h
-ETH_P_ALL = 0x0003
+from cougarnet.util import ETH_P_ALL, SOL_PACKET, PACKET_AUXDATA
 
 def _raise_int():
     raise KeyboardInterrupt()
@@ -73,6 +72,8 @@ def _setup_socket(path, uid, gid):
 def _setup_raw_socket(intf):
     sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_ALL))
     sock.bind((intf, 0))
+
+    sock.setsockopt(SOL_PACKET, PACKET_AUXDATA, 1)
 
     # set non-blocking, so it can be used with the listener
     sock.setblocking(False)
