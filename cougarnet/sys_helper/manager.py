@@ -190,6 +190,6 @@ class RawPktHelperManager(SysHelperManager):
     '''A class for creating and managing a process that captures packets from a
     raw socket and sends them to a UNIX domain socket, and vice-versa.'''
 
-    def __init__(self, namespace, *ints):
-        super().__init__('ip', 'netns', 'exec', namespace,
+    def __init__(self, pid, *ints):
+        super().__init__('nsenter', '--target', str(pid), '--all',
                 RAWPKT_HELPER_SCRIPT, *ints)

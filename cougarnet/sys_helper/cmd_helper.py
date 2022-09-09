@@ -421,7 +421,10 @@ class SysCmdHelper:
         if ns not in self.netns_mounted:
             return f'1,Namespace is not mounted: {nspath}'
 
-        helper = RawPktHelperManager(ns, *ints)
+        if ns not in self.netns_to_pid:
+            return '1,No PID associated with namespace'
+
+        helper = RawPktHelperManager(self.netns_to_pid[ns], *ints)
         if helper.start():
             return '0,'
         return '1,Helper not started'
