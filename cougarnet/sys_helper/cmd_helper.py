@@ -21,6 +21,7 @@ privileges.'''
 
 import csv
 import io
+import logging
 import os
 import subprocess
 import sys
@@ -30,11 +31,13 @@ from .manager import RawPktHelperManager
 RUN_NETNS_DIR = '/run/netns/'
 HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
 
+logger = logging.getLogger(__name__)
+
 def _run_cmd(cmd):
     '''Run the specified command.  Return a string with the return code
     followed by the combined stdout/stderr output.'''
 
-    #sys.stderr.write(str(cmd) + '\n')
+    logger.debug(' '.join(cmd))
     proc = subprocess.run(cmd,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
     output = proc.stdout.decode('utf-8')

@@ -116,13 +116,14 @@ def sort_addresses(addrs):
 class VirtualNetwork:
     '''The class that creates and manages a Cougarnet Virtual network.'''
 
-    def __init__(self, terminal_hosts, tmpdir, ipv6):
+    def __init__(self, terminal_hosts, tmpdir, ipv6, verbose):
         self.host_by_name = {}
         self.hostname_by_sock = {}
         self.hosts_file = None
         self.terminal_hosts = terminal_hosts
         self.tmpdir = tmpdir
         self.ipv6 = ipv6
+        self.verbose = verbose
 
         self.bridge_interfaces = set()
         self.ghost_interfaces = set()
@@ -153,7 +154,7 @@ class VirtualNetwork:
         remote_sock_path = os.path.join(self.tmpdir, SYS_CMD_HELPER_SRV)
 
         self.sys_cmd_helper = SysCmdHelperManager(
-                remote_sock_path, local_sock_path)
+                remote_sock_path, local_sock_path, verbose=self.verbose)
         if not self.sys_cmd_helper.start():
             raise StartupError('Could not start system helper!')
 
@@ -290,12 +291,12 @@ class VirtualNetwork:
             host.process_routes()
 
     @classmethod
-    def from_file(cls, fh, terminal_hosts, config_vars, tmpdir, ipv6):
+    def from_file(cls, fh, terminal_hosts, config_vars, tmpdir, ipv6, verbose):
         '''Read a Cougarnet configuration file containing directives for
         virtual hosts and links, and return the resulting VirtualNetwork
         instance composed of those hosts and links.'''
 
-        net = cls(terminal_hosts, tmpdir, ipv6)
+        net = cls(terminal_hosts, tmpdir, ipv6, verbose)
         mode = None
         lineno = 0
         try:
@@ -958,6 +959,9 @@ def main():
             metavar='LINKS',
             help='Start wireshark for the specified links ' + \
                     '(host1-host2[,host2-host3,...])')
+    parser.add_argument('--verbose', '-v',
+            action='store_const', const=True, default=False,
+            help='Use verbose output')
     parser.add_argument('--display',
             action='store_const', const=True, default=False,
             help='Display the network configuration as text')
@@ -1012,7 +1016,7 @@ def main():
 
     try:
         net = VirtualNetwork.from_file(args.config_file, \
-                terminal_hosts, config_vars, tmpdir.name, ipv6)
+                terminal_hosts, config_vars, tmpdir.name, ipv6, args.verbose)
     except ConfigurationError as e:
         sys.stderr.write(f'{args.config_file.name}:{e.lineno}: ' + \
                 f'{str(e)}\n')
