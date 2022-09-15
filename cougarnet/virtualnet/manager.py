@@ -894,10 +894,11 @@ class VirtualNetwork:
         show_colors = sys.stdout.isatty() and \
                 os.environ.get('TERM', 'dumb') != 'dumb'
 
+        # set to non-bocking with timeout 1
+        self.comm_sock.settimeout(1)
+
         start_time = time.time()
         while True:
-            # set to non-bocking with timeout 1
-            self.comm_sock.settimeout(1)
             try:
                 data, peer = self.comm_sock.recvfrom(4096)
             except socket.timeout:
