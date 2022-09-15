@@ -22,6 +22,7 @@ these processes for help with things for which it needs privileges.'''
 
 import csv
 import io
+import logging
 import os
 import signal
 import socket
@@ -31,6 +32,8 @@ import sys
 LIBEXEC_DIR = os.path.join(sys.prefix, 'libexec', 'cougarnet')
 SYSCMD_HELPER_SCRIPT = os.path.join(LIBEXEC_DIR, 'syscmd_helper')
 RAWPKT_HELPER_SCRIPT = os.path.join(LIBEXEC_DIR, 'rawpkt_helper')
+
+logger = logging.getLogger(__name__)
 
 def raise_interrupt(signum, frame):
     '''When a given signal is received, raise KeyboardInterrupt.'''
@@ -94,7 +97,7 @@ class SysHelperManager:
             os.dup2(c2p_writefd, 1)
             os.close(c2p_writefd)
 
-            #sys.stderr.write(str(list(self._cmd)) + '\n')
+            logger.debug(' '.join(self._cmd))
             os.execvp(self._cmd[0], self._cmd)
             sys.exit(1)
 

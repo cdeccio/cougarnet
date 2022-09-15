@@ -25,6 +25,7 @@ import argparse
 import csv
 import io
 import ipaddress
+import logging
 import os
 import re
 import signal
@@ -61,6 +62,11 @@ SCRIPT_EXTENSION='sh'
 SYS_HELPER_MODULE = "cougarnet.virtualnet.sys_helper"
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
+
+logging.basicConfig(level=logging.WARNING, format='%(message)s')
+#XXX this should really be logging.getLogger(__name__), and it should be in
+# bin/cougarnet instead
+logger = logging.getLogger()
 
 def sort_addresses(addrs):
     '''Sort a list of addresses into MAC address, IPv4 addresses, and IPv6
@@ -849,6 +855,7 @@ class VirtualNetwork:
             cmd += ['-i', intf]
         if ints:
             cmd.append('-k')
+        logger.debug(' '.join(cmd))
         subprocess.Popen(cmd)
 
     def message_loop(self, stop):
@@ -989,6 +996,9 @@ def main():
             type=argparse.FileType('r'), action='store',
             help='File containing the network configuration')
     args = parser.parse_args(sys.argv[1:])
+
+    if args.verbose:
+        logger.setLevel(logging.DEBUG)
 
     check_requirements(args)
 

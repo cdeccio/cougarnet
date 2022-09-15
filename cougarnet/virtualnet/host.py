@@ -20,6 +20,7 @@
 hosts.'''
 
 import json
+import logging
 import os
 import subprocess
 import time
@@ -36,6 +37,8 @@ MAIN_WINDOW_NAME = "main"
 CMD_WINDOW_NAME = "prog"
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
+
+logger = logging.getLogger(__name__)
 
 class HostConfig:
     '''The network configuration for a virtual host.'''
@@ -325,6 +328,7 @@ class HostConfig:
                 f'{self.type.capitalize()}: {self.hostname}',
                 '-e', f'tmux -S {self.tmux_file} attach \\; ' + \
                         'set exit-unattached on \\;']
+            logger.debug(' '.join(cmd))
             subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 

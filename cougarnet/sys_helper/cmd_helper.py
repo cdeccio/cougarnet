@@ -404,6 +404,7 @@ class SysCmdHelper:
                 comm_sock_remote, comm_sock_local,
                 script_file]
 
+        logger.debug(' '.join(cmd))
         p = subprocess.Popen(cmd,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL)

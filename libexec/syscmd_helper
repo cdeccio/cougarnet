@@ -113,6 +113,10 @@ def main():
 
     if args.verbose:
         logger.setLevel(logging.DEBUG)
+        # asyncio has some logging at the debug level; we explicitly decrease
+        # the logging level, so it doesn't clutter up our own logging
+        asyncio_logger = logging.getLogger('asyncio')
+        asyncio_logger.setLevel(logging.ERROR)
 
     helper = SysCmdHelper(uid, gid)
     loop = asyncio.get_event_loop()
