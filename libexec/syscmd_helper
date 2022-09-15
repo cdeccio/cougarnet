@@ -88,28 +88,41 @@ def main():
     parser.add_argument('--verbose', '-v',
             action='store_const', const=True, default=False,
             help='Use verbose mode')
+    parser.add_argument('--log-only',
+            action='store_const', const=True, default=False,
+            help='Do not actually execute commands, only log')
     parser.add_argument('socket',
             action='store', type=str,
             help='Socket path ')
 
     args = parser.parse_args(sys.argv[1:])
 
-    # make sure we are running as root
-    if os.geteuid() != 0:
-        sys.stderr.write('Please run this program as root.\n')
-        sys.exit(1)
+    if args.log_only:
+        # make sure we are running as root
+        if os.geteuid() == 0:
+            sys.stderr.write('With --log-only, this program must not be run as root.\n')
+            sys.exit(1)
 
-    uid = int(os.environ.get('SUDO_UID', '0'))
-    gid = int(os.environ.get('SUDO_GID', '0'))
-    if args.uid is not None:
-        uid = args.uid
-    if args.gid is not None:
-        gid = args.gid
+        uid = os.geteuid()
+        gid = os.getegid()
 
-    if uid == 0 or gid == 0:
-        sys.stderr.write('If SUDO_UID and SUDO_GID are not set, ' + \
-                'then the --uid and --gid options must be used.\n')
-        sys.exit(1)
+    else:
+        # make sure we are running as root
+        if os.geteuid() != 0:
+            sys.stderr.write('Without --log-only, this program must be run as root.\n')
+            sys.exit(1)
+
+        uid = int(os.environ.get('SUDO_UID', '0'))
+        gid = int(os.environ.get('SUDO_GID', '0'))
+        if args.uid is not None:
+            uid = args.uid
+        if args.gid is not None:
+            gid = args.gid
+
+        if uid == 0 or gid == 0:
+            sys.stderr.write('If SUDO_UID and SUDO_GID are not set, ' + \
+                    'then the --uid and --gid options must be used.\n')
+            sys.exit(1)
 
     if args.verbose:
         logger.setLevel(logging.DEBUG)
@@ -118,7 +131,7 @@ def main():
         asyncio_logger = logging.getLogger('asyncio')
         asyncio_logger.setLevel(logging.ERROR)
 
-    helper = SysCmdHelper(uid, gid)
+    helper = SysCmdHelper(uid, gid, args.log_only)
     loop = asyncio.get_event_loop()
 
     # exit as soon stdin is closed

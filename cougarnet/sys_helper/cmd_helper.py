@@ -37,9 +37,10 @@ class SysCmdHelper:
     '''A class for executing a set of canned commands that require
     privileges.'''
 
-    def __init__(self, uid, gid):
+    def __init__(self, uid, gid, log_only):
         self._uid = uid
         self._gid = gid
+        self._log_only = log_only
 
         self.links = {}
         # ns_exists contains the ns that exist in /run/netns/

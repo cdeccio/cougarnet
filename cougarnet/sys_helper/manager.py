@@ -140,11 +140,17 @@ class SysCmdHelperManager(SysHelperManager):
     requests for commands that require privileges and executes those
     commands.'''
 
-    def __init__(self, remote_sock, local_sock, verbose=False):
-        args = ['sudo', '-u', 'root', '-g', f'#{os.getegid()}', '-P', '-E',
-                SYSCMD_HELPER_SCRIPT]
+    def __init__(self, remote_sock, local_sock, verbose=False, log_only=False):
+        args = []
+        if not log_only:
+            args += ['sudo', '-P', '-E',
+                        '-u', 'root',
+                        '-g', f'#{os.getegid()}']
+        args += [SYSCMD_HELPER_SCRIPT]
         if verbose:
             args += ['--verbose']
+        if log_only:
+            args += ['--log-only']
         args += [remote_sock]
         super().__init__(*args)
         self.remote_sock_path = remote_sock
