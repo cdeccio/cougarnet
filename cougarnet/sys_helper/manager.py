@@ -22,6 +22,7 @@ these processes for help with things for which it needs privileges.'''
 
 import csv
 import io
+import logging
 import os
 import signal
 import socket
@@ -31,6 +32,8 @@ import sys
 LIBEXEC_DIR = os.path.join(sys.prefix, 'libexec', 'cougarnet')
 SYSCMD_HELPER_SCRIPT = os.path.join(LIBEXEC_DIR, 'syscmd_helper')
 RAWPKT_HELPER_SCRIPT = os.path.join(LIBEXEC_DIR, 'rawpkt_helper')
+
+logger = logging.getLogger(__name__)
 
 def raise_interrupt(signum, frame):
     '''When a given signal is received, raise KeyboardInterrupt.'''
@@ -55,10 +58,8 @@ class SysHelperManager:
     '''A class for creating and managing a process running as a privileged
     user.'''
 
-    _cmd_base = ()
-
     def __init__(self, *args):
-        self._cmd = self._cmd_base + args
+        self._cmd = args
         self._pipe_fd = None
 
     def start(self):
@@ -96,7 +97,7 @@ class SysHelperManager:
             os.dup2(c2p_writefd, 1)
             os.close(c2p_writefd)
 
-            #sys.stderr.write(str(list(self._cmd)) + '\n')
+            logger.debug(' '.join(self._cmd))
             os.execvp(self._cmd[0], self._cmd)
             sys.exit(1)
 
@@ -139,11 +140,22 @@ class SysCmdHelperManager(SysHelperManager):
     requests for commands that require privileges and executes those
     commands.'''
 
-    _cmd_base = ('sudo', '-u', 'root', '-g', f'#{os.getegid()}', '-P', '-E',
-            SYSCMD_HELPER_SCRIPT)
-
-    def __init__(self, remote_sock, local_sock):
-        super().__init__(remote_sock)
+    def __init__(self, remote_sock, local_sock, verbose=False,
+            log_only=False, log_file=None):
+        args = []
+        if not log_only:
+            args += ['sudo', '-P', '-E',
+                        '-u', 'root',
+                        '-g', f'#{os.getegid()}']
+        args += [SYSCMD_HELPER_SCRIPT]
+        if verbose:
+            args += ['--verbose']
+        if log_only:
+            args += ['--log-only']
+        if log_file is not None:
+            args += ['--log-file', log_file]
+        args += [remote_sock]
+        super().__init__(*args)
         self.remote_sock_path = remote_sock
         self.local_sock_path = local_sock
         self.sock = None

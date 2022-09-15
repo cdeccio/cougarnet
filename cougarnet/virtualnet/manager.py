@@ -25,7 +25,9 @@ import argparse
 import csv
 import io
 import ipaddress
+import logging
 import os
+import pickle
 import re
 import signal
 import socket
@@ -52,6 +54,7 @@ SYS_NET_HELPER_RAW_DIR='helper_sock_raw'
 SYS_NET_HELPER_USER_DIR='helper_sock_user'
 SYS_CMD_HELPER_SRV='sys_helper_srv'
 SYS_CMD_HELPER_DIR='sys_helper'
+SYS_CMD_HELPER_LOG_SOCK='sys_helper_log_sock'
 CONFIG_DIR='config'
 HOSTS_DIR='hosts'
 SCRIPT_DIR='scripts'
@@ -61,6 +64,10 @@ SCRIPT_EXTENSION='sh'
 SYS_HELPER_MODULE = "cougarnet.virtualnet.sys_helper"
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
+
+#XXX this should really be logging.getLogger(__name__), and it should be in
+# bin/cougarnet instead
+logger = logging.getLogger()
 
 def sort_addresses(addrs):
     '''Sort a list of addresses into MAC address, IPv4 addresses, and IPv6
@@ -116,13 +123,16 @@ def sort_addresses(addrs):
 class VirtualNetwork:
     '''The class that creates and manages a Cougarnet Virtual network.'''
 
-    def __init__(self, terminal_hosts, tmpdir, ipv6):
+    def __init__(self, terminal_hosts, tmpdir, ipv6, cleanup_only, verbose):
         self.host_by_name = {}
         self.hostname_by_sock = {}
         self.hosts_file = None
         self.terminal_hosts = terminal_hosts
         self.tmpdir = tmpdir
         self.ipv6 = ipv6
+        self.cleanup_only = cleanup_only
+        self.verbose = verbose
+        self.log_sock = None
 
         self.bridge_interfaces = set()
         self.ghost_interfaces = set()
@@ -151,9 +161,20 @@ class VirtualNetwork:
     def _start_sys_cmd_helper(self):
         local_sock_path = os.path.join(self.sys_helper_dir, MAIN_FILENAME)
         remote_sock_path = os.path.join(self.tmpdir, SYS_CMD_HELPER_SRV)
+        if self.cleanup_only:
+            log_only = True
+            log_sock_path = os.path.join(self.tmpdir, SYS_CMD_HELPER_LOG_SOCK)
+            self.log_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+            self.log_sock.bind(log_sock_path)
+            self.log_sock.settimeout(1)
+        else:
+            log_only = False
+            log_sock_path = None
 
         self.sys_cmd_helper = SysCmdHelperManager(
-                remote_sock_path, local_sock_path)
+                remote_sock_path, local_sock_path,
+                verbose=self.verbose,
+                log_only=log_only, log_file=log_sock_path)
         if not self.sys_cmd_helper.start():
             raise StartupError('Could not start system helper!')
 
@@ -290,12 +311,13 @@ class VirtualNetwork:
             host.process_routes()
 
     @classmethod
-    def from_file(cls, fh, terminal_hosts, config_vars, tmpdir, ipv6):
+    def from_file(cls, fh, terminal_hosts, config_vars, tmpdir, ipv6,
+            cleanup_only, verbose):
         '''Read a Cougarnet configuration file containing directives for
         virtual hosts and links, and return the resulting VirtualNetwork
         instance composed of those hosts and links.'''
 
-        net = cls(terminal_hosts, tmpdir, ipv6)
+        net = cls(terminal_hosts, tmpdir, ipv6, cleanup_only, verbose)
         mode = None
         lineno = 0
         try:
@@ -710,13 +732,17 @@ class VirtualNetwork:
         # start the hosts and wait for each to write its PID to the
         for _, host in self.host_by_name.items():
             host.start(self.comm_sock_file)
-            self.wait_for_phase1_startup(host)
+            if not self.cleanup_only:
+                self.wait_for_phase1_startup(host)
 
         # we have to wait to apply the links until the namespace is created
         # i.e., process has to start, as evidenced by pid file
         self.apply_links()
         self.apply_vlans()
         self.set_interfaces_up_netns()
+
+        if self.cleanup_only:
+            return
 
         # let hosts know that virtual interfaces have been
         # created, so they can proceed with network configuration
@@ -848,7 +874,18 @@ class VirtualNetwork:
             cmd += ['-i', intf]
         if ints:
             cmd.append('-k')
+        logger.debug(' '.join(cmd))
         subprocess.Popen(cmd)
+
+    def empty_log_sock(self):
+        msgs = []
+        while True:
+            try:
+                data = self.log_sock.recv(4096)
+            except socket.timeout:
+                return msgs
+            d = pickle.loads(data[4:])
+            msgs.append(d['msg'])
 
     def message_loop(self, stop):
         '''Loop until interrupted, printing messages received over the
@@ -857,10 +894,11 @@ class VirtualNetwork:
         show_colors = sys.stdout.isatty() and \
                 os.environ.get('TERM', 'dumb') != 'dumb'
 
+        # set to non-bocking with timeout 1
+        self.comm_sock.settimeout(1)
+
         start_time = time.time()
         while True:
-            # set to non-bocking with timeout 1
-            self.comm_sock.settimeout(1)
             try:
                 data, peer = self.comm_sock.recvfrom(4096)
             except socket.timeout:
@@ -958,6 +996,12 @@ def main():
             metavar='LINKS',
             help='Start wireshark for the specified links ' + \
                     '(host1-host2[,host2-host3,...])')
+    parser.add_argument('--verbose', '-v',
+            action='store_const', const=True, default=False,
+            help='Use verbose output')
+    parser.add_argument('--cleanup',
+            action='store_const', const=True, default=False,
+            help='Clean up a previously run scenario')
     parser.add_argument('--display',
             action='store_const', const=True, default=False,
             help='Display the network configuration as text')
@@ -986,6 +1030,16 @@ def main():
             help='File containing the network configuration')
     args = parser.parse_args(sys.argv[1:])
 
+    # configure logging
+    FORMAT = f'%(message)s'
+    logger.setLevel(logging.NOTSET)
+
+    if args.verbose:
+        h = logging.StreamHandler()
+        h.setLevel(logging.DEBUG)
+        h.setFormatter(logging.Formatter(fmt=FORMAT))
+        logger.addHandler(h)
+
     check_requirements(args)
 
     signal.signal(21, warn_on_sigttin)
@@ -1011,8 +1065,9 @@ def main():
     ipv6 = not args.disable_ipv6
 
     try:
-        net = VirtualNetwork.from_file(args.config_file, \
-                terminal_hosts, config_vars, tmpdir.name, ipv6)
+        net = VirtualNetwork.from_file(args.config_file,
+                terminal_hosts, config_vars, tmpdir.name,
+                ipv6, args.cleanup, args.verbose)
     except ConfigurationError as e:
         sys.stderr.write(f'{args.config_file.name}:{e.lineno}: ' + \
                 f'{str(e)}\n')
@@ -1053,8 +1108,11 @@ def main():
         net.config()
         net.start(wireshark_ints)
         signal.pthread_sigmask(signal.SIG_SETMASK, oldmask)
-        sys.stdout.write('Ctrl-c to quit\n')
-        net.message_loop(args.stop)
+        if args.cleanup:
+            net.empty_log_sock()
+        else:
+            sys.stdout.write('Ctrl-c to quit\n')
+            net.message_loop(args.stop)
     except KeyboardInterrupt:
         pass
     finally:
@@ -1064,6 +1122,15 @@ def main():
         # then use SIGTERM or (gasp!) SIGKILL.
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         net.cleanup()
+
+    if args.cleanup:
+        print('Issue the following commands to clean up resources ' + \
+                f'associated with {args.config_file.name}.')
+        print('Note that some commands might fail if the resources ' + \
+                'have already been cleaned up.')
+        print('--------------------------------------------------------------')
+        for msg in net.empty_log_sock():
+            print('sudo ' + msg)
 
 if __name__ == '__main__':
     main()
