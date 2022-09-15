@@ -55,10 +55,8 @@ class SysHelperManager:
     '''A class for creating and managing a process running as a privileged
     user.'''
 
-    _cmd_base = ()
-
     def __init__(self, *args):
-        self._cmd = self._cmd_base + args
+        self._cmd = args
         self._pipe_fd = None
 
     def start(self):
@@ -139,13 +137,12 @@ class SysCmdHelperManager(SysHelperManager):
     requests for commands that require privileges and executes those
     commands.'''
 
-    _cmd_base = ('sudo', '-u', 'root', '-g', f'#{os.getegid()}', '-P', '-E',
-            SYSCMD_HELPER_SCRIPT)
-
     def __init__(self, remote_sock, local_sock, verbose=False):
-        args = [remote_sock]
+        args = ['sudo', '-u', 'root', '-g', f'#{os.getegid()}', '-P', '-E',
+                SYSCMD_HELPER_SCRIPT]
         if verbose:
             args += ['--verbose']
+        args += [remote_sock]
         super().__init__(*args)
         self.remote_sock_path = remote_sock
         self.local_sock_path = local_sock
