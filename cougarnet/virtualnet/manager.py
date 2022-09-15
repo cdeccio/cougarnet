@@ -27,6 +27,7 @@ import io
 import ipaddress
 import logging
 import os
+import pickle
 import re
 import signal
 import socket
@@ -53,6 +54,7 @@ SYS_NET_HELPER_RAW_DIR='helper_sock_raw'
 SYS_NET_HELPER_USER_DIR='helper_sock_user'
 SYS_CMD_HELPER_SRV='sys_helper_srv'
 SYS_CMD_HELPER_DIR='sys_helper'
+SYS_CMD_HELPER_LOG_SOCK='sys_helper_log_sock'
 CONFIG_DIR='config'
 HOSTS_DIR='hosts'
 SCRIPT_DIR='scripts'
@@ -130,6 +132,7 @@ class VirtualNetwork:
         self.ipv6 = ipv6
         self.cleanup_only = cleanup_only
         self.verbose = verbose
+        self.log_sock = None
 
         self.bridge_interfaces = set()
         self.ghost_interfaces = set()
@@ -158,11 +161,20 @@ class VirtualNetwork:
     def _start_sys_cmd_helper(self):
         local_sock_path = os.path.join(self.sys_helper_dir, MAIN_FILENAME)
         remote_sock_path = os.path.join(self.tmpdir, SYS_CMD_HELPER_SRV)
+        if self.cleanup_only:
+            log_only = True
+            log_sock_path = os.path.join(self.tmpdir, SYS_CMD_HELPER_LOG_SOCK)
+            self.log_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+            self.log_sock.bind(log_sock_path)
+            self.log_sock.settimeout(1)
+        else:
+            log_only = False
+            log_sock_path = None
 
         self.sys_cmd_helper = SysCmdHelperManager(
                 remote_sock_path, local_sock_path,
-                log_only=self.cleanup_only,
-                verbose=self.verbose)
+                verbose=self.verbose,
+                log_only=log_only, log_file=log_sock_path)
         if not self.sys_cmd_helper.start():
             raise StartupError('Could not start system helper!')
 
@@ -865,6 +877,16 @@ class VirtualNetwork:
         logger.debug(' '.join(cmd))
         subprocess.Popen(cmd)
 
+    def empty_log_sock(self):
+        msgs = []
+        while True:
+            try:
+                data = self.log_sock.recv(4096)
+            except socket.timeout:
+                return msgs
+            d = pickle.loads(data[4:])
+            msgs.append(d['msg'])
+
     def message_loop(self, stop):
         '''Loop until interrupted, printing messages received over the
         communications socket.'''
@@ -1085,7 +1107,9 @@ def main():
         net.config()
         net.start(wireshark_ints)
         signal.pthread_sigmask(signal.SIG_SETMASK, oldmask)
-        if not args.cleanup:
+        if args.cleanup:
+            net.empty_log_sock()
+        else:
             sys.stdout.write('Ctrl-c to quit\n')
             net.message_loop(args.stop)
     except KeyboardInterrupt:
@@ -1097,6 +1121,15 @@ def main():
         # then use SIGTERM or (gasp!) SIGKILL.
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         net.cleanup()
+
+    if args.cleanup:
+        print('Issue the following commands to clean up resources ' + \
+                f'associated with {args.config_file.name}.')
+        print('Note that some commands might fail if the resources ' + \
+                'have already been cleaned up.')
+        print('--------------------------------------------------------------')
+        for msg in net.empty_log_sock():
+            print('sudo ' + msg)
 
 if __name__ == '__main__':
     main()

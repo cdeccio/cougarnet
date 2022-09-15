@@ -22,6 +22,7 @@ import argparse
 import asyncio
 import atexit
 import logging
+import logging.handlers
 import os
 import socket
 import subprocess
@@ -90,6 +91,9 @@ def main():
     parser.add_argument('--log-only',
             action='store_const', const=True, default=False,
             help='Do not actually execute commands, only log')
+    parser.add_argument('--log-file',
+            action='store', type=str, default=None,
+            help='Send log messages to this socket')
     parser.add_argument('socket',
             action='store', type=str,
             help='Socket path ')
@@ -108,6 +112,9 @@ def main():
 
     if args.verbose:
         handlers.append(logging.StreamHandler())
+
+    if args.log_file is not None:
+        handlers.append(logging.handlers.DatagramHandler(args.log_file, None))
 
     for handler in handlers:
         handler.setFormatter(logging.Formatter(fmt=FORMAT))
