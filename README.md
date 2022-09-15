@@ -1323,8 +1323,8 @@ See specifics in the [virtual host](#configuration),
 # Command-Line Usage
 
 ```
-$ cougarnet --help
-usage: cougarnet [-h] [--wireshark LINKS] [--display] [--vars VARS] [--terminal HOSTNAMES] [--disable-ipv6] [--display-file FILE] config_file
+Usage: cougarnet [-h] [--wireshark LINKS] [--verbose] [--cleanup] [--display] [--vars VARS] [--stop STOP] [--terminal HOSTNAMES] [--disable-ipv6] [--display-file FILE]
+                 config_file
 
 positional arguments:
   config_file           File containing the network configuration
@@ -1333,8 +1333,11 @@ optional arguments:
   -h, --help            show this help message and exit
   --wireshark LINKS, -w LINKS
                         Start wireshark for the specified links (host1-host2[,host2-host3,...])
+  --verbose, -v         Use verbose output
+  --cleanup             Clean up a previously run scenario
   --display             Display the network configuration as text
   --vars VARS           Specify variables to be replaced in the configuration file (name=value[,name=value,...])
+  --stop STOP           Specify a number of seconds after which the scenario should be halted.
   --terminal HOSTNAMES  Specify which virtual hosts should launch a terminal (all|none|host1[,host2,...])
   --disable-ipv6        Disable IPv6
   --display-file FILE   Print the network configuration to a file (.png)
