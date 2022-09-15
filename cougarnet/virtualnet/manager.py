@@ -65,7 +65,6 @@ FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 
 #XXX this should really be logging.getLogger(__name__), and it should be in
 # bin/cougarnet instead
-logging.basicConfig(level=logging.WARNING, format='%(message)s')
 logger = logging.getLogger()
 
 def sort_addresses(addrs):
@@ -1008,8 +1007,15 @@ def main():
             help='File containing the network configuration')
     args = parser.parse_args(sys.argv[1:])
 
+    # configure logging
+    FORMAT = f'%(message)s'
+    logger.setLevel(logging.NOTSET)
+
     if args.verbose:
-        logger.setLevel(logging.DEBUG)
+        h = logging.StreamHandler()
+        h.setLevel(logging.DEBUG)
+        h.setFormatter(logging.Formatter(fmt=FORMAT))
+        logger.addHandler(h)
 
     check_requirements(args)
 

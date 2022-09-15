@@ -32,7 +32,6 @@ from cougarnet.sys_helper.cmd_helper import SysCmdHelper
 # From /usr/include/linux/if_ether.h
 ETH_P_ALL = 0x0003
 
-logging.basicConfig(level=logging.WARNING, format='%(message)s')
 logger = logging.getLogger()
 
 def _raise_int():
@@ -97,6 +96,24 @@ def main():
 
     args = parser.parse_args(sys.argv[1:])
 
+    # asyncio has some logging at the debug level; we explicitly decrease
+    # the logging level, so it doesn't clutter up our own logging
+    asyncio_logger = logging.getLogger('asyncio')
+    asyncio_logger.setLevel(logging.ERROR)
+
+    # configure logging
+    FORMAT = f'%(message)s'
+    logger.setLevel(logging.NOTSET)
+    handlers = []
+
+    if args.verbose:
+        handlers.append(logging.StreamHandler())
+
+    for handler in handlers:
+        handler.setFormatter(logging.Formatter(fmt=FORMAT))
+        handler.setLevel(logging.DEBUG)
+        logger.addHandler(handler)
+
     if args.log_only:
         # make sure we are running as root
         if os.geteuid() == 0:
@@ -123,13 +140,6 @@ def main():
             sys.stderr.write('If SUDO_UID and SUDO_GID are not set, ' + \
                     'then the --uid and --gid options must be used.\n')
             sys.exit(1)
-
-    if args.verbose:
-        logger.setLevel(logging.DEBUG)
-        # asyncio has some logging at the debug level; we explicitly decrease
-        # the logging level, so it doesn't clutter up our own logging
-        asyncio_logger = logging.getLogger('asyncio')
-        asyncio_logger.setLevel(logging.ERROR)
 
     helper = SysCmdHelper(uid, gid, args.log_only)
     loop = asyncio.get_event_loop()
