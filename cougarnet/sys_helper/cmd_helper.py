@@ -23,6 +23,7 @@ import csv
 import io
 import logging
 import os
+import random
 import subprocess
 import sys
 
@@ -68,6 +69,10 @@ class SysCmdHelper:
         followed by the combined stdout/stderr output.'''
 
         logger.debug(' '.join(cmd))
+
+        if self._log_only:
+            return f'0,'
+
         proc = subprocess.run(cmd,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
         output = proc.stdout.decode('utf-8')
@@ -260,6 +265,10 @@ class SysCmdHelper:
                 val = val1
             if not val1.startswith('0,'):
                 break
+            # self_run_cmd() always returns success when
+            # self._log_only is True
+            if self._log_only:
+                break
 
         if val.startswith('0,'):
             self.netns_mounted.remove(ns)
@@ -406,10 +415,15 @@ class SysCmdHelper:
                 script_file]
 
         logger.debug(' '.join(cmd))
-        p = subprocess.Popen(cmd,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL)
-        pid = str(p.pid)
+        if self._log_only:
+            #XXX This is probably better implemented with a variable that gets
+            # incremented
+            pid = str(random.randint(0, 1000000))
+        else:
+            p = subprocess.Popen(cmd,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL)
+            pid = str(p.pid)
 
         self.netns_mounted.add(hostname)
         self.netns_to_pid[hostname] = pid
