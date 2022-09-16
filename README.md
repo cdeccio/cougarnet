@@ -831,9 +831,6 @@ receive raw Ethernet frames, rather than using the native network stack, i.e.,
 with the socket API.  The `BaseHost` class is useful for sending and receiving
 frames in Cougarnet.  The key components are the following:
 
- - `int_to_sock` - a `dict` containing a mapping of
-   [interface names](#interface-names) to raw sockets (i.e., for sending
-   frames).
  - `int_to_info` - a `dict` containing a mapping of
    [interface names](#interface-names) to `InterfaceInfo` instances.  An
    `InterfaceInfo` instance has the following attributes:
@@ -857,18 +854,23 @@ frames in Cougarnet.  The key components are the following:
      will be -1.  In the case that there are no VLANs or trunks configured for
      interfaces on the host, then the value is 0.
  - `hostname` - a `str` whose value is the [hostname](#hostnames) of the virtual host.
- - `comm_sock` - a socket (`socket.socket`) that is connected to the
-   [communications socket](#communicating-with-the-calling-process) on which
-   the calling `cougarnet` process is listening (i.e., for logging).
+ - `physical_interfaces` - a list containing the names of all the "physical"
+   interfaces (type `str`) on the virtual host (see 
+   [Listing Interfaces](#listing-interfaces)).
+ - `vlan_interfaces` - a list containing the names of all the VLAN endpoints on the
+   virtual host (see [Listing Interfaces](#listing-interfaces)).
  - `get_interface()` - returns the name of one of the interfaces on the virtual
    host.  This can only be used when the device has just one interface.  It is
    intended to facilitate easy retrieval of the interface.
  - `send_frame(frame, intf)` - send frame (type `bytes`) out on the interface
    designated by name `intf`, a `str`.  Generally calling this method is
    preferred over calling `sendto()` on a socket  directly.
+ - `_is_trunk_link(intf)` - return `True` if `intf` (type `str`) corresponds to
+   a trunk link, on which 802.1Q packets are to be sent; `False` otherwise.
  - `log(msg)` - send message `msg` (type `str`) to the communications socket.
    Generally calling this method is preferred over calling `sendto()` on the
    communications socket (i.e., `comm_sock`) directly.
+
 
 This is designed to provide a base class, which can be subclassed, such that
 the inherited functionality is accessible to the child class.
