@@ -241,7 +241,6 @@ def main():
         sys.exit(1)
 
     _update_environment_sudo()
-    pid = os.getpid()
 
     comm_sock_paths = {
             'local': args.comm_sock_local,
@@ -266,10 +265,10 @@ def main():
             'remote': args.sys_cmd_helper_sock_remote
             }
     os.environ['COUGARNET_SYS_CMD_HELPER_SOCK'] = json.dumps(sys_cmd_helper_sock_paths)
-    os.environ['COUGARNET_PID'] = f'{pid}'
 
     # Tell the coordinating process that the the process has started--and
     # thus that the namespaces have been created
+    pid = os.getpid()
     comm_sock.send(f'{pid}'.encode('utf-8'))
 
     # wait for UDP datagram from coordinating process to let us know that
