@@ -117,7 +117,7 @@ class SysCmdHelper:
         val = self._run_cmd(cmd)
         if val.startswith('0,'):
             self.links[intf1] = None
-            if intf2 is not None:
+            if intf2:
                 self.links[intf2] = None
         return val
 
