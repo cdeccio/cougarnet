@@ -27,6 +27,9 @@ import random
 import subprocess
 import sys
 
+from pyroute2 import NetNS
+from pyroute2.netlink.exceptions import NetlinkError
+
 from .manager import RawPktHelperManager
 
 RUN_NETNS_DIR = '/run/netns/'
@@ -463,7 +466,29 @@ class SysCmdHelper:
         if next_hop:
             cmd += ['via', next_hop]
         cmd += ['dev', intf]
-        return self._run_cmd_netns(cmd, pid)
+
+        logger.debug(' '.join(cmd))
+
+        ns = NetNS(self.pid_to_netns[pid])
+
+        kwargs = { 'dst': prefix }
+        if next_hop:
+            kwargs['gateway'] = next_hop
+        if intf:
+            try:
+                idx = ns.link_lookup(ifname=intf)[0]
+            except IndexError:
+                return f'1,Invalid interface: {intf}'
+            kwargs['oif'] = idx
+
+        try:
+            ns = NetNS(self.pid_to_netns[pid])
+            ns.route('add', **kwargs)
+        except (NetlinkError, OSError, struct.error) as e:
+            return f'1,{str(e)}'
+        finally:
+            ns.close()
+        return '0,'
 
     @require_netns
     def set_iptables_drop(self, pid):
