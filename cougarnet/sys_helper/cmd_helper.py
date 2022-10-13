@@ -27,7 +27,7 @@ import random
 import subprocess
 import sys
 
-from pyroute2 import NetNS
+from pyroute2 import NetNS, netns
 from pyroute2.netlink.exceptions import NetlinkError
 
 from .manager import RawPktHelperManager
@@ -294,6 +294,23 @@ class SysCmdHelper:
 
         self.netns_exists.remove(nspath)
         return val
+
+    def add_pid_for_netns(self, pid):
+        '''Associate a new pid with an existing namespace.'''
+
+        ns = netns.pid_to_ns(pid)
+        if ns is None:
+            return f'1,Process does not exist or process not in any namespace: {pid}'
+        nspath = os.path.join(RUN_NETNS_DIR, ns)
+
+        if nspath not in self.netns_exists:
+            return f'1,Namespace does not exist: {nspath}'
+
+        if ns not in self.netns_to_pid:
+            self.netns_to_pid[ns] = pid
+        self.pid_to_netns[pid] = ns
+
+        return '0,'
 
     def set_link_netns(self, intf, ns):
         '''Move the specified interface into a given namespace (ns), and return

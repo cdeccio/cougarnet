@@ -17,6 +17,7 @@ def sys_cmd(cmd, check=False):
     global sys_cmd_helper
     if sys_cmd_helper is None:
         _init_helper()
+        sys_cmd(['add_pid_for_netns', str(os.getpid())], check=True)
     status = sys_cmd_helper.cmd(cmd)
     if not status.startswith('0,') and check:
         try:
@@ -28,5 +29,5 @@ def sys_cmd(cmd, check=False):
         raise Exception(f'Command failed: {cmd_str}: {err}')
 
 def sys_cmd_pid(cmd, check=False):
-    pid = os.environ.get('COUGARNET_PID', '0')
+    pid = str(os.getpid())
     return sys_cmd([cmd[0]] + [pid] + cmd[1:], check=check)
