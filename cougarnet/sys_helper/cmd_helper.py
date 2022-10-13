@@ -482,7 +482,6 @@ class SysCmdHelper:
             kwargs['oif'] = idx
 
         try:
-            ns = NetNS(self.pid_to_netns[pid])
             ns.route('add', **kwargs)
         except (NetlinkError, OSError, struct.error) as e:
             return f'1,{str(e)}'
