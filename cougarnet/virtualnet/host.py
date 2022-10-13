@@ -270,9 +270,6 @@ class HostConfig:
         '''Start a process that will listen for packets on a raw socket and
         immediately send them to a specified UNIX domain socket, so they can be
         seen by an unprivileged process.'''
-        if self.native_apps:
-            # only start helper if in native apps mode
-            return
 
         ints = [f'{i}={s[0]}:{s[1]}' \
                 for i, s in self.helper_sock_pair_by_int.items()]
