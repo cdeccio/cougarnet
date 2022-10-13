@@ -55,6 +55,7 @@ class SysCmdHelper:
         self.ovs_ports = {}
         self.netns_to_pid = {}
         self.pid_to_netns = {}
+        self.netns_to_iproute = {}
 
     def require_netns(func):
         '''A decorator for ensuring that a method is called with a pid that has
@@ -469,7 +470,10 @@ class SysCmdHelper:
 
         logger.debug(' '.join(cmd))
 
-        ns = NetNS(self.pid_to_netns[pid])
+        netns = self.pid_to_netns[pid]
+        if netns not in self.netns_to_iproute:
+             self.netns_to_iproute[netns] = NetNS(netns)
+        ns = self.netns_to_iproute[netns]
 
         kwargs = { 'dst': prefix }
         if next_hop:
