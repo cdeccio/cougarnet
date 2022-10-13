@@ -66,9 +66,9 @@ def _apply_config(info):
 
     if not native_apps:
         # enable iptables
-        cmd = ['set_iptables_drop', pid]
+        cmd = ['set_iptables_drop', pid, '']
         sys_cmd(cmd, check=True)
-        cmd = ['set_ip6tables_drop', pid]
+        cmd = ['set_ip6tables_drop', pid, '']
         sys_cmd(cmd, check=True)
 
     if info.get('ip_forwarding', False):

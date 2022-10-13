@@ -490,19 +490,25 @@ class SysCmdHelper:
         return '0,'
 
     @require_netns
-    def set_iptables_drop(self, pid):
+    def set_iptables_drop(self, pid, intf):
         '''Set an iptables rule to drop all incoming packets within the
         namespace associated with a given pid.'''
 
-        cmd = ['iptables', '-t', 'filter', '-I', 'INPUT', '-j', 'DROP']
+        cmd = ['iptables', '-t', 'filter', '-I', 'INPUT']
+        if intf:
+            cmd += ['-i', intf]
+        cmd += ['-j', 'DROP']
         return self._run_cmd_netns(cmd, pid)
 
     @require_netns
-    def set_ip6tables_drop(self, pid):
+    def set_ip6tables_drop(self, pid, intf):
         '''Set an ip6tables rule to drop all incoming packets within the
         namespace associated with a given pid.'''
 
-        cmd = ['ip6tables', '-t', 'filter', '-I', 'INPUT', '-j', 'DROP']
+        cmd = ['ip6tables', '-t', 'filter', '-I', 'INPUT']
+        if intf:
+            cmd += ['-i', intf]
+        cmd += ['-j', 'DROP']
         return self._run_cmd_netns(cmd, pid)
 
     @require_netns
