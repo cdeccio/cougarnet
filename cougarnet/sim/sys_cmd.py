@@ -20,12 +20,12 @@ def sys_cmd(cmd, check=False):
     status = sys_cmd_helper.cmd(cmd)
     if not status.startswith('0,') and check:
         try:
-            code, err = status.split(',', maxsplit=1)[1]
-            code = int(code)
-        except ValueError:
-            code = 1
-            err = ''
-        raise subprocess.CalledProcessError(code, cmd, err)
+            err = status.split(',', maxsplit=1)[1]
+        except (ValueError, IndexError):
+            err = 'Unknown error'
+        cmd_str = ' '.join(cmd)
+        #XXX need to raise this differently
+        raise Exception(f'Command failed: {cmd_str}: {err}')
 
 def sys_cmd_pid(cmd, check=False):
     pid = os.environ.get('COUGARNET_PID', '0')
