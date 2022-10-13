@@ -489,8 +489,6 @@ class SysCmdHelper:
             ns.route('add', **kwargs)
         except (NetlinkError, OSError, struct.error) as e:
             return f'1,{str(e)}'
-        finally:
-            ns.close()
         return '0,'
 
     @require_netns
