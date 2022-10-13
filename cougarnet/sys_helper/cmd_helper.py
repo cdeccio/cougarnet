@@ -509,6 +509,26 @@ class SysCmdHelper:
         return '0,'
 
     @require_netns
+    def del_route(self, pid, prefix):
+        '''Delete a route within the namespace associated with a given pid.'''
+
+        cmd = ['ip', 'route', 'del', prefix]
+
+        logger.debug(' '.join(cmd))
+
+        netns = self.pid_to_netns[pid]
+        if netns not in self.netns_to_iproute:
+             self.netns_to_iproute[netns] = NetNS(netns)
+        ns = self.netns_to_iproute[netns]
+
+        kwargs = { 'dst': prefix }
+        try:
+            ns.route('del', **kwargs)
+        except (NetlinkError, OSError, struct.error) as e:
+            return f'1,{str(e)}'
+        return '0,'
+
+    @require_netns
     def set_iptables_drop(self, pid, intf):
         '''Set an iptables rule to drop all incoming packets within the
         namespace associated with a given pid.'''
