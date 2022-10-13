@@ -241,6 +241,7 @@ def main():
         sys.exit(1)
 
     _update_environment_sudo()
+    pid = os.getpid()
 
     comm_sock_paths = {
             'local': args.comm_sock_local,
@@ -260,9 +261,15 @@ def main():
     cmd = ['chmod', '700', comm_sock_paths['local']]
     subprocess.run(cmd, check=True)
 
+    sys_cmd_helper_sock_paths = {
+            'local': args.sys_cmd_helper_sock_local,
+            'remote': args.sys_cmd_helper_sock_remote
+            }
+    os.environ['COUGARNET_SYS_CMD_HELPER_SOCK'] = json.dumps(sys_cmd_helper_sock_paths)
+    os.environ['COUGARNET_PID'] = f'{pid}'
+
     # Tell the coordinating process that the the process has started--and
     # thus that the namespaces have been created
-    pid = os.getpid()
     comm_sock.send(f'{pid}'.encode('utf-8'))
 
     # wait for UDP datagram from coordinating process to let us know that
@@ -290,6 +297,7 @@ def main():
     # close socket and remove the associated file
     comm_sock.close()
     os.unlink(comm_sock_paths['local'])
+    os.unlink(sys_cmd_helper_sock_paths['local'])
 
     # close all file descriptors, except stdin, stdout, stderr
     close_file_descriptors([2])
