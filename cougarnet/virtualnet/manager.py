@@ -724,7 +724,7 @@ class VirtualNetwork:
             raise StartupError(f'Host {host.hostname} is taking ' + \
                     'too long to start.')
 
-    def start(self, wireshark_ints):
+    def start(self, start_delay, wireshark_ints):
         '''Start the hosts and links comprising the VirtualNetwork instance,
         and synchronize appropriately between the VirtualNetwork instance and
         the virtual hosts.'''
@@ -768,6 +768,9 @@ class VirtualNetwork:
         # start the raw packet helper for each host
         for _, host in self.host_by_name.items():
             host.start_raw_packet_helper()
+
+        # sleep for start_delay seconds
+        time.sleep(start_delay)
 
         # let hosts know that they can start now
         for _, host in self.host_by_name.items():
@@ -1009,6 +1012,10 @@ def main():
             action='store', type=str, default=None,
             help='Specify variables to be replaced in the ' + \
                     'configuration file (name=value[,name=value,...])')
+    parser.add_argument('--start',
+            action='store', type=int, default=0,
+            help='Specify a number of seconds to wait before ' + \
+                    'the scenario is started.')
     parser.add_argument('--stop',
             action='store', type=int, default=None,
             help='Specify a number of seconds after which the scenario ' + \
@@ -1106,7 +1113,7 @@ def main():
     try:
         oldmask = signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGINT])
         net.config()
-        net.start(wireshark_ints)
+        net.start(args.start, wireshark_ints)
         signal.pthread_sigmask(signal.SIG_SETMASK, oldmask)
         if args.cleanup:
             net.empty_log_sock()
