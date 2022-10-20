@@ -32,6 +32,8 @@ def send_raw_to_user(raw_sock, helper_sock_raw, dst_sock):
             frame, info = util.recv_raw(raw_sock, 4096)
         except BlockingIOError:
             return
+        except OSError:
+            return
         (ifname, proto, pkttype, hatype, addr) = info
         if pkttype != socket.PACKET_OUTGOING:
             try:
@@ -48,5 +50,7 @@ def send_user_to_raw(helper_sock_raw, raw_sock):
         try:
             frame = helper_sock_raw.recv(4096)
         except BlockingIOError:
+            return
+        except OSError:
             return
         raw_sock.send(frame)
