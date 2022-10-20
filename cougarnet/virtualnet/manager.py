@@ -65,6 +65,8 @@ SYS_HELPER_MODULE = "cougarnet.virtualnet.sys_helper"
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 
+VIRT_HOST_STARTUP_TIMEOUT = 6
+
 #XXX this should really be logging.getLogger(__name__), and it should be in
 # bin/cougarnet instead
 logger = logging.getLogger()
@@ -686,12 +688,12 @@ class VirtualNetwork:
         not sent the null byte within 3 seconds, then raise HostNotStarted.'''
 
         # set to non-bocking with timeout 3
-        self.comm_sock.settimeout(3)
+        self.comm_sock.settimeout(VIRT_HOST_STARTUP_TIMEOUT)
         try:
             comm_sock_files = {host.comm_sock_file \
                     for _, host in self.host_by_name.items()}
             start_time = time.time()
-            end_time = start_time + 3
+            end_time = start_time + VIRT_HOST_STARTUP_TIMEOUT
             while comm_sock_files and time.time() < end_time:
                 _, peer = self.comm_sock.recvfrom(1)
                 if peer in comm_sock_files:
