@@ -25,6 +25,7 @@ import logging
 import os
 import random
 import subprocess
+import struct
 import sys
 
 from pyroute2 import NetNS, netns
