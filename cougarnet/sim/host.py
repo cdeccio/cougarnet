@@ -52,6 +52,8 @@ class BaseHost:
         self.int_to_sock = {}
         self.int_to_info = {}
 
+        self._pending_frames = {}
+
         self.hostname = socket.gethostname()
 
         self._setup_comm_sock()
@@ -134,6 +136,7 @@ class BaseHost:
             loop.add_reader(sock, self._handle_incoming_data_raw, sock, intf)
 
             self.int_to_sock[intf] = sock
+            self._pending_frames[intf] = []
 
     def _setup_sockets_user(self):
         '''Create and configure a the UNIX domain sockets used for send/recv on
@@ -154,6 +157,7 @@ class BaseHost:
             loop.add_reader(sock, self._handle_incoming_data_user, sock, intf)
 
             self.int_to_sock[intf] = sock
+            self._pending_frames[intf] = []
 
     @classmethod
     def _get_interface_info(cls, intf):
@@ -299,7 +303,26 @@ class BaseHost:
     def send_frame(self, frame, intf):
         '''Send a single frame (bytes) on the given interface, intf (str).'''
 
-        self.int_to_sock[intf].send(frame)
+        try:
+            self.int_to_sock[intf].send(frame)
+        except BlockingIOError:
+            self._pending_frames[intf].append((frame, self.int_to_sock[intf]))
+            loop = asyncio.get_event_loop()
+            loop.add_writer(self.int_to_sock[intf], self._send_pending_frames, intf)
+
+    def _send_pending_frames(self, intf):
+        loop = asyncio.get_event_loop()
+        try:
+            i = 0
+            for frame, sock in self._pending_frames[intf]:
+                sock.send(frame)
+                i += 1
+        except BlockingIOError:
+            pass
+        else:
+            loop.remove_writer(self.int_to_sock[intf])
+        for j in range(i):
+            self._pending_frames[intf].pop(0)
 
     def log(self, msg):
         '''Log a message, msg (str), by sending it to the socket designated for
