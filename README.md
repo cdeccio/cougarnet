@@ -393,7 +393,7 @@ if `unshare` were called with `--pid`, but currently that is not an option).
 
 In the Cougarnet configuration file, a host is designated by a hostname on a
 single line in the `NODES` section of the file. Consider the `NODES` section of
-the [example configuration given previously](#getting-started):
+the [example configuration given previously](#two-hosts-directly-connected):
 
 ```
 NODES
@@ -626,7 +626,7 @@ socket functions for you.
 Every virtual host has its own `/etc/hosts`, which contains a mapping of the
 names and IP addresses of all virtual hosts in the virtual network.  That
 allows apps such as `ping` to use hostname instead of IP address exclusively
-(see the [example given previously](#getting-started)).
+(see the [example given previously](#two-hosts-directly-connected)).
 
 
 ## Host Types
@@ -980,7 +980,7 @@ connections between virtual hosts.
 In the Cougarnet configuration file, a link between two hosts is designated in
 the `LINKS` section by indicating two hosts on a line, separated by a space.
 Consider the `LINKS` section of the [example configuration given
-previously](#getting-started):
+previously](#two-hosts-directly-connected):
 
 ```
 LINKS
