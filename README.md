@@ -389,26 +389,6 @@ changed if `unshare` were called with `--root`, and the latter could be changed
 if `unshare` were called with `--pid`, but currently that is not an option).
 
 
-# Virtual Hosts
-
-Each virtual host is actually just a process that is running in its own Linux
-namespace (see the `man` page for `namespaces(7)`).  Specifically, it is a
-process spawned with the `unshare` command.  The `--mount`, `--net`, and
-`--uts` options are passed to `unshare` command, the result of which is that
-(respectively):
- - any filesystem mounts created (i.e., with the `mount` command) are only seen
-   by the process, not by the whole system;
- - the network stack, including interfaces, address configuration, firewall,
-   and more, are specific to the process and are not seen by the rest of the
-   system; and
- - the hostname is specific to the process.
-
-With only these options in use, the virtual hosts all still have access to the
-system-wide filesystem and all system processes (Note that the former could be
-changed if `unshare` were called with `--root`, and the latter could be changed
-if `unshare` were called with `--pid`, but currently that is not an option).
-
-
 ## Configuration
 
 In the Cougarnet configuration file, a host is designated by a hostname on a
