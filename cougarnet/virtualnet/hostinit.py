@@ -28,25 +28,10 @@ import socket
 import subprocess
 import sys
 
-from cougarnet.sys_helper.manager import SysCmdHelperManagerStarted
-from cougarnet.virtualnet.errors import StartupError
+from cougarnet.errors import StartupError
+from cougarnet.sys_helper import join_sys_cmd_helper, sys_cmd
 
 #XXX show debug to terminal until very end
-
-#XXX this code is in three places; consolidate it
-sys_cmd_helper = None
-def sys_cmd(cmd, check=False):
-    '''Send a command to the helper process running as a privileged user.  If
-    there is an error, then raise StartupError.'''
-
-
-    status = sys_cmd_helper.cmd(cmd)
-    if not status.startswith('0,') and check:
-        try:
-            err = status.split(',', maxsplit=1)[1]
-        except ValueError:
-            err = ''
-        raise StartupError(err)
 
 def _apply_config(info):
     '''Apply the network configuration contained in the dictionary info.  Set
@@ -248,10 +233,10 @@ def main():
             }
     os.environ['COUGARNET_COMM_SOCK'] = json.dumps(comm_sock_paths)
 
-    global sys_cmd_helper
-    sys_cmd_helper = SysCmdHelperManagerStarted(
-            args.sys_cmd_helper_sock_remote, args.sys_cmd_helper_sock_local)
-    sys_cmd_helper.start()
+    if not join_sys_cmd_helper(
+            args.sys_cmd_helper_sock_remote, args.sys_cmd_helper_sock_local):
+        sys.stderr.write('Could not join system command helper!\n')
+        sys.exit(1)
 
     comm_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
     comm_sock.bind(comm_sock_paths['local'])

@@ -183,6 +183,7 @@ class SysCmdHelperManager(SysHelperManager):
         self.sock.send(msg)
         return self.sock.recv(1024).decode('utf-8')
 
+
 class SysCmdHelperManagerStarted(SysCmdHelperManager):
     '''A subclass of SysCmdHelperManager that is used when the privileged
     process is already running and we simply want to connect to it to issue
@@ -190,6 +191,7 @@ class SysCmdHelperManagerStarted(SysCmdHelperManager):
 
     def start(self):
         self._setup_sock()
+        return True
 
 class RawPktHelperManager(SysHelperManager):
     '''A class for creating and managing a process that captures packets from a

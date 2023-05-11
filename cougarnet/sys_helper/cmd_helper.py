@@ -19,8 +19,6 @@
 '''Functions and classes for running a set of canned commands that require
 privileges.'''
 
-import csv
-import io
 import logging
 import os
 import random
@@ -30,6 +28,8 @@ import sys
 
 from pyroute2 import NetNS, netns
 from pyroute2.netlink.exceptions import NetlinkError
+
+from cougarnet import util
 
 from .manager import RawPktHelperManager
 
@@ -72,12 +72,15 @@ class SysCmdHelper:
         '''Run the specified command.  Return a string with the return code
         followed by the combined stdout/stderr output.'''
 
-        logger.debug(' '.join(cmd))
+        cmd_str = ' '.join(cmd)
+        logger.debug(cmd_str)
 
         proc = subprocess.run(cmd,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
         output = proc.stdout.decode('utf-8')
-        return f'{proc.returncode},{output}'
+        ret = [proc.returncode, cmd_str, output]
+
+        return util.list_to_csv_str(ret)
 
     def _run_cmd_netns(self, cmd, pid):
         '''Run a command in the same namespace as the process with the given
@@ -428,7 +431,8 @@ class SysCmdHelper:
                 comm_sock_remote, comm_sock_local,
                 script_file]
 
-        logger.debug(' '.join(cmd))
+        cmd_str = ' '.join(cmd)
+        logger.debug(cmd_str)
         p = subprocess.Popen(cmd,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL)
@@ -437,7 +441,10 @@ class SysCmdHelper:
         self.netns_mounted.add(hostname)
         self.netns_to_pid[hostname] = pid
         self.pid_to_netns[pid] = hostname
-        return '0,'
+
+        ret = [0, cmd_str]
+
+        return util.list_to_csv_str(ret)
 
     def start_rawpkt_helper(self, ns, *ints):
         '''Launch a process for passing packets from raw sockets to UNIX domain
@@ -473,7 +480,8 @@ class SysCmdHelper:
             cmd += ['via', next_hop]
         cmd += ['dev', intf]
 
-        logger.debug(' '.join(cmd))
+        cmd_str = ' '.join(cmd)
+        logger.debug(cmd_str)
 
         netns = self.pid_to_netns[pid]
         if netns not in self.netns_to_iproute:
@@ -487,14 +495,14 @@ class SysCmdHelper:
             try:
                 idx = ns.link_lookup(ifname=intf)[0]
             except IndexError:
-                return f'1,Invalid interface: {intf}'
+                return f'1,{cmd_str},Invalid interface: {intf}'
             kwargs['oif'] = idx
 
         try:
             ns.route('add', **kwargs)
         except (NetlinkError, OSError, struct.error) as e:
-            return f'1,{str(e)}'
-        return '0,'
+            return f'1,{cmd_str},{str(e)}'
+        return '0,{cmd_str}'
 
     @require_netns
     def del_route(self, pid, prefix):
@@ -502,7 +510,8 @@ class SysCmdHelper:
 
         cmd = ['ip', 'route', 'del', prefix]
 
-        logger.debug(' '.join(cmd))
+        cmd_str = ' '.join(cmd)
+        logger.debug(cmd_str)
 
         netns = self.pid_to_netns[pid]
         if netns not in self.netns_to_iproute:
@@ -513,8 +522,8 @@ class SysCmdHelper:
         try:
             ns.route('del', **kwargs)
         except (NetlinkError, OSError, struct.error) as e:
-            return f'1,{str(e)}'
-        return '0,'
+            return f'1,{cmd_str},{str(e)}'
+        return f'0,{cmd_str}'
 
     @require_netns
     def set_iptables_drop(self, pid, intf):
@@ -583,9 +592,7 @@ class SysCmdHelper:
             except BlockingIOError:
                 return
             msg = msg.decode('utf-8')
-            s = io.StringIO(msg)
-            csv_reader = csv.reader(s)
-            parts = next(csv_reader)
+            parts = util.csv_str_to_list(msg)
             try:
                 if not parts[0].startswith('_') and \
                         hasattr(self, parts[0]):

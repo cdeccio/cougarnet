@@ -19,6 +19,10 @@
 class CougarnetError(Exception):
     '''Base class for errors related to Cougarnet.'''
 
+class SysCmdError(CougarnetError):
+    '''An error raised when there was an error running a privileged command
+    using SysCmdHelper.'''
+
 class ConfigurationError(CougarnetError):
     '''An error raised when there was an error with content in the Cougarnet
     configuration file.'''

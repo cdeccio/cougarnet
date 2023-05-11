@@ -25,10 +25,12 @@ import os
 import subprocess
 import time
 
+from cougarnet.errors import SysCmdError, StartupError
+from cougarnet import sys_helper
+from cougarnet.sys_helper import sys_cmd
 from cougarnet import util
 
 from .interface import PhysicalInterfaceConfig, VirtualInterfaceConfig
-from .errors import StartupError
 
 TERM = "lxterminal"
 HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
@@ -52,13 +54,11 @@ class HostConfig:
             'routes': None,
             }
 
-    def __init__(self, hostname, history_file, sys_cmd_helper,
-            sys_cmd_helper_local,
+    def __init__(self, hostname, history_file, sys_cmd_helper_local,
             comm_sock_file, tmux_file, script_file, **kwargs):
 
         self.hostname = hostname
         self.history_file = history_file
-        self.sys_cmd_helper = sys_cmd_helper
         self.sys_cmd_helper_local = sys_cmd_helper_local
         self.comm_sock_file = comm_sock_file
         self.tmux_file = tmux_file
@@ -112,18 +112,6 @@ class HostConfig:
 
     def __str__(self):
         return self.hostname
-
-    def sys_cmd(self, cmd, check=False):
-        '''Send a command to the helper process running as a privileged user.
-        If there is an error, then raise StartupError.'''
-
-        status = self.sys_cmd_helper.cmd(cmd)
-        if not status.startswith('0,') and check:
-            try:
-                err = status.split(',', maxsplit=1)[1]
-            except ValueError:
-                err = ''
-            raise StartupError(err)
 
     def _get_tmux_server_pid(self):
         '''Return the PID associated with the tmux server for this virtual
@@ -273,8 +261,7 @@ class HostConfig:
 
         ints = [f'{i}={s[0]}:{s[1]}' \
                 for i, s in self.helper_sock_pair_by_int.items()]
-        self.sys_cmd(['start_rawpkt_helper', self.hostname] + ints,
-                check=True)
+        sys_cmd(['start_rawpkt_helper', self.hostname] + ints, check=True)
 
     def start(self, comm_sock_file):
         '''Start this virtual host.  Call unshare to create the new namespace,
@@ -284,7 +271,7 @@ class HostConfig:
         assert self.config_file is not None, \
                 "create_config() must be called before start()"
 
-        self.sys_cmd(['add_netns', self.hostname], check=True)
+        sys_cmd(['add_netns', self.hostname], check=True)
 
         cmd = ['unshare_hostinit', self.hostname]
         if not (self.type == 'switch' and self.native_apps):
@@ -297,19 +284,19 @@ class HostConfig:
         else:
             cmd += ['']
         cmd += [self.config_file,
-                self.sys_cmd_helper.remote_sock_path,
+                sys_helper.sys_cmd_helper.remote_sock_path,
                 self.sys_cmd_helper_local,
                 comm_sock_file, self.comm_sock_file,
                 self.script_file]
 
-        self.sys_cmd(cmd, check=True)
+        sys_cmd(cmd, check=True)
 
     def flush_forwarding_table(self):
         '''If we are a switch running native_apps mode, send the OVS command
         to flush the forwarding table.'''
 
         if self.type == 'switch' and self.native_apps:
-            self.sys_cmd(['ovs_flush_bridge', self.hostname], check=True)
+            sys_cmd(['ovs_flush_bridge', self.hostname], check=True)
 
     def attach_terminal(self):
         '''If terminal mode is enabled for this host, launch the terminal and
@@ -381,17 +368,17 @@ class HostConfig:
 
         self.kill()
 
-        self.sys_cmd(['umount_netns', self.hostname], check=False)
-        self.sys_cmd(['del_netns', self.hostname], check=False)
+        sys_cmd(['umount_netns', self.hostname], check=False)
+        sys_cmd(['del_netns', self.hostname], check=False)
 
         if self.type == 'switch' and self.native_apps:
-            self.sys_cmd(['ovs_del_bridge', self.hostname], check=False)
+            sys_cmd(['ovs_del_bridge', self.hostname], check=False)
 
             # Explicitly deleting interfaces is only needed when this is a
             # switch running in "native apps" mode; otherwise, the interfaces
             # were deleted when the process with the namespace ended.
             for intf in self.neighbor_by_int:
-                self.sys_cmd(['del_link', intf.name], check=False)
+                sys_cmd(['del_link', intf.name], check=False)
 
         for intf in self.helper_sock_pair_by_int:
             if os.path.exists(self.helper_sock_pair_by_int[intf][0]):

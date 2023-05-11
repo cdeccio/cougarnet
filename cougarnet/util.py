@@ -22,6 +22,8 @@ Various utility functions for Cougarnet.
 
 import binascii
 import ctypes
+import csv
+import io
 import re
 import socket
 import subprocess
@@ -162,3 +164,13 @@ def recv_raw(sock, bufsize):
                 )
                 pkt = pkt[:12] + tag + pkt[12:]
     return pkt, sa_ll
+
+def list_to_csv_str(l):
+    s = io.StringIO()
+    csv_writer = csv.writer(s)
+    csv_writer.writerow(l)
+    return s.getvalue()
+
+def csv_str_to_list(csv_str):
+    csv_reader = csv.reader([csv_str])
+    return next(csv_reader)
