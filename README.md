@@ -1306,7 +1306,7 @@ See specifics in the [virtual host](#configuration),
 # Command-Line Usage
 
 ```
-Usage: cougarnet [-h] [--wireshark LINKS] [--verbose] [--cleanup] [--display] [--vars VARS] [--stop STOP] [--terminal HOSTNAMES] [--disable-ipv6] [--display-file FILE]
+Usage: cougarnet [-h] [--wireshark LINKS] [--verbose] [--display] [--vars VARS] [--stop STOP] [--terminal HOSTNAMES] [--disable-ipv6] [--display-file FILE]
                  config_file
 
 positional arguments:
@@ -1317,7 +1317,6 @@ optional arguments:
   --wireshark LINKS, -w LINKS
                         Start wireshark for the specified links (host1-host2[,host2-host3,...])
   --verbose, -v         Use verbose output
-  --cleanup             Clean up a previously run scenario
   --display             Display the network configuration as text
   --vars VARS           Specify variables to be replaced in the configuration file (name=value[,name=value,...])
   --stop STOP           Specify a number of seconds after which the scenario should be halted.
