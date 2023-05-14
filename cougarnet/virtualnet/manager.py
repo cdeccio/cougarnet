@@ -36,14 +36,14 @@ import sys
 import tempfile
 import time
 
-from cougarnet.errors import SysCmdError, ConfigurationError, StartupError
+from cougarnet.errors import ConfigurationError, StartupError, SysCmdError
 from cougarnet import util
-from cougarnet.sys_helper import \
-        start_sys_cmd_helper, stop_sys_cmd_helper, sys_cmd
-from cougarnet.sys_helper.manager import SYSCMD_HELPER_SCRIPT
 
 from .host import HostConfig
 from .interface import PhysicalInterfaceConfig
+from .sys_helper.cmd_helper import \
+        start_sys_cmd_helper, stop_sys_cmd_helper, sys_cmd
+from .sys_helper.cmd_helper.manager import SYSCMD_HELPER_SCRIPT
 
 
 MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')

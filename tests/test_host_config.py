@@ -18,25 +18,25 @@ class BadConfigTestCase(unittest.TestCase):
             cfg = io.StringIO('NODES\n1h')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Invalid hostname (2)
             cfg = io.StringIO('NODES\n{MAIN_FILENAME}')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Invalid host attribute format (should be foo=bar)
             cfg = io.StringIO('NODES\nh1 foo')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Invalid host attribute (foo)
             cfg = io.StringIO('NODES\nh1 foo=bar')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
     def test_host_attrs(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -44,7 +44,7 @@ class BadConfigTestCase(unittest.TestCase):
             # Node with default attributes
             cfg = io.StringIO('NODES\nh1')
             net = TestVirtualNetwork.from_file(
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
             self.assertEqual(net.host_by_name['h1']._host_config(),
                     {'hostname': 'h1',
                         'int_to_sock': {},
@@ -63,7 +63,7 @@ class BadConfigTestCase(unittest.TestCase):
             # Node with host attributes that override default attributes
             cfg = io.StringIO('NODES\nh1')
             net = TestVirtualNetwork.from_file(
-                    cfg, ['none'], {}, tmpdir, False)
+                    cfg, ['none'], {}, tmpdir, False, True)
             self.assertEqual(net.host_by_name['h1']._host_config(),
                     {'hostname': 'h1',
                         'int_to_sock': {},
@@ -84,7 +84,7 @@ class BadConfigTestCase(unittest.TestCase):
                     'native_apps=false,terminal=false,' + \
                     'prog=echo|foo,prog_window=split,ipv6=false')
             net = TestVirtualNetwork.from_file(
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
             self.assertEqual(net.host_by_name['h1']._host_config(),
                     {'hostname': 'h1',
                         'int_to_sock': {},
@@ -103,7 +103,7 @@ class BadConfigTestCase(unittest.TestCase):
             # Default attributes for switch
             cfg = io.StringIO('NODES\nh1 type=switch')
             net = TestVirtualNetwork.from_file(
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
             self.assertEqual(net.host_by_name['h1']._host_config(),
                     {'hostname': 'h1',
                         'int_to_sock': {},
@@ -124,7 +124,7 @@ s1
 LINKS
 h1,10.0.0.2/24,2001:db8::2/64 s1''')
             net = TestVirtualNetwork.from_file(
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
             net.process_routes()
             self.assertEqual(net.host_by_name['h1'].routes,
                     [("0.0.0.0/0", "h1-s1", "10.0.0.1"),
@@ -143,7 +143,7 @@ LINKS
 h1''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Invalid host attribute format (should be foo=bar)
             cfg = io.StringIO('''NODES
@@ -153,7 +153,7 @@ LINKS
 h1 s1 foo''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Invalid link attribute (foo)
             cfg = io.StringIO('''NODES
@@ -163,7 +163,7 @@ LINKS
 h1 s1 foo=bar''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Invalid link - invalid host
             cfg = io.StringIO('''NODES
@@ -172,7 +172,7 @@ LINKS
 h1 h2''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Multiple MAC addresses
             cfg = io.StringIO('''NODES
@@ -182,7 +182,7 @@ LINKS
 h1,00:00:00:00:11:11,00:00:00:00:00:00 h2''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # No prefix length for IP address
             cfg = io.StringIO('''NODES
@@ -192,7 +192,7 @@ LINKS
 h1,10.0.0.1 h2''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Invalid IPv4 prefix length
             cfg = io.StringIO('''NODES
@@ -202,7 +202,7 @@ LINKS
 h1,10.0.0.1/33 h2''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Invalid IPv4 address
             cfg = io.StringIO('''NODES
@@ -212,7 +212,7 @@ LINKS
 h1,10.0.0.256/24 h2''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # IPv4 addresses in different subnets
             cfg = io.StringIO('''NODES
@@ -222,7 +222,7 @@ LINKS
 h1,10.0.0.1/24,10.0.1.1/24 h2''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Invalid IPv6 prefix length
             cfg = io.StringIO('''NODES
@@ -232,7 +232,7 @@ LINKS
 h1,fd00::/129 h2''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Invalid IPv6 address
             cfg = io.StringIO('''NODES
@@ -242,7 +242,7 @@ LINKS
 h1,fg00::/64 h2''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # IPv6 addresses in different subnets
             cfg = io.StringIO('''NODES
@@ -252,7 +252,7 @@ LINKS
 h1,fd00::/64,fd00:1::/64 h2''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Same IPv4 addresses on both interfaces
             cfg = io.StringIO('''NODES
@@ -262,7 +262,7 @@ LINKS
 h1,10.0.0.1/24 h2,10.0.0.1/24''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Different IPv4 subnets on interfaces
             cfg = io.StringIO('''NODES
@@ -272,7 +272,7 @@ LINKS
 h1,10.0.0.1/24 h2,10.0.1.1/24''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Same IPv6 addresses on both interfaces
             cfg = io.StringIO('''NODES
@@ -282,7 +282,7 @@ LINKS
 h1,fd00::/64 h2,fd00::/64''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Different IPv6 subnets on interfaces
             cfg = io.StringIO('''NODES
@@ -292,7 +292,7 @@ LINKS
 h1,fd00::/64 h2,fd00:1::/64''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Both trunk and VLAN specified
             cfg = io.StringIO('''NODES
@@ -302,7 +302,7 @@ LINKS
 s1 s2 trunk=true,vlan=1''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Trunk specified with two routers
             cfg = io.StringIO('''NODES
@@ -312,7 +312,7 @@ LINKS
 r1 r2 trunk=true''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Trunk specified with switch and host
             cfg = io.StringIO('''NODES
@@ -322,7 +322,7 @@ LINKS
 h1 s1 trunk=true''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # VLAN specified with non-switch
             cfg = io.StringIO('''NODES
@@ -332,7 +332,7 @@ LINKS
 h1 h2 vlan=1''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Invalid VLAN value
             cfg = io.StringIO('''NODES
@@ -342,7 +342,7 @@ LINKS
 h1 s1 vlan=a''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Switch interface with MAC address
             cfg = io.StringIO('''NODES
@@ -352,7 +352,7 @@ LINKS
 h1 s1,00:00:00:aa:aa:aa''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Switch interface with IPv4 address
             cfg = io.StringIO('''NODES
@@ -362,7 +362,7 @@ LINKS
 h1 s1,10.0.0.1/24''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
 
     def test_link_attrs(self):
@@ -375,7 +375,7 @@ s1
 LINKS
 h1 s1''')
             net = TestVirtualNetwork.from_file(
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
             intf1 = net.host_by_name['h1'].int_by_name['h1-s1']
             intf2 = net.host_by_name['s1'].int_by_name['s1-h1']
             self.assertEqual(intf1.as_dict(),
@@ -408,7 +408,7 @@ h2
 LINKS
 h1,00:00:00:00:00:00,10.0.0.1/24,fd00:1::1/64 h2,00:00:00:00:11:11,10.0.0.3/24,fd00:1::3/64 bw=10Mbps,delay=100ms,loss=10%,mtu=500''')
             net = TestVirtualNetwork.from_file(
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
             intf1 = net.host_by_name['h1'].int_by_name['h1-h2']
             intf2 = net.host_by_name['h2'].int_by_name['h2-h1']
             self.assertEqual(intf1.as_dict(),
@@ -441,7 +441,7 @@ h2
 LINKS
 h1,00:00:00:00:00:00,10.0.0.1/24,10.0.0.2/24,fd00:1::1/64,fd00:1::2/64 h2,00:00:00:00:11:11,10.0.0.3/24,10.0.0.4/24,fd00:1::3/64,fd00:1::4/64''')
             net = TestVirtualNetwork.from_file(
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
             intf1 = net.host_by_name['h1'].int_by_name['h1-h2']
             intf2 = net.host_by_name['h2'].int_by_name['h2-h1']
             self.assertEqual(intf1.as_dict(),
@@ -474,7 +474,7 @@ s1 type=switch
 LINKS
 h1,00:00:00:00:00:00,10.0.0.1/24,fd00:1::1/64 s1''')
             net = TestVirtualNetwork.from_file(
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
             intf1 = net.host_by_name['h1'].int_by_name['h1-s1']
             intf2 = net.host_by_name['s1'].int_by_name['s1-h1']
             self.assertEqual(intf1.as_dict(),
@@ -507,7 +507,7 @@ s1 type=switch
 LINKS
 h1,00:00:00:00:00:00,10.0.0.1/24,fd00:1::1/64 s1 bw=10Mbps,delay=100ms,loss=10%,mtu=500,vlan=1''')
             net = TestVirtualNetwork.from_file(
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
             intf1 = net.host_by_name['h1'].int_by_name['h1-s1']
             intf2 = net.host_by_name['s1'].int_by_name['s1-h1']
             self.assertEqual(intf1.as_dict(),
@@ -540,7 +540,7 @@ s2 type=switch
 LINKS
 s1 s2 vlan=1''')
             net = TestVirtualNetwork.from_file(
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
             intf1 = net.host_by_name['s1'].int_by_name['s1-s2']
             intf2 = net.host_by_name['s2'].int_by_name['s2-s1']
             self.assertEqual(intf1.as_dict(),
@@ -574,7 +574,7 @@ s2 type=switch
 LINKS
 s1 s2 trunk=true''')
             net = TestVirtualNetwork.from_file(
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
             intf1 = net.host_by_name['s1'].int_by_name['s1-s2']
             intf2 = net.host_by_name['s2'].int_by_name['s2-s1']
             self.assertEqual(intf1.as_dict(),
@@ -607,7 +607,7 @@ r1 type=router
 LINKS
 s1 r1 trunk=true''')
             net = TestVirtualNetwork.from_file(
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
             intf1 = net.host_by_name['s1'].int_by_name['s1-r1']
             intf2 = net.host_by_name['r1'].int_by_name['r1-s1']
             self.assertEqual(intf1.as_dict(),
@@ -647,7 +647,7 @@ VLANS
 ''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # No addresses specified
             cfg = io.StringIO('''NODES
@@ -660,7 +660,7 @@ VLANS
 ''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Multiple MAC addresses
             cfg = io.StringIO('''NODES
@@ -673,7 +673,7 @@ VLANS
 ''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Invalid VLAN - invalid host
             cfg = io.StringIO('''NODES
@@ -686,7 +686,7 @@ VLANS
 ''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Invalid VLAN - host not a router
             cfg = io.StringIO('''NODES
@@ -699,7 +699,7 @@ VLANS
 ''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Invalid VLAN - invalid peer host
             cfg = io.StringIO('''NODES
@@ -712,7 +712,7 @@ VLANS
 ''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Invalid VLAN - no link between host and peer
             cfg = io.StringIO('''NODES
@@ -726,7 +726,7 @@ VLANS
 ''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
             # Invalid VLAN - link between host and peer is not a trunk
             cfg = io.StringIO('''NODES
@@ -739,7 +739,7 @@ VLANS
 ''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
 
 
     def test_vlan_attrs(self):
@@ -756,7 +756,7 @@ VLANS
 ''')
 
             net = TestVirtualNetwork.from_file(
-                    cfg, [], {}, tmpdir, True)
+                    cfg, [], {}, tmpdir, True, True)
             intf = net.host_by_name['r1'].int_by_vlan[100]
             self.assertEqual(intf.as_dict(),
                     {   'mac_addr': '00:00:00:aa:aa:aa',

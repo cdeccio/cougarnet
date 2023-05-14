@@ -29,7 +29,8 @@ import subprocess
 import sys
 
 from cougarnet.errors import StartupError
-from cougarnet.sys_helper import join_sys_cmd_helper, sys_cmd
+
+from .sys_helper.cmd_helper import join_sys_cmd_helper, sys_cmd
 
 #XXX show debug to terminal until very end
 

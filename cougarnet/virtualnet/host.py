@@ -26,11 +26,11 @@ import subprocess
 import time
 
 from cougarnet.errors import SysCmdError, StartupError
-from cougarnet import sys_helper
-from cougarnet.sys_helper import sys_cmd
 from cougarnet import util
 
 from .interface import PhysicalInterfaceConfig, VirtualInterfaceConfig
+from .sys_helper import cmd_helper
+from .sys_helper.cmd_helper import sys_cmd
 
 TERM = "lxterminal"
 HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
@@ -284,7 +284,7 @@ class HostConfig:
         else:
             cmd += ['']
         cmd += [self.config_file,
-                sys_helper.sys_cmd_helper.remote_sock_path,
+                cmd_helper.sys_cmd_helper.remote_sock_path,
                 self.sys_cmd_helper_local,
                 comm_sock_file, self.comm_sock_file,
                 self.script_file]

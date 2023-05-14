@@ -21,7 +21,6 @@ privileges.'''
 
 import logging
 import os
-import random
 import subprocess
 import struct
 import sys
@@ -29,9 +28,9 @@ import sys
 from pyroute2 import NetNS, netns
 from pyroute2.netlink.exceptions import NetlinkError
 
+from cougarnet.virtualnet.sys_helper.rawpkt_helper.manager import \
+        RawPktHelperManager
 from cougarnet import util
-
-from .manager import RawPktHelperManager
 
 RUN_NETNS_DIR = '/run/netns/'
 HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
