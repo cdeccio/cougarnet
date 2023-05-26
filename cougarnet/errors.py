@@ -16,6 +16,8 @@
 # with this program; if not, see <http://www.gnu.org/licenses/>.
 #
 
+'''Various errors related to Cougarnet.'''
+
 class CougarnetError(Exception):
     '''Base class for errors related to Cougarnet.'''
 
