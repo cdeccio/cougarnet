@@ -71,8 +71,7 @@ class PhysicalInterfaceConfig(InterfaceConfigBase):
     def __init__(self, name, mac_addr=None, ipv4_addrs=None, ipv6_addrs=None,
             **kwargs):
 
-        super().__init__(
-                name, mac_addr, ipv4_addrs, ipv6_addrs)
+        super().__init__(name, mac_addr, ipv4_addrs, ipv6_addrs)
 
         for attr in self.__class__.attrs:
             setattr(self, attr, kwargs.get(attr, self.__class__.attrs[attr]))
@@ -81,8 +80,7 @@ class PhysicalInterfaceConfig(InterfaceConfigBase):
             **kwargs):
         '''Update attributes with those specified.'''
 
-        super().update(
-                mac_addr, ipv4_addrs, ipv6_addrs)
+        super().update(mac_addr, ipv4_addrs, ipv6_addrs)
 
         for attr in kwargs:
             setattr(self, attr, kwargs[attr])
@@ -104,6 +102,5 @@ class VirtualInterfaceConfig(InterfaceConfigBase):
             ipv6_addrs=None):
 
         name = f'{phys_int.name}.vlan{vlan}'
-        super(VirtualInterfaceConfig, self).__init__(
-                name, mac_addr, ipv4_addrs, ipv6_addrs)
+        super().__init__(name, mac_addr, ipv4_addrs, ipv6_addrs)
         self.phys_int = phys_int
