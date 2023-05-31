@@ -20,7 +20,7 @@
 Various utility functions for the cmd_helper module.
 '''
 
-from cougarnet.errors import SysCmdError
+from cougarnet.errors import CommandPrereqError, CommandExecError
 from cougarnet.util import list_to_csv_str, csv_str_to_list
 
 from .manager import SysCmdHelperManager, SysCmdHelperManagerStarted
@@ -64,6 +64,10 @@ def sys_cmd(cmd, check=False):
     if not status.startswith('0,') and check:
         row = csv_str_to_list(status)
         try:
+            exit_code = int(row[0])
+        except ValueError:
+            exit_code = None
+        try:
             cmd_str = row[1]
         except IndexError:
             cmd_str = ''
@@ -71,4 +75,9 @@ def sys_cmd(cmd, check=False):
             err = row[2]
         except IndexError:
             err = ''
-        raise SysCmdError(f'Error running "{cmd_str}": {err}')
+        if not cmd_str:
+            cmd_str = ' '.join(cmd)
+            raise CommandPrereqError(f'Unable to execute command ' + \
+                    '"{cmd_str}": {err}')
+        else:
+            raise CommandExecError(f'Command failed: "{cmd_str}": {err}')
