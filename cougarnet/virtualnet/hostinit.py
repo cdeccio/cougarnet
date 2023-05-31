@@ -157,33 +157,6 @@ def close_file_descriptors(exceptions):
             except OSError:
                 pass
 
-def _update_environment_sudo():
-    if 'SUDO_USER' in os.environ:
-        os.environ['USER'] = os.environ['SUDO_USER']
-        del os.environ['SUDO_USER']
-
-    if 'SUDO_GROUP' in os.environ:
-        os.environ['GROUP'] = os.environ['SUDO_GROUP']
-        del os.environ['SUDO_GROUP']
-
-    if 'LOGNAME' in os.environ:
-        os.environ['LOGNAME'] = os.environ['USER']
-
-    try:
-        del os.environ['SUDO_UID']
-    except KeyError:
-        pass
-
-    try:
-        del os.environ['SUDO_GID']
-    except KeyError:
-        pass
-
-    try:
-        del os.environ['SUDO_COMMAND']
-    except KeyError:
-        pass
-
 def main():
     '''Parse command-line arguments, synchronize with virtual network manager,
     apply network configuration, and set appropriate environment variables.'''
@@ -225,8 +198,6 @@ def main():
     if os.geteuid() == 0:
         sys.stderr.write('Please run this program as a non-privileged user.\n')
         sys.exit(1)
-
-    _update_environment_sudo()
 
     comm_sock_paths = {
             'local': args.comm_sock_local,
@@ -284,11 +255,11 @@ def main():
     os.unlink(comm_sock_paths['local'])
     os.unlink(sys_cmd_helper_sock_paths['local'])
 
-    # close all file descriptors, except stdin, stdout, stderr
+    # close all file descriptors, except stderr
     close_file_descriptors([2])
 
     prog_args = args.prog.split('|')
-    os.execvp(prog_args[0], prog_args)
+    os.execve(prog_args[0], prog_args, {})
 
 if __name__ == '__main__':
     main()

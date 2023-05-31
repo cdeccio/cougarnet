@@ -25,6 +25,7 @@ import argparse
 import csv
 import io
 import ipaddress
+import json
 import logging
 import os
 import pickle
@@ -50,6 +51,7 @@ MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
 
 TMPDIR=os.path.join(os.environ.get('HOME', '.'), 'cougarnet-tmp')
 MAIN_FILENAME='_main'
+ENV_FILENAME='env'
 COMM_SOCK_DIR='comm'
 SYS_NET_HELPER_RAW_DIR='helper_sock_raw'
 SYS_NET_HELPER_USER_DIR='helper_sock_user'
@@ -146,6 +148,7 @@ class VirtualNetwork:
         self.helper_sock_user_dir = os.path.join(self.tmpdir, SYS_NET_HELPER_USER_DIR)
         self.sys_helper_dir = os.path.join(self.tmpdir, SYS_CMD_HELPER_DIR)
         self.helper_local_sock_path = os.path.join(self.sys_helper_dir, MAIN_FILENAME)
+        self.env_file = os.path.join(self.tmpdir, ENV_FILENAME)
 
         self.comm_sock_file = None
         self.comm_sock = None
@@ -156,7 +159,13 @@ class VirtualNetwork:
             cmd = ['mkdir', '-p', d]
             subprocess.run(cmd, check=True)
 
+        self._build_env_file()
         self._start_sys_cmd_helper()
+
+    def _build_env_file(self):
+        with open(self.env_file, 'w') as fh:
+            for key in os.environ:
+                fh.write(f'export {key}="{os.environ[key]}"\n')
 
     def _start_sys_cmd_helper(self):
         remote_sock_path = os.path.join(self.tmpdir, SYS_CMD_HELPER_SRV)
@@ -381,7 +390,8 @@ class VirtualNetwork:
         self.hostname_by_sock[comm_sock_file] = hostname
         self.host_by_name[hostname] = \
                 HostConfig(hostname, '/dev/null', sys_cmd_helper_local,
-                        comm_sock_file, tmux_file, script_file, **attrs)
+                        comm_sock_file, tmux_file, script_file, self.env_file,
+                        **attrs)
 
     def add_link(self, host1, host2, **attrs):
         '''Add a link between two hosts, with the given attributes.  Make sure
@@ -768,6 +778,7 @@ class VirtualNetwork:
         self.comm_sock.close()
         os.unlink(self.comm_sock_file)
         os.unlink(self.helper_local_sock_path)
+        os.unlink(self.env_file)
 
         for d in self.comm_dir, self.config_dir, self.hosts_dir, \
                 self.script_dir, self.tmux_dir, self.helper_sock_raw_dir, \

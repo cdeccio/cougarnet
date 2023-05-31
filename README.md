@@ -76,7 +76,7 @@ user without requiring a password (i.e., with the `NOPASSWD` option).  For
 example, your `/etc/sudoers` file might contain the following:
 
 ```sudoers
-%cougarnet  ALL=(ALL:ALL) NOPASSWD:SETENV: /usr/libexec/cougarnet/syscmd_helper
+%cougarnet  ALL=(ALL:ALL) NOPASSWD: /usr/libexec/cougarnet/syscmd_helper
 ```
 
 To install Cougarnet, run the following:

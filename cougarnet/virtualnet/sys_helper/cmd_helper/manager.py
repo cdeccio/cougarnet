@@ -49,8 +49,7 @@ class SysCmdHelperManager(SysHelperManager):
     commands.'''
 
     def __init__(self, remote_sock, local_sock, verbose=False):
-        args = ['sudo', '-P', '-E',
-                    '-u', 'root',
+        args = ['sudo', '-P', '-u', 'root',
                     '-g', f'#{os.getegid()}',
                     SYSCMD_HELPER_SCRIPT]
         if verbose:

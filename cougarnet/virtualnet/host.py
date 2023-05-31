@@ -55,7 +55,7 @@ class HostConfig:
             }
 
     def __init__(self, hostname, history_file, sys_cmd_helper_local,
-            comm_sock_file, tmux_file, script_file, **kwargs):
+            comm_sock_file, tmux_file, script_file, env_file, **kwargs):
 
         self.hostname = hostname
         self.history_file = history_file
@@ -63,6 +63,7 @@ class HostConfig:
         self.comm_sock_file = comm_sock_file
         self.tmux_file = tmux_file
         self.script_file = script_file
+        self.env_file = env_file
         self.pid = None
         self.config_file = None
         self.next_int_num = 0
@@ -200,6 +201,7 @@ class HostConfig:
 
         with open(self.script_file, 'w') as fh:
             fh.write('#!/bin/bash\n')
+            fh.write(f'. {self.env_file}\n')
             fh.write(f'export HISTFILE={self.history_file}\n\n')
             fh.write(f'exec tmux -S {self.tmux_file} ' + \
                     f'set -g default-terminal "tmux-256color" \\; \\\n' + \
