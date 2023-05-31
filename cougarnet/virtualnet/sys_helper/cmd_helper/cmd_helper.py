@@ -63,7 +63,7 @@ class SysCmdHelper:
 
         def _func(self, pid, *args, **kwargs):
             if pid not in self.pid_to_netns:
-                return '1,Not within a mounted namespace'
+                return '9,,Not within a mounted namespace'
             return func(self, pid, *args, **kwargs)
         return _func
 
@@ -95,7 +95,7 @@ class SysCmdHelper:
         Otherwise, return the result.'''
 
         if intf not in self.links:
-            return f'1,Interface does not exist: {intf}'
+            return f'9,,Interface does not exist: {intf}'
 
         if self.links[intf] is None:
             # execute in default namespace
@@ -106,7 +106,7 @@ class SysCmdHelper:
             # execute using nsenter and pid
             return self._run_cmd_netns(cmd, self.netns_to_pid[netns])
 
-        return '1,No PID associated with namespace'
+        return '9,,No PID associated with namespace'
 
     def add_link_veth(self, intf1, intf2):
         '''Add one or two interaces of type veth (virtual interfaces) with the
@@ -129,7 +129,7 @@ class SysCmdHelper:
         name, and VLAN ID. Return the result.'''
 
         if phys_intf not in self.links:
-            return f'1,Interface does not exist: {phys_intf}'
+            return f'9,,Interface does not exist: {phys_intf}'
 
         cmd = ['ip', 'link', 'add', 'link', phys_intf, 'name',
                 vlan_intf, 'type', 'vlan', 'id', vlan]
@@ -157,9 +157,9 @@ class SysCmdHelper:
         Return the result.'''
 
         if intf not in self.links:
-            return f'1,Interface does not exist: {intf}'
+            return f'9,,Interface does not exist: {intf}'
         if bridge_intf not in self.links:
-            return f'1,Bridge does not exist: {bridge_intf}'
+            return f'9,,Bridge does not exist: {bridge_intf}'
 
         cmd = ['ip', 'link', 'set', intf, 'master', bridge_intf]
         return self._run_cmd(cmd)
@@ -234,7 +234,7 @@ class SysCmdHelper:
         val = '0,'
         if nspath not in self.netns_exists:
             if os.path.exists(nspath):
-                return f'1,Namespace already exists: {nspath}'
+                return f'9,,Namespace already exists: {nspath}'
 
             if not os.path.exists(RUN_NETNS_DIR):
                 cmd = ['mkdir', '-p', RUN_NETNS_DIR]
@@ -257,7 +257,7 @@ class SysCmdHelper:
         nspath = os.path.join(RUN_NETNS_DIR, ns)
 
         if ns not in self.netns_mounted:
-            return f'1,Namespace is not mounted: {nspath}'
+            return f'9,,Namespace is not mounted: {nspath}'
 
         cmd = ['umount', nspath]
         val = val1 = None
@@ -280,7 +280,7 @@ class SysCmdHelper:
         nspath = os.path.join(RUN_NETNS_DIR, ns)
 
         if nspath not in self.netns_exists:
-            return f'1,Namespace does not exist: {nspath}'
+            return f'9,,Namespace does not exist: {nspath}'
 
         cmd = ['rm', nspath]
         val = self._run_cmd(cmd)
@@ -295,11 +295,12 @@ class SysCmdHelper:
 
         ns = netns.pid_to_ns(pid)
         if ns is None:
-            return f'1,Process does not exist or process not in any namespace: {pid}'
+            return '9,,Process does not exist or ' + \
+                    f'process not in any namespace: {pid}'
         nspath = os.path.join(RUN_NETNS_DIR, ns)
 
         if nspath not in self.netns_exists:
-            return f'1,Namespace does not exist: {nspath}'
+            return f'9,,Namespace does not exist: {nspath}'
 
         if ns not in self.netns_to_pid:
             self.netns_to_pid[ns] = pid
@@ -314,9 +315,9 @@ class SysCmdHelper:
         nspath = os.path.join(RUN_NETNS_DIR, ns)
 
         if intf not in self.links:
-            return f'1,Interface does not exist: {intf}'
+            return f'9,,Interface does not exist: {intf}'
         if ns not in self.netns_mounted:
-            return f'1,Namespace is not mounted: {nspath}'
+            return f'9,,Namespace is not mounted: {nspath}'
 
         cmd = ['ip', 'link', 'set', intf, 'netns', ns]
 
@@ -341,7 +342,7 @@ class SysCmdHelper:
         return the result.'''
 
         if bridge not in self.ovs_ports:
-            return f'1,Bridge does not exist: {bridge}'
+            return f'9,,Bridge does not exist: {bridge}'
 
         cmd = ['ovs-vsctl', 'del-br', bridge]
 
@@ -355,7 +356,7 @@ class SysCmdHelper:
         and return the result.'''
 
         if bridge not in self.ovs_ports:
-            return f'1,Bridge does not exist: {bridge}'
+            return f'9,,Bridge does not exist: {bridge}'
 
         cmd = ['ovs-appctl', 'fdb/flush', bridge]
 
@@ -367,9 +368,9 @@ class SysCmdHelper:
         associate it with VLAN 0.  Return the result.'''
 
         if bridge not in self.ovs_ports:
-            return f'1,Bridge does not exist: {bridge}'
+            return f'9,,Bridge does not exist: {bridge}'
         if intf not in self.links:
-            return f'1,Interface does not exist: {intf}'
+            return f'9,,Interface does not exist: {intf}'
 
         cmd = ['ovs-vsctl', 'add-port', bridge, intf]
         if vlan:
@@ -416,7 +417,7 @@ class SysCmdHelper:
         nspath = os.path.join(RUN_NETNS_DIR, hostname)
 
         if net and nspath not in self.netns_exists:
-            return f'1,Namespace does not exist: {nspath}'
+            return f'9,,Namespace does not exist: {nspath}'
 
         cmd = ['unshare', '--mount', '--uts', f'--setuid={self._uid}']
         if net:
@@ -453,14 +454,14 @@ class SysCmdHelper:
         nspath = os.path.join(RUN_NETNS_DIR, ns)
 
         if ns not in self.netns_mounted:
-            return f'1,Namespace is not mounted: {nspath}'
+            return f'9,,Namespace is not mounted: {nspath}'
         if ns not in self.netns_to_pid:
-            return '1,No PID associated with namespace'
+            return '9,,No PID associated with namespace'
 
         helper = RawPktHelperManager(self.netns_to_pid[ns], *ints)
         if helper.start():
             return '0,'
-        return '1,Helper not started'
+        return '9,,Helper not started'
 
     @require_netns
     def set_hostname(self, pid, hostname):
@@ -598,9 +599,9 @@ class SysCmdHelper:
                     func = getattr(self, parts[0])
                     status = func(*parts[1:])
                 else:
-                    status = f'1,Invalid command: {parts[0]}'
+                    status = f'9,,Invalid command: {parts[0]}'
             except Exception as e:
-                status = f'1,Command error: {parts}: {str(e)}'
+                status = f'9,,Command error: {parts}: {str(e)}'
             try:
                 sock.sendto(status.encode('utf-8'), peer)
             except ConnectionRefusedError:
