@@ -376,11 +376,8 @@ class HostConfig:
         if self.type == 'switch' and self.native_apps:
             sys_cmd(['ovs_del_bridge', self.hostname], check=False)
 
-            # Explicitly deleting interfaces is only needed when this is a
-            # switch running in "native apps" mode; otherwise, the interfaces
-            # were deleted when the process with the namespace ended.
-            for intf in self.neighbor_by_int:
-                sys_cmd(['del_link', intf.name], check=False)
+        for intf in self.neighbor_by_int:
+            sys_cmd(['del_link', intf.name], check=False)
 
         for intf in self.helper_sock_pair_by_int:
             if os.path.exists(self.helper_sock_pair_by_int[intf][0]):
