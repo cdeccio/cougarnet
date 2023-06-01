@@ -40,6 +40,7 @@ import time
 from cougarnet.errors import ConfigurationError, StartupError, SysCmdError
 from cougarnet import util
 
+from .cmd import run_cmd
 from .host import HostConfig
 from .interface import PhysicalInterfaceConfig
 from .sys_helper.cmd_helper import \
@@ -519,60 +520,58 @@ class VirtualNetwork:
                     # "ghost" interface that will be on the host.
                     ghost1 = f'{int1.name}-ghost'
                     ghost2 = f'{int2.name}-ghost'
-                    sys_cmd(['add_link_veth', int1.name, ghost1], check=True)
-                    sys_cmd(['add_link_veth', int2.name, ghost2], check=True)
+                    run_cmd('add_link_veth', int1.name, ghost1)
+                    run_cmd('add_link_veth', int2.name, ghost2)
 
                     # We now connect to the two ghost interfaces together with a
                     # bridge.
                     br = f'{int1.name}-br'
-                    sys_cmd(['add_link_bridge', br], check=True)
-                    sys_cmd(['set_link_master', ghost1, br], check=True)
-                    sys_cmd(['set_link_master', ghost2, br], check=True)
+                    run_cmd('add_link_bridge', br)
+                    run_cmd('set_link_master', ghost1, br)
+                    run_cmd('set_link_master', ghost2, br)
 
                     # These interfaces should have *no* addresses, including IPv6
-                    sys_cmd(['disable_ipv6', ghost1], check=True)
-                    sys_cmd(['disable_ipv6', ghost2], check=True)
-                    sys_cmd(['disable_ipv6', br], check=True)
+                    run_cmd('disable_ipv6', ghost1)
+                    run_cmd('disable_ipv6', ghost2)
+                    run_cmd('disable_ipv6', br)
 
                     # bring interfaces up
-                    sys_cmd(['set_link_up', ghost1], check=True)
-                    sys_cmd(['set_link_up', ghost2], check=True)
-                    sys_cmd(['set_link_up', br], check=True)
+                    run_cmd('set_link_up', ghost1)
+                    run_cmd('set_link_up', ghost2)
+                    run_cmd('set_link_up', br)
                     self.bridge_interfaces.add(br)
                     self.ghost_interfaces.add(ghost1)
                     self.ghost_interfaces.add(ghost2)
 
                     if host1.type == 'switch' and host1.native_apps:
                         if not host1.has_bridge:
-                            sys_cmd(['ovs_add_bridge', host1.hostname],
-                                    check=True)
+                            run_cmd('ovs_add_bridge', host1.hostname)
                             host1.has_bridge = True
 
-                        cmd = ['ovs_add_port', host1.hostname, int1.name]
+                        args = [host1.hostname, int1.name]
                         if host1.type == 'switch':
                             if int1.vlan is not None:
-                                cmd.append(int1.vlan)
+                                args.append(int1.vlan)
                             elif int1.trunk:
-                                cmd.append('')
+                                args.append('')
                             else:
-                                cmd.append('0')
-                        sys_cmd(cmd, check=True)
+                                args.append('0')
+                        run_cmd('ovs_add_port', *args)
 
                     if host2.type == 'switch' and host2.native_apps:
                         if not host2.has_bridge:
-                            sys_cmd(['ovs_add_bridge', host2.hostname],
-                                    check=True)
+                            run_cmd('ovs_add_bridge', host2.hostname)
                             host2.has_bridge = True
 
-                        cmd = ['ovs_add_port', host2.hostname, int2.name]
+                        args = [host2.hostname, int2.name]
                         if host2.type == 'switch':
                             if int2.vlan is not None:
-                                cmd.append(int2.vlan)
+                                args.append(int2.vlan)
                             elif int2.trunk:
-                                cmd.append('')
+                                args.append('')
                             else:
-                                cmd.append('0')
-                        sys_cmd(cmd, check=True)
+                                args.append('0')
+                        run_cmd('ovs_add_port', *args)
 
                 except StartupError as e:
                     raise StartupError('Error creating link ' + \
@@ -592,10 +591,10 @@ class VirtualNetwork:
                                     'routers; {host.hostname} is not a router.')
 
                 if host.native_apps:
-                    sys_cmd(['add_link_vlan', intf.phys_int.name,
-                            intf.name, str(vlan)], check=True)
+                    run_cmd('add_link_vlan', intf.phys_int.name,
+                            intf.name, str(vlan))
                 else:
-                    sys_cmd(['add_link_veth', intf.name, ''], check=True)
+                    run_cmd('add_link_veth', intf.name, '')
 
     def set_interfaces_up_netns(self):
         '''For each virtual interface, either bring it up (switches in

@@ -28,6 +28,7 @@ import time
 from cougarnet.errors import SysCmdError, StartupError
 from cougarnet import util
 
+from .cmd import run_cmd
 from .interface import PhysicalInterfaceConfig, VirtualInterfaceConfig
 from .sys_helper import cmd_helper
 from .sys_helper.cmd_helper import sys_cmd
@@ -273,7 +274,7 @@ class HostConfig:
         assert self.config_file is not None, \
                 "create_config() must be called before start()"
 
-        sys_cmd(['add_netns', self.hostname], check=True)
+        run_cmd('add_netns', self.hostname)
 
         cmd = ['unshare_hostinit', self.hostname]
         if not (self.type == 'switch' and self.native_apps):
@@ -375,6 +376,9 @@ class HostConfig:
 
         if self.type == 'switch' and self.native_apps:
             sys_cmd(['ovs_del_bridge', self.hostname], check=False)
+
+        for vlan in self.int_by_vlan:
+            sys_cmd(['del_link', self.int_by_vlan[vlan].name], check=False)
 
         for intf in self.neighbor_by_int:
             sys_cmd(['del_link', intf.name], check=False)
