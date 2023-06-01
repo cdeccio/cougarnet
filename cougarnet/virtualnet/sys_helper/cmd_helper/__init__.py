@@ -20,7 +20,10 @@
 Various utility functions for the cmd_helper module.
 '''
 
-from cougarnet.errors import CommandPrereqError, CommandExecError
+import subprocess
+import sys
+
+from cougarnet.errors import SysCmdError, CommandPrereqError, CommandExecError
 from cougarnet.util import list_to_csv_str, csv_str_to_list
 
 from .manager import SysCmdHelperManager, SysCmdHelperManagerStarted
@@ -81,3 +84,22 @@ def sys_cmd(cmd, check=False):
                     f'"{cmd_str}": {err}')
         else:
             raise CommandExecError(f'Command failed: "{cmd_str}": {err}')
+
+def sys_cmd_with_cleanup(cmd, cleanup_cmds, check=False):
+    try:
+        sys_cmd(cmd, check)
+    except SysCmdError as e:
+        sys.stderr.write(f'%s\n' % e)
+        sys.stderr.write(f'The following command(s) should ' + \
+                'be executed before trying again.\n')
+        for i, cleanup_cmd in enumerate(cleanup_cmds):
+            cmd_str = ' '.join(cleanup_cmd)
+            sys.stderr.write(f'  {i+1}: {cmd_str}\n')
+            sys.stderr.write(f'     Run? [y/N] ')
+            sys.stderr.flush()
+            ans = sys.stdin.readline().strip()
+            if ans.lower() in ('y', 'yes'):
+                subprocess.run(cleanup_cmd, check=False)
+
+        # try to run the original command again
+        sys_cmd(cmd, check)
