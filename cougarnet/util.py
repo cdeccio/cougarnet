@@ -166,11 +166,15 @@ def recv_raw(sock, bufsize):
     return pkt, sa_ll
 
 def list_to_csv_str(l):
+    '''Convert a list to a CSV string.'''
+
     s = io.StringIO()
     csv_writer = csv.writer(s)
     csv_writer.writerow(l)
     return s.getvalue()
 
 def csv_str_to_list(csv_str):
+    '''Convert a CSV string to a list.'''
+
     csv_reader = csv.reader([csv_str])
     return next(csv_reader)
