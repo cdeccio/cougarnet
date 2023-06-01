@@ -25,10 +25,8 @@ import argparse
 import csv
 import io
 import ipaddress
-import json
 import logging
 import os
-import pickle
 import re
 import signal
 import socket
@@ -1003,7 +1001,7 @@ def main():
     args = parser.parse_args(sys.argv[1:])
 
     # configure logging
-    FORMAT = f'%(message)s'
+    FORMAT = '%(message)s'
     logger.setLevel(logging.NOTSET)
 
     if args.verbose:

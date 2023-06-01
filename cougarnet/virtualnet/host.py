@@ -25,7 +25,6 @@ import os
 import subprocess
 import time
 
-from cougarnet.errors import SysCmdError, StartupError
 from cougarnet import util
 
 from .cmd import run_cmd
@@ -205,7 +204,7 @@ class HostConfig:
             fh.write(f'. {self.env_file}\n')
             fh.write(f'export HISTFILE={self.history_file}\n\n')
             fh.write(f'exec tmux -S {self.tmux_file} ' + \
-                    f'set -g default-terminal "tmux-256color" \\; \\\n' + \
+                    'set -g default-terminal "tmux-256color" \\; \\\n' + \
                     f'new-session -s "{self.hostname}" ' + \
                     f'-n "{MAIN_WINDOW_NAME}" -d \\; \\\n')
 

@@ -80,7 +80,7 @@ def sys_cmd(cmd, check=False):
             err = ''
         if not cmd_str:
             cmd_str = ' '.join(cmd)
-            raise CommandPrereqError(f'Unable to execute command ' + \
+            raise CommandPrereqError('Unable to execute command ' + \
                     f'"{cmd_str}": {err}')
         else:
             raise CommandExecError(f'Command failed: "{cmd_str}": {err}')
@@ -89,13 +89,13 @@ def sys_cmd_with_cleanup(cmd, cleanup_cmds, check=False):
     try:
         sys_cmd(cmd, check)
     except SysCmdError as e:
-        sys.stderr.write(f'%s\n' % e)
-        sys.stderr.write(f'The following command(s) should ' + \
+        sys.stderr.write('%s\n' % e)
+        sys.stderr.write('The following command(s) should ' + \
                 'be executed before trying again.\n')
         for i, cleanup_cmd in enumerate(cleanup_cmds):
             cmd_str = ' '.join(cleanup_cmd)
             sys.stderr.write(f'  {i+1}: {cmd_str}\n')
-            sys.stderr.write(f'     Run? [y/N] ')
+            sys.stderr.write('     Run? [y/N] ')
             sys.stderr.flush()
             ans = sys.stdin.readline().strip()
             if ans.lower() in ('y', 'yes'):
