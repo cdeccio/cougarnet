@@ -485,7 +485,7 @@ class SysCmdHelper:
 
         netns = self.pid_to_netns[pid]
         if netns not in self.netns_to_iproute:
-             self.netns_to_iproute[netns] = NetNS(netns)
+            self.netns_to_iproute[netns] = NetNS(netns)
         ns = self.netns_to_iproute[netns]
 
         kwargs = { 'dst': prefix }
@@ -515,7 +515,7 @@ class SysCmdHelper:
 
         netns = self.pid_to_netns[pid]
         if netns not in self.netns_to_iproute:
-             self.netns_to_iproute[netns] = NetNS(netns)
+            self.netns_to_iproute[netns] = NetNS(netns)
         ns = self.netns_to_iproute[netns]
 
         kwargs = { 'dst': prefix }
