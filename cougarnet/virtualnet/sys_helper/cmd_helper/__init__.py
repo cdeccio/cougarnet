@@ -78,6 +78,6 @@ def sys_cmd(cmd, check=False):
         if not cmd_str:
             cmd_str = ' '.join(cmd)
             raise CommandPrereqError(f'Unable to execute command ' + \
-                    '"{cmd_str}": {err}')
+                    f'"{cmd_str}": {err}')
         else:
             raise CommandExecError(f'Command failed: "{cmd_str}": {err}')
