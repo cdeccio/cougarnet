@@ -264,7 +264,7 @@ class HostConfig:
 
         ints = [f'{i}={s[0]}:{s[1]}' \
                 for i, s in self.helper_sock_pair_by_int.items()]
-        sys_cmd(['start_rawpkt_helper', self.hostname] + ints, check=True)
+        run_cmd('start_rawpkt_helper', self.hostname, *ints)
 
     def start(self, comm_sock_file):
         '''Start this virtual host.  Call unshare to create the new namespace,
@@ -276,30 +276,30 @@ class HostConfig:
 
         run_cmd('add_netns', self.hostname)
 
-        cmd = ['unshare_hostinit', self.hostname]
+        args = [self.hostname]
         if not (self.type == 'switch' and self.native_apps):
-            cmd += [self.hostname]
+            args += [self.hostname]
         else:
-            cmd += ['']
-        cmd += [self.hosts_file]
+            args += ['']
+        args += [self.hosts_file]
         if not (self.type == 'switch' and self.native_apps):
-            cmd += ['1']
+            args += ['1']
         else:
-            cmd += ['']
-        cmd += [self.config_file,
+            args += ['']
+        args += [self.config_file,
                 cmd_helper.sys_cmd_helper.remote_sock_path,
                 self.sys_cmd_helper_local,
                 comm_sock_file, self.comm_sock_file,
                 self.script_file]
 
-        sys_cmd(cmd, check=True)
+        run_cmd('unshare_hostinit', *args)
 
     def flush_forwarding_table(self):
         '''If we are a switch running native_apps mode, send the OVS command
         to flush the forwarding table.'''
 
         if self.type == 'switch' and self.native_apps:
-            sys_cmd(['ovs_flush_bridge', self.hostname], check=True)
+            run_cmd('ovs_flush_bridge', self.hostname)
 
     def attach_terminal(self):
         '''If terminal mode is enabled for this host, launch the terminal and

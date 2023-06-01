@@ -607,11 +607,9 @@ class VirtualNetwork:
 
                 if host.type == 'switch' and host.native_apps:
                     # Move interfaces to their appropriate namespaces
-                    sys_cmd(['set_link_up', intf.name],
-                            check=True)
+                    run_cmd('set_link_up', intf.name)
                 else:
-                    sys_cmd(['set_link_netns', intf.name, host.hostname],
-                            check=True)
+                    run_cmd('set_link_netns', intf.name, host.hostname)
 
     def create_hosts_file(self):
         '''Create a hosts file containing the hostname-address mappings for all
@@ -738,9 +736,9 @@ class VirtualNetwork:
         # flush the forwarding table for each.
         # See https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1018999
         for intf in self.bridge_interfaces:
-            sys_cmd(['disable_ipv6', intf], check=True)
+            run_cmd('disable_ipv6', intf)
         for intf in self.ghost_interfaces:
-            sys_cmd(['disable_ipv6', intf], check=True)
+            run_cmd('disable_ipv6', intf)
         for _, host in self.host_by_name.items():
             host.flush_forwarding_table()
 
