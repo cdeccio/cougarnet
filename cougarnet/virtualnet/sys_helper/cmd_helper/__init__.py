@@ -72,7 +72,7 @@ def sys_cmd(cmd, check=False):
         except IndexError:
             cmd_str = ''
         try:
-            err = row[2]
+            err = row[2].strip()
         except IndexError:
             err = ''
         if not cmd_str:
