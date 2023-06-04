@@ -4,7 +4,7 @@ import sys
 import tempfile
 import unittest
 
-from cougarnet.sys_helper.cmd_helper import SysCmdHelper
+from cougarnet.virtualnet.sys_helper.cmd_helper.cmd_helper import SysCmdHelper
 
 class NetConfigTestCase(unittest.TestCase):
     def test_interfaces(self):
@@ -19,16 +19,16 @@ class NetConfigTestCase(unittest.TestCase):
             # interface doesn't exist
             self.assertEqual(
                     helper.add_link_vlan('cn-foo', 'cn-foo.vlan100', '100')[:2],
-                    '1,')
+                    '9,')
             self.assertEqual(
                     helper.set_link_master('cn-foo', 'cn-br')[:2],
-                    '1,')
+                    '9,')
             self.assertEqual(
                     helper.set_link_up('cn-foo')[:2],
-                    '1,')
+                    '9,')
             self.assertEqual(
                     helper.del_link('cn-foo')[:2],
-                    '1,')
+                    '9,')
 
             # add interfaces
             self.assertEqual(
@@ -55,7 +55,7 @@ class NetConfigTestCase(unittest.TestCase):
             # interface doesn't exist
             self.assertEqual(
                     helper.set_link_master('cn-bar1', 'cn-foo')[:2],
-                    '1,')
+                    '9,')
             # interface not a bridge
             self.assertEqual(
                     helper.set_link_master('cn-bar1', 'cn-bar2')[:2],
@@ -100,7 +100,7 @@ class NetConfigTestCase(unittest.TestCase):
             # interface doesn't exist
             self.assertEqual(
                     helper.disable_ipv6('cn-foo')[:2],
-                    '1,')
+                    '9,')
 
             # add interfaces
             self.assertEqual(
@@ -144,7 +144,7 @@ class NetConfigTestCase(unittest.TestCase):
             # interface doesn't exist
             self.assertEqual(
                     helper.ovs_add_port('cn-br0', 'cn-foo', '')[:2],
-                    '1,')
+                    '9,')
 
             # add port
             self.assertEqual(
@@ -157,7 +157,7 @@ class NetConfigTestCase(unittest.TestCase):
             # bridge doesn't exist
             self.assertEqual(
                     helper.ovs_del_bridge('cn-foo')[:2],
-                    '1,')
+                    '9,')
             # delete bridge
             self.assertEqual(
                     helper.ovs_del_bridge('cn-br0')[:2],
@@ -187,7 +187,7 @@ class NetConfigTestCase(unittest.TestCase):
 
             self.assertEqual(
                     helper.add_netns('cn-foo')[:2],
-                    '1,')
+                    '9,')
             self.assertEqual(
                     helper.add_netns('cn-bar')[:2],
                     '0,')
@@ -209,11 +209,11 @@ class NetConfigTestCase(unittest.TestCase):
             # interface doesn't exist
             self.assertEqual(
                     helper.set_link_netns('cn-foo', 'cn-bar')[:2],
-                    '1,')
+                    '9,')
             # netns doesn't exist
             self.assertEqual(
                     helper.set_link_netns('cn-baz', 'cn-foo')[:2],
-                    '1,')
+                    '9,')
 
             output = subprocess.run(['ls', '/sys/class/net'],
                 stdin=subprocess.DEVNULL,
@@ -238,10 +238,10 @@ class NetConfigTestCase(unittest.TestCase):
             # netns doesn't exist
             self.assertEqual(
                     helper.umount_netns('cn-foo')[:2],
-                    '1,')
+                    '9,')
             self.assertEqual(
                     helper.del_netns('cn-foo')[:2],
-                    '1,')
+                    '9,')
 
             # unmount and delete netns
             self.assertEqual(

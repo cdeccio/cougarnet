@@ -16,8 +16,22 @@
 # with this program; if not, see <http://www.gnu.org/licenses/>.
 #
 
+'''Various errors related to Cougarnet.'''
+
 class CougarnetError(Exception):
     '''Base class for errors related to Cougarnet.'''
+
+class SysCmdError(CougarnetError):
+    '''An error raised when there was an error running a privileged command
+    using SysCmdHelper.'''
+
+class CommandPrereqError(SysCmdError):
+    '''An error raised when a command was unable to be run because a prequisite
+    was missing.'''
+
+class CommandExecError(SysCmdError):
+    '''An error raised when a command was executed and resulted in a non-zero
+    exit code.'''
 
 class ConfigurationError(CougarnetError):
     '''An error raised when there was an error with content in the Cougarnet

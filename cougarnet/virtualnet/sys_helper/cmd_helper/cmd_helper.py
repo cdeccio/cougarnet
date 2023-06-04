@@ -19,11 +19,8 @@
 '''Functions and classes for running a set of canned commands that require
 privileges.'''
 
-import csv
-import io
 import logging
 import os
-import random
 import subprocess
 import struct
 import sys
@@ -31,7 +28,9 @@ import sys
 from pyroute2 import NetNS, netns
 from pyroute2.netlink.exceptions import NetlinkError
 
-from .manager import RawPktHelperManager
+from cougarnet.virtualnet.sys_helper.rawpkt_helper.manager import \
+        RawPktHelperManager
+from cougarnet import util
 
 RUN_NETNS_DIR = '/run/netns/'
 HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
@@ -42,10 +41,9 @@ class SysCmdHelper:
     '''A class for executing a set of canned commands that require
     privileges.'''
 
-    def __init__(self, uid, gid, log_only):
+    def __init__(self, uid, gid):
         self._uid = uid
         self._gid = gid
-        self._log_only = log_only
 
         self.links = {}
         # ns_exists contains the ns that exist in /run/netns/
@@ -65,7 +63,7 @@ class SysCmdHelper:
 
         def _func(self, pid, *args, **kwargs):
             if pid not in self.pid_to_netns:
-                return '1,Not within a mounted namespace'
+                return '9,,Not within a mounted namespace'
             return func(self, pid, *args, **kwargs)
         return _func
 
@@ -73,15 +71,15 @@ class SysCmdHelper:
         '''Run the specified command.  Return a string with the return code
         followed by the combined stdout/stderr output.'''
 
-        logger.debug(' '.join(cmd))
-
-        if self._log_only:
-            return f'0,'
+        cmd_str = ' '.join(cmd)
+        logger.debug(cmd_str)
 
         proc = subprocess.run(cmd,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
         output = proc.stdout.decode('utf-8')
-        return f'{proc.returncode},{output}'
+        ret = [proc.returncode, cmd_str, output]
+
+        return util.list_to_csv_str(ret)
 
     def _run_cmd_netns(self, cmd, pid):
         '''Run a command in the same namespace as the process with the given
@@ -97,7 +95,7 @@ class SysCmdHelper:
         Otherwise, return the result.'''
 
         if intf not in self.links:
-            return f'1,Interface does not exist: {intf}'
+            return f'9,,Interface does not exist: {intf}'
 
         if self.links[intf] is None:
             # execute in default namespace
@@ -108,7 +106,7 @@ class SysCmdHelper:
             # execute using nsenter and pid
             return self._run_cmd_netns(cmd, self.netns_to_pid[netns])
 
-        return '1,No PID associated with namespace'
+        return '9,,No PID associated with namespace'
 
     def add_link_veth(self, intf1, intf2):
         '''Add one or two interaces of type veth (virtual interfaces) with the
@@ -131,7 +129,7 @@ class SysCmdHelper:
         name, and VLAN ID. Return the result.'''
 
         if phys_intf not in self.links:
-            return f'1,Interface does not exist: {phys_intf}'
+            return f'9,,Interface does not exist: {phys_intf}'
 
         cmd = ['ip', 'link', 'add', 'link', phys_intf, 'name',
                 vlan_intf, 'type', 'vlan', 'id', vlan]
@@ -159,9 +157,9 @@ class SysCmdHelper:
         Return the result.'''
 
         if intf not in self.links:
-            return f'1,Interface does not exist: {intf}'
+            return f'9,,Interface does not exist: {intf}'
         if bridge_intf not in self.links:
-            return f'1,Bridge does not exist: {bridge_intf}'
+            return f'9,,Bridge does not exist: {bridge_intf}'
 
         cmd = ['ip', 'link', 'set', intf, 'master', bridge_intf]
         return self._run_cmd(cmd)
@@ -236,7 +234,7 @@ class SysCmdHelper:
         val = '0,'
         if nspath not in self.netns_exists:
             if os.path.exists(nspath):
-                return f'1,Namespace already exists: {nspath}'
+                return f'9,,Namespace already exists: {nspath}'
 
             if not os.path.exists(RUN_NETNS_DIR):
                 cmd = ['mkdir', '-p', RUN_NETNS_DIR]
@@ -259,7 +257,7 @@ class SysCmdHelper:
         nspath = os.path.join(RUN_NETNS_DIR, ns)
 
         if ns not in self.netns_mounted:
-            return f'1,Namespace is not mounted: {nspath}'
+            return f'9,,Namespace is not mounted: {nspath}'
 
         cmd = ['umount', nspath]
         val = val1 = None
@@ -269,10 +267,6 @@ class SysCmdHelper:
             if val is None:
                 val = val1
             if not val1.startswith('0,'):
-                break
-            # self_run_cmd() always returns success when
-            # self._log_only is True
-            if self._log_only:
                 break
 
         if val.startswith('0,'):
@@ -286,7 +280,7 @@ class SysCmdHelper:
         nspath = os.path.join(RUN_NETNS_DIR, ns)
 
         if nspath not in self.netns_exists:
-            return f'1,Namespace does not exist: {nspath}'
+            return f'9,,Namespace does not exist: {nspath}'
 
         cmd = ['rm', nspath]
         val = self._run_cmd(cmd)
@@ -301,11 +295,12 @@ class SysCmdHelper:
 
         ns = netns.pid_to_ns(pid)
         if ns is None:
-            return f'1,Process does not exist or process not in any namespace: {pid}'
+            return '9,,Process does not exist or ' + \
+                    f'process not in any namespace: {pid}'
         nspath = os.path.join(RUN_NETNS_DIR, ns)
 
         if nspath not in self.netns_exists:
-            return f'1,Namespace does not exist: {nspath}'
+            return f'9,,Namespace does not exist: {nspath}'
 
         if ns not in self.netns_to_pid:
             self.netns_to_pid[ns] = pid
@@ -320,9 +315,9 @@ class SysCmdHelper:
         nspath = os.path.join(RUN_NETNS_DIR, ns)
 
         if intf not in self.links:
-            return f'1,Interface does not exist: {intf}'
+            return f'9,,Interface does not exist: {intf}'
         if ns not in self.netns_mounted:
-            return f'1,Namespace is not mounted: {nspath}'
+            return f'9,,Namespace is not mounted: {nspath}'
 
         cmd = ['ip', 'link', 'set', intf, 'netns', ns]
 
@@ -347,7 +342,7 @@ class SysCmdHelper:
         return the result.'''
 
         if bridge not in self.ovs_ports:
-            return f'1,Bridge does not exist: {bridge}'
+            return f'9,,Bridge does not exist: {bridge}'
 
         cmd = ['ovs-vsctl', 'del-br', bridge]
 
@@ -361,7 +356,7 @@ class SysCmdHelper:
         and return the result.'''
 
         if bridge not in self.ovs_ports:
-            return f'1,Bridge does not exist: {bridge}'
+            return f'9,,Bridge does not exist: {bridge}'
 
         cmd = ['ovs-appctl', 'fdb/flush', bridge]
 
@@ -373,9 +368,9 @@ class SysCmdHelper:
         associate it with VLAN 0.  Return the result.'''
 
         if bridge not in self.ovs_ports:
-            return f'1,Bridge does not exist: {bridge}'
+            return f'9,,Bridge does not exist: {bridge}'
         if intf not in self.links:
-            return f'1,Interface does not exist: {intf}'
+            return f'9,,Interface does not exist: {intf}'
 
         cmd = ['ovs-vsctl', 'add-port', bridge, intf]
         if vlan:
@@ -422,7 +417,7 @@ class SysCmdHelper:
         nspath = os.path.join(RUN_NETNS_DIR, hostname)
 
         if net and nspath not in self.netns_exists:
-            return f'1,Namespace does not exist: {nspath}'
+            return f'9,,Namespace does not exist: {nspath}'
 
         cmd = ['unshare', '--mount', '--uts', f'--setuid={self._uid}']
         if net:
@@ -436,21 +431,20 @@ class SysCmdHelper:
                 comm_sock_remote, comm_sock_local,
                 script_file]
 
-        logger.debug(' '.join(cmd))
-        if self._log_only:
-            #XXX This is probably better implemented with a variable that gets
-            # incremented
-            pid = str(random.randint(0, 1000000))
-        else:
-            p = subprocess.Popen(cmd,
-                    stdin=subprocess.DEVNULL,
-                    stdout=subprocess.DEVNULL)
-            pid = str(p.pid)
+        cmd_str = ' '.join(cmd)
+        logger.debug(cmd_str)
+        p = subprocess.Popen(cmd,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL)
+        pid = str(p.pid)
 
         self.netns_mounted.add(hostname)
         self.netns_to_pid[hostname] = pid
         self.pid_to_netns[pid] = hostname
-        return '0,'
+
+        ret = [0, cmd_str]
+
+        return util.list_to_csv_str(ret)
 
     def start_rawpkt_helper(self, ns, *ints):
         '''Launch a process for passing packets from raw sockets to UNIX domain
@@ -460,14 +454,14 @@ class SysCmdHelper:
         nspath = os.path.join(RUN_NETNS_DIR, ns)
 
         if ns not in self.netns_mounted:
-            return f'1,Namespace is not mounted: {nspath}'
+            return f'9,,Namespace is not mounted: {nspath}'
         if ns not in self.netns_to_pid:
-            return '1,No PID associated with namespace'
+            return '9,,No PID associated with namespace'
 
         helper = RawPktHelperManager(self.netns_to_pid[ns], *ints)
         if helper.start():
             return '0,'
-        return '1,Helper not started'
+        return '9,,Helper not started'
 
     @require_netns
     def set_hostname(self, pid, hostname):
@@ -486,11 +480,12 @@ class SysCmdHelper:
             cmd += ['via', next_hop]
         cmd += ['dev', intf]
 
-        logger.debug(' '.join(cmd))
+        cmd_str = ' '.join(cmd)
+        logger.debug(cmd_str)
 
         netns = self.pid_to_netns[pid]
         if netns not in self.netns_to_iproute:
-             self.netns_to_iproute[netns] = NetNS(netns)
+            self.netns_to_iproute[netns] = NetNS(netns)
         ns = self.netns_to_iproute[netns]
 
         kwargs = { 'dst': prefix }
@@ -500,14 +495,14 @@ class SysCmdHelper:
             try:
                 idx = ns.link_lookup(ifname=intf)[0]
             except IndexError:
-                return f'1,Invalid interface: {intf}'
+                return f'1,{cmd_str},Invalid interface: {intf}'
             kwargs['oif'] = idx
 
         try:
             ns.route('add', **kwargs)
         except (NetlinkError, OSError, struct.error) as e:
-            return f'1,{str(e)}'
-        return '0,'
+            return f'1,{cmd_str},{str(e)}'
+        return '0,{cmd_str}'
 
     @require_netns
     def del_route(self, pid, prefix):
@@ -515,19 +510,20 @@ class SysCmdHelper:
 
         cmd = ['ip', 'route', 'del', prefix]
 
-        logger.debug(' '.join(cmd))
+        cmd_str = ' '.join(cmd)
+        logger.debug(cmd_str)
 
         netns = self.pid_to_netns[pid]
         if netns not in self.netns_to_iproute:
-             self.netns_to_iproute[netns] = NetNS(netns)
+            self.netns_to_iproute[netns] = NetNS(netns)
         ns = self.netns_to_iproute[netns]
 
         kwargs = { 'dst': prefix }
         try:
             ns.route('del', **kwargs)
         except (NetlinkError, OSError, struct.error) as e:
-            return f'1,{str(e)}'
-        return '0,'
+            return f'1,{cmd_str},{str(e)}'
+        return f'0,{cmd_str}'
 
     @require_netns
     def set_iptables_drop(self, pid, intf):
@@ -596,19 +592,20 @@ class SysCmdHelper:
             except BlockingIOError:
                 return
             msg = msg.decode('utf-8')
-            s = io.StringIO(msg)
-            csv_reader = csv.reader(s)
-            parts = next(csv_reader)
+            parts = util.csv_str_to_list(msg)
             try:
                 if not parts[0].startswith('_') and \
                         hasattr(self, parts[0]):
                     func = getattr(self, parts[0])
                     status = func(*parts[1:])
                 else:
-                    status = f'1,Invalid command: {parts[0]}'
+                    status = f'9,,Invalid command: {parts[0]}'
             except Exception as e:
-                status = f'1,Command error: {parts}: {str(e)}'
-            try:
-                sock.sendto(status.encode('utf-8'), peer)
-            except ConnectionRefusedError:
-                pass
+                status = f'9,,Command error: {parts}: {str(e)}'
+            if peer is not None:
+                # only send a response if the other side has an address to send
+                # it to
+                try:
+                    sock.sendto(status.encode('utf-8'), peer)
+                except ConnectionRefusedError:
+                    pass

@@ -27,8 +27,10 @@ import time
 
 from cougarnet import util
 
+from .cmd import run_cmd
 from .interface import PhysicalInterfaceConfig, VirtualInterfaceConfig
-from .errors import StartupError
+from .sys_helper import cmd_helper
+from .sys_helper.cmd_helper import sys_cmd
 
 TERM = "lxterminal"
 HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
@@ -52,17 +54,16 @@ class HostConfig:
             'routes': None,
             }
 
-    def __init__(self, hostname, history_file, sys_cmd_helper,
-            sys_cmd_helper_local,
-            comm_sock_file, tmux_file, script_file, **kwargs):
+    def __init__(self, hostname, history_file, sys_cmd_helper_local,
+            comm_sock_file, tmux_file, script_file, env_file, **kwargs):
 
         self.hostname = hostname
         self.history_file = history_file
-        self.sys_cmd_helper = sys_cmd_helper
         self.sys_cmd_helper_local = sys_cmd_helper_local
         self.comm_sock_file = comm_sock_file
         self.tmux_file = tmux_file
         self.script_file = script_file
+        self.env_file = env_file
         self.pid = None
         self.config_file = None
         self.next_int_num = 0
@@ -112,18 +113,6 @@ class HostConfig:
 
     def __str__(self):
         return self.hostname
-
-    def sys_cmd(self, cmd, check=False):
-        '''Send a command to the helper process running as a privileged user.
-        If there is an error, then raise StartupError.'''
-
-        status = self.sys_cmd_helper.cmd(cmd)
-        if not status.startswith('0,') and check:
-            try:
-                err = status.split(',', maxsplit=1)[1]
-            except ValueError:
-                err = ''
-            raise StartupError(err)
 
     def _get_tmux_server_pid(self):
         '''Return the PID associated with the tmux server for this virtual
@@ -212,9 +201,10 @@ class HostConfig:
 
         with open(self.script_file, 'w') as fh:
             fh.write('#!/bin/bash\n')
+            fh.write(f'. {self.env_file}\n')
             fh.write(f'export HISTFILE={self.history_file}\n\n')
             fh.write(f'exec tmux -S {self.tmux_file} ' + \
-                    f'set -g default-terminal "tmux-256color" \\; \\\n' + \
+                    'set -g default-terminal "tmux-256color" \\; \\\n' + \
                     f'new-session -s "{self.hostname}" ' + \
                     f'-n "{MAIN_WINDOW_NAME}" -d \\; \\\n')
 
@@ -273,8 +263,7 @@ class HostConfig:
 
         ints = [f'{i}={s[0]}:{s[1]}' \
                 for i, s in self.helper_sock_pair_by_int.items()]
-        self.sys_cmd(['start_rawpkt_helper', self.hostname] + ints,
-                check=True)
+        run_cmd('start_rawpkt_helper', self.hostname, *ints)
 
     def start(self, comm_sock_file):
         '''Start this virtual host.  Call unshare to create the new namespace,
@@ -284,32 +273,32 @@ class HostConfig:
         assert self.config_file is not None, \
                 "create_config() must be called before start()"
 
-        self.sys_cmd(['add_netns', self.hostname], check=True)
+        run_cmd('add_netns', self.hostname)
 
-        cmd = ['unshare_hostinit', self.hostname]
+        args = [self.hostname]
         if not (self.type == 'switch' and self.native_apps):
-            cmd += [self.hostname]
+            args += [self.hostname]
         else:
-            cmd += ['']
-        cmd += [self.hosts_file]
+            args += ['']
+        args += [self.hosts_file]
         if not (self.type == 'switch' and self.native_apps):
-            cmd += ['1']
+            args += ['1']
         else:
-            cmd += ['']
-        cmd += [self.config_file,
-                self.sys_cmd_helper.remote_sock_path,
+            args += ['']
+        args += [self.config_file,
+                cmd_helper.sys_cmd_helper.remote_sock_path,
                 self.sys_cmd_helper_local,
                 comm_sock_file, self.comm_sock_file,
                 self.script_file]
 
-        self.sys_cmd(cmd, check=True)
+        run_cmd('unshare_hostinit', *args)
 
     def flush_forwarding_table(self):
         '''If we are a switch running native_apps mode, send the OVS command
         to flush the forwarding table.'''
 
         if self.type == 'switch' and self.native_apps:
-            self.sys_cmd(['ovs_flush_bridge', self.hostname], check=True)
+            run_cmd('ovs_flush_bridge', self.hostname)
 
     def attach_terminal(self):
         '''If terminal mode is enabled for this host, launch the terminal and
@@ -381,17 +370,17 @@ class HostConfig:
 
         self.kill()
 
-        self.sys_cmd(['umount_netns', self.hostname], check=False)
-        self.sys_cmd(['del_netns', self.hostname], check=False)
+        sys_cmd(['umount_netns', self.hostname], check=False)
+        sys_cmd(['del_netns', self.hostname], check=False)
 
         if self.type == 'switch' and self.native_apps:
-            self.sys_cmd(['ovs_del_bridge', self.hostname], check=False)
+            sys_cmd(['ovs_del_bridge', self.hostname], check=False)
 
-            # Explicitly deleting interfaces is only needed when this is a
-            # switch running in "native apps" mode; otherwise, the interfaces
-            # were deleted when the process with the namespace ended.
-            for intf in self.neighbor_by_int:
-                self.sys_cmd(['del_link', intf.name], check=False)
+        for vlan in self.int_by_vlan:
+            sys_cmd(['del_link', self.int_by_vlan[vlan].name], check=False)
+
+        for intf in self.neighbor_by_int:
+            sys_cmd(['del_link', intf.name], check=False)
 
         for intf in self.helper_sock_pair_by_int:
             if os.path.exists(self.helper_sock_pair_by_int[intf][0]):

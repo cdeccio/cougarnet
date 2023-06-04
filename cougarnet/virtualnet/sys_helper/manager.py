@@ -16,22 +16,16 @@
 # with this program; if not, see <http://www.gnu.org/licenses/>.
 #
 
-'''Functions and classes used to create and manage processes running as root.
-The cougarnet process, running as an unprivileged user, issues requests to
-these processes for help with things for which it needs privileges.'''
+'''Class used to create and manage processes running as root.  Processes
+running as unprivileged users, interact with these processes for help with
+things for which they need privileges.'''
 
-import csv
-import io
 import logging
 import os
 import signal
-import socket
-import subprocess
 import sys
 
 LIBEXEC_DIR = os.path.join(sys.prefix, 'libexec', 'cougarnet')
-SYSCMD_HELPER_SCRIPT = os.path.join(LIBEXEC_DIR, 'syscmd_helper')
-RAWPKT_HELPER_SCRIPT = os.path.join(LIBEXEC_DIR, 'rawpkt_helper')
 
 logger = logging.getLogger(__name__)
 
@@ -39,20 +33,6 @@ def raise_interrupt(signum, frame):
     '''When a given signal is received, raise KeyboardInterrupt.'''
 
     raise KeyboardInterrupt()
-
-def _setup_unix_sock(local_addr, remote_addr):
-    '''Create and configured a UNIX domain socket of type SOCK_DGRAM with the
-    given local and remote addresses.'''
-
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
-    sock.bind(local_addr)
-    sock.connect(remote_addr)
-
-    # set permissions on the socket
-    cmd = ['chmod', '700', local_addr]
-    subprocess.run(cmd, check=True)
-
-    return sock
 
 class SysHelperManager:
     '''A class for creating and managing a process running as a privileged
@@ -134,74 +114,3 @@ class SysHelperManager:
         will make the child exit.'''
 
         os.close(self._pipe_fd)
-
-class SysCmdHelperManager(SysHelperManager):
-    '''A class for creating and managing a process that listens for incoming
-    requests for commands that require privileges and executes those
-    commands.'''
-
-    def __init__(self, remote_sock, local_sock, verbose=False,
-            log_only=False, log_file=None):
-        args = []
-        if not log_only:
-            args += ['sudo', '-P', '-E',
-                        '-u', 'root',
-                        '-g', f'#{os.getegid()}']
-        args += [SYSCMD_HELPER_SCRIPT]
-        if verbose:
-            args += ['--verbose']
-        if log_only:
-            args += ['--log-only']
-        if log_file is not None:
-            args += ['--log-file', log_file]
-        args += [remote_sock]
-        super().__init__(*args)
-        self.remote_sock_path = remote_sock
-        self.local_sock_path = local_sock
-        self.sock = None
-
-    def start(self):
-        '''Start the helper process.  If it started successfully, then also
-        create and configure the socket that will be used for sending the
-        commands to the process.  Return True if the process started properly
-        and False otherwise.'''
-
-        val = super().start()
-        if val:
-            self._setup_sock()
-        return val
-
-    def _setup_sock(self):
-        '''Create the socket that will be used for issuing commands to the
-        privilged process.'''
-
-        self.sock = _setup_unix_sock(
-                self.local_sock_path, self.remote_sock_path)
-
-    def cmd(self, cmd):
-        '''Issue the provided command, a list, to the privileged process, by
-        sending it to the socket as a string with commas separating the command
-        and its arguments.'''
-
-        s = io.StringIO()
-        csv_writer = csv.writer(s)
-        csv_writer.writerow(cmd)
-        msg = s.getvalue().encode('utf-8')
-        self.sock.send(msg)
-        return self.sock.recv(1024).decode('utf-8')
-
-class SysCmdHelperManagerStarted(SysCmdHelperManager):
-    '''A subclass of SysCmdHelperManager that is used when the privileged
-    process is already running and we simply want to connect to it to issue
-    commands.'''
-
-    def start(self):
-        self._setup_sock()
-
-class RawPktHelperManager(SysHelperManager):
-    '''A class for creating and managing a process that captures packets from a
-    raw socket and sends them to a UNIX domain socket, and vice-versa.'''
-
-    def __init__(self, pid, *ints):
-        super().__init__('nsenter', '--target', str(pid), '--all',
-                RAWPKT_HELPER_SCRIPT, *ints)

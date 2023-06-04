@@ -321,7 +321,7 @@ class BaseHost:
             pass
         else:
             loop.remove_writer(self.int_to_sock[intf])
-        for j in range(i):
+        for _ in range(i):
             self._pending_frames[intf].pop(0)
 
     def log(self, msg):

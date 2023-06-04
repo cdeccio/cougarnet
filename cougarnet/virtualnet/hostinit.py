@@ -28,27 +28,13 @@ import socket
 import subprocess
 import sys
 
-from cougarnet.sys_helper.manager import SysCmdHelperManagerStarted
-from cougarnet.virtualnet.errors import StartupError
+from cougarnet.errors import StartupError
+
+from .sys_helper.cmd_helper import join_sys_cmd_helper, sys_cmd
 
 #XXX show debug to terminal until very end
 
-#XXX this code is in three places; consolidate it
-sys_cmd_helper = None
-def sys_cmd(cmd, check=False):
-    '''Send a command to the helper process running as a privileged user.  If
-    there is an error, then raise StartupError.'''
-
-
-    status = sys_cmd_helper.cmd(cmd)
-    if not status.startswith('0,') and check:
-        try:
-            err = status.split(',', maxsplit=1)[1]
-        except ValueError:
-            err = ''
-        raise StartupError(err)
-
-def _apply_config(info):
+def _apply_config(info, env):
     '''Apply the network configuration contained in the dictionary info.  Set
     the hostname, configure and set interfaces, and set environment variables
     related to VLANs and routes.'''
@@ -142,16 +128,16 @@ def _apply_config(info):
             pass
 
     if vlan_info:
-        os.environ['COUGARNET_VLAN'] = json.dumps(vlan_info)
+        env['COUGARNET_VLAN'] = json.dumps(vlan_info)
 
     if info.get('int_to_sock', None) is not None:
-        os.environ['COUGARNET_INT_TO_SOCK'] = \
+        env['COUGARNET_INT_TO_SOCK'] = \
                 json.dumps(info['int_to_sock'])
 
     routes = info.get('routes', [])
     if not info.get('ipv6', True):
         routes = [r for r in routes if ':' not in r[0]]
-    os.environ['COUGARNET_ROUTES'] = json.dumps(routes)
+    env['COUGARNET_ROUTES'] = json.dumps(routes)
 
     if native_apps:
         for prefix, intf, next_hop in routes:
@@ -170,33 +156,6 @@ def close_file_descriptors(exceptions):
                 os.close(fd)
             except OSError:
                 pass
-
-def _update_environment_sudo():
-    if 'SUDO_USER' in os.environ:
-        os.environ['USER'] = os.environ['SUDO_USER']
-        del os.environ['SUDO_USER']
-
-    if 'SUDO_GROUP' in os.environ:
-        os.environ['GROUP'] = os.environ['SUDO_GROUP']
-        del os.environ['SUDO_GROUP']
-
-    if 'LOGNAME' in os.environ:
-        os.environ['LOGNAME'] = os.environ['USER']
-
-    try:
-        del os.environ['SUDO_UID']
-    except KeyError:
-        pass
-
-    try:
-        del os.environ['SUDO_GID']
-    except KeyError:
-        pass
-
-    try:
-        del os.environ['SUDO_COMMAND']
-    except KeyError:
-        pass
 
 def main():
     '''Parse command-line arguments, synchronize with virtual network manager,
@@ -240,18 +199,18 @@ def main():
         sys.stderr.write('Please run this program as a non-privileged user.\n')
         sys.exit(1)
 
-    _update_environment_sudo()
+    env = {}
 
     comm_sock_paths = {
             'local': args.comm_sock_local,
             'remote': args.comm_sock_remote
             }
-    os.environ['COUGARNET_COMM_SOCK'] = json.dumps(comm_sock_paths)
+    env['COUGARNET_COMM_SOCK'] = json.dumps(comm_sock_paths)
 
-    global sys_cmd_helper
-    sys_cmd_helper = SysCmdHelperManagerStarted(
-            args.sys_cmd_helper_sock_remote, args.sys_cmd_helper_sock_local)
-    sys_cmd_helper.start()
+    if not join_sys_cmd_helper(
+            args.sys_cmd_helper_sock_remote, args.sys_cmd_helper_sock_local):
+        sys.stderr.write('Could not join system command helper!\n')
+        sys.exit(1)
 
     comm_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
     comm_sock.bind(comm_sock_paths['local'])
@@ -264,7 +223,7 @@ def main():
             'local': args.sys_cmd_helper_sock_local,
             'remote': args.sys_cmd_helper_sock_remote
             }
-    os.environ['COUGARNET_SYS_CMD_HELPER_SOCK'] = json.dumps(sys_cmd_helper_sock_paths)
+    env['COUGARNET_SYS_CMD_HELPER_SOCK'] = json.dumps(sys_cmd_helper_sock_paths)
 
     # Tell the coordinating process that the the process has started--and
     # thus that the namespaces have been created
@@ -277,7 +236,7 @@ def main():
 
     config = json.loads(args.config_file.read())
     args.config_file.close()
-    _apply_config(config)
+    _apply_config(config, env)
 
     if args.mount_sys:
         cmd = ['mount_sys', pid]
@@ -298,11 +257,11 @@ def main():
     os.unlink(comm_sock_paths['local'])
     os.unlink(sys_cmd_helper_sock_paths['local'])
 
-    # close all file descriptors, except stdin, stdout, stderr
+    # close all file descriptors, except stderr
     close_file_descriptors([2])
 
     prog_args = args.prog.split('|')
-    os.execvp(prog_args[0], prog_args)
+    os.execve(prog_args[0], prog_args, env)
 
 if __name__ == '__main__':
     main()
