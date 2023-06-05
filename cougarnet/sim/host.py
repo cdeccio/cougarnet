@@ -67,11 +67,15 @@ class BaseHost:
         else:
             self._setup_sockets_raw()
 
+    #XXX this can be deleted once the dependent code is removed from the lab
+    # assignment code
     def __enter__(self):
         '''Simply return the object.'''
 
         return self
 
+    #XXX this can be deleted once the dependent code is removed from the lab
+    # assignment code
     def __exit__(self, exc_type, exc_value, traceback):
         '''Call cleanup to clean resources on exit.'''
 
@@ -311,6 +315,8 @@ class BaseHost:
             loop.add_writer(self.int_to_sock[intf], self._send_pending_frames, intf)
 
     def _send_pending_frames(self, intf):
+        '''Send all frames that are pending, until blocking might occur.'''
+
         loop = asyncio.get_event_loop()
         try:
             i = 0
@@ -329,3 +335,15 @@ class BaseHost:
         communications to the cougarnet process.'''
 
         self.comm_sock.send(msg.encode('utf-8'))
+
+    def run(self):
+        '''Let the object handle events until interrupted.'''
+
+        loop = asyncio.get_event_loop()
+        try:
+            loop.run_forever()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            loop.close()
+            self.cleanup()
