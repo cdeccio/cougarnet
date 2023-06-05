@@ -851,7 +851,8 @@ frames in Cougarnet.  The key components are the following:
  - `log(msg)` - send message `msg` (type `str`) to the communications socket.
    Generally calling this method is preferred over calling `sendto()` on the
    communications socket (i.e., `comm_sock`) directly.
-
+ - `run()` - call the `run_forever()` method on the event loop, allowing the
+   instantiated host to wait on events, which correspond to frames received.
 
 This is designed to provide a base class, which can be subclassed, such that
 the inherited functionality is accessible to the child class.
@@ -868,20 +869,16 @@ is received on an interface of the virtual host running the script, the
 For example, consider the following code:
 
 ```python
-import asyncio
+#!/usr/bin/python3
+
 from cougarnet.sim.host import BaseHost
 
 class FramePrinter(BaseHost):
-    def _handle_frame(self, frame, intf):
+    def _handle_frame(self, frame: bytes, intf: str) -> None:
         self.log(f'Received frame on {intf}: {repr(frame)}')
 
 def main():
-    frame_printer = FramePrinter()
-    loop = asyncio.get_event_loop()
-    try:
-        loop.run_forever()
-    finally:
-        loop.close()
+    FramePrinter().run()
 ```
 
 With the above example, every time an Ethernet frame is received, a
@@ -889,6 +886,27 @@ representation of the frame and the name of the interface on which it was
 received is sent to the calling process over the UNIX domain socket set up for
 that purpose, with the `log()` method.  Of course, `_handle_frame()` can be
 overridden to do whatever the developer would like; this is simply an example.
+Another example, which is perhaps more practical, is a Hub, which simply
+forwards any frame received out all interfaces except the one on which it was
+received.
+
+```python
+#!/usr/bin/python3
+
+from cougarnet.sim.host import BaseHost
+
+class Hub(BaseHost):
+    def _handle_frame(self, frame: bytes, intf: str) -> None:
+        for myint in self.physical_interfaces:
+            if intf != myint:
+                self.send_frame(frame, myint)
+
+def main():
+    Hub().run()
+
+if __name__ == '__main__':
+    main()
+```
 
 
 ## Scheduling Events
