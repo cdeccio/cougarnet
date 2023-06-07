@@ -601,7 +601,8 @@ class SysCmdHelper:
                 else:
                     status = f'9,,Invalid command: {parts[0]}'
             except Exception as e:
-                status = f'9,,Command error: {parts}: {str(e)}'
+                status_list = [9, '', f'Command error: {msg.strip()}: {str(e)}']
+                status = util.list_to_csv_str(status_list)
             if peer is not None:
                 # only send a response if the other side has an address to send
                 # it to
