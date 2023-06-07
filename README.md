@@ -23,6 +23,7 @@ stack and some that do not.
    - [Three Hosts, Connected by a Switch](#three-hosts-connected-by-a-switch)
    - [Hosts Connected Across Multiple Switches and Routers](#hosts-connected-across-multiple-switches-and-routers)
    - [Hosts from Multiple VLANs Connected with a Switch and Router](#hosts-from-multiple-vlans-connected-with-a-switch-and-router)
+   - [Using Routing to Populate Forwarding Tables](#using-routing-to-populate-forwarding-tables)
  - [Virtual Hosts](#virtual-hosts)
    - [Configuration](#configuration)
    - [Hostnames](#hostnames)
@@ -305,7 +306,7 @@ Again return to the terminal on which you ran the `cougarnet` command, and
 enter `Ctrl`+`c`.
 
 
-## Routers Using Routing to Populate Forwarding Tables
+## Using Routing to Populate Forwarding Tables
 
 We will now make just a few small adjustments to the previous example
 [previous example](#hosts-connected-across-multiple-switches-and-routers) to
