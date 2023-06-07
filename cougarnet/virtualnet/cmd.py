@@ -95,11 +95,11 @@ class CommandWrapper:
         sys_cmd_with_cleanup(cmd, cleanup_cmds, check=True)
 
     @classmethod
-    def start_rip(cls, hostname, *ints):
-        '''Call sys_cmd_with_cleanup(['start_rip', ...]) with the
+    def start_ripd(cls, hostname, *ints):
+        '''Call sys_cmd_with_cleanup(['start_ripd', ...]) with the
         appropriate cleanup commands.'''
 
-        cmd = ['start_rip', hostname] + [i for i in ints]
+        cmd = ['start_ripd', hostname] + [i for i in ints]
         cleanup_cmds = [
                 ['sudo', 'rm', '-f', \
                 os.path.join(FRR_CONF_DIR, hostname, 'ripd.conf')]]

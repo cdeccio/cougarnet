@@ -53,6 +53,7 @@ The following are dependencies for Cougarnet:
 
  - [sudo](https://www.sudo.ws/)
  - [Open vSwitch](https://www.openvswitch.org/)
+ - [FRRouting](https://frrouting.org/)
  - [tmux](https://github.com/tmux/tmux/)
  - [pyroute2](https://pyroute2.org/)
  - [LXTerminal](https://wiki.lxde.org/en/LXTerminal)
@@ -64,7 +65,7 @@ The following are dependencies for Cougarnet:
 To install these on a Debian system, run the following:
 
 ```bash
-$ sudo apt install openvswitch-switch tmux python3-pyroute2 lxterminal python3-pygraphviz libgraph-easy-perl wireshark socat
+$ sudo apt install openvswitch-switch frr tmux python3-pyroute2 lxterminal python3-pygraphviz libgraph-easy-perl wireshark socat
 ```
 
 Of course, this assumes that you already have `sudo` installed and that your user is
@@ -243,7 +244,8 @@ Now return to the terminal on which you ran the `cougarnet` command, and enter
 ## Hosts Connected Across Multiple Switches and Routers
 
 In our next example, we introduce routers, for network-layer forwarding.
-Create a new file called `four-node-multi-lan.cfg` with the following contents:
+Create a new file called `four-node-multi-lan-static.cfg` with the following
+contents:
 
 ```
 NODES
@@ -276,7 +278,7 @@ LAN.  See [Routes](#routes) for more information.
 This time we are going to start the network with additional options:
 
 ```bash
-$ cougarnet --display --wireshark h3-s2 four-node-multi-lan.cfg
+$ cougarnet --display --wireshark h3-s2 four-node-multi-lan-static.cfg
 ```
 
 The `--display` option prints out a text-based drawing of the topology.  For a
@@ -298,6 +300,58 @@ a smaller time-to-live (TTL) value, as it has decreased by one for each hop
 
 You can copy text from the terminal (i.e., for later pasting) by holding down
 `Shift` and highlighting text, then clicking `Shift`+`Ctrl`+`C`.
+
+Again return to the terminal on which you ran the `cougarnet` command, and
+enter `Ctrl`+`c`.
+
+
+## Routers Using Routing to Populate Forwarding Tables
+
+We will now make just a few small adjustments to the previous example
+[previous example](#hosts-connected-across-multiple-switches-and-routers) to
+show how forwarding tables on a router can be populated using a routing engine.
+Create a new file called `four-node-multi-lan-routing.cfg` with the following
+contents:
+
+```
+NODES
+h1 routes=0.0.0.0/0|s1|10.0.0.30
+h2 terminal=false,routes=0.0.0.0/0|s1|10.0.0.30
+h3 routes=0.0.0.0/0|s2|10.0.1.30
+h4 terminal=false,routes=0.0.0.0/0|s2|10.0.1.30
+
+s1 type=switch,terminal=false
+s2 type=switch,terminal=false
+
+r1 type=router,terminal=false,routers=ripd
+r2 type=router,terminal=false,routers=ripd
+
+LINKS
+h1,10.0.0.1/24 s1
+h2,10.0.0.2/24 s1
+s1 r1,10.0.0.30/24
+r1,10.100.0.1/30 r2,10.100.0.2/30
+s2 r2,10.0.1.30/24
+h3,10.0.1.1/24 s2
+h4,10.0.1.2/24 s2
+```
+
+Note that the only difference between this configuration file and the one in
+the previous example is that the static routes on `r1` and `r2` have been
+replaced with the instantiation of a RIP (Routing Information Protocol) routing
+engine, `ripd`.  Now the routes will be learned automatically instead of having
+to specify them manually.
+
+```bash
+$ cougarnet --display --wireshark h3-s2 four-node-multi-lan-routing.cfg
+```
+
+The following `ping` command should still work for communication between `h1`
+and `h3`:
+
+```bash
+h1$ ping h3
+```
 
 Again return to the terminal on which you ran the `cougarnet` command, and
 enter `Ctrl`+`c`.
@@ -450,6 +504,11 @@ host option names are the following, accompanied by the expected value:
    `10.0.0.6` as the next hop (i.e., the router).
    `0.0.0.0/0|h1|10.0.0.6`.  Default: no routes except for those corresponding
    to local subnets.  See [Routes](#routes) for more information.
+ - `routers`: a semi-colon-delimited list of router engines that will be
+   employed by a router that uses native apps mode.  Currently, the only
+   acceptable router engine is `ripd`.  For example, the following would start
+   the `ripd` daemon, having the nodes run RIP to exchange routes: `ripd`.
+   Default: no router engines.
  - `prog`: a string representing a program and its arguments, which are to be
    run, instead of an interactive shell.  The program path and its arguments
    are delimited by `|`.  For example, `echo|foo|bar` would execute

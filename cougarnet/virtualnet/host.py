@@ -37,6 +37,7 @@ HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
 RAWPKT_HELPER_MODULE = "cougarnet.sim.rawpkt_helper"
 MAIN_WINDOW_NAME = "main"
 CMD_WINDOW_NAME = "prog"
+ALLOWED_ROUTERS = set(['ripd'])
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 
@@ -52,6 +53,7 @@ class HostConfig:
             'prog_window': None,
             'ipv6': True,
             'routes': None,
+            'routers': None,
             }
 
     def __init__(self, hostname, history_file, sys_cmd_helper_local,
@@ -81,6 +83,7 @@ class HostConfig:
         self.prog_window = None
         self.ipv6 = True
         self.routes = None
+        self.routers = []
 
         for attr in self.__class__.attrs:
             setattr(self, attr, kwargs.get(attr, self.__class__.attrs[attr]))
@@ -91,6 +94,15 @@ class HostConfig:
 
         self.routes_pre_processed = self.routes
         self.routes = None
+
+        if self.routers:
+            self.routers = self.routers.split(';')
+        else:
+            self.routers = []
+        for router in self.routers:
+            if router not in ALLOWED_ROUTERS:
+                raise ValueError(f'{router} is not an allowed router.') \
+                        from None
 
         if not self.native_apps or \
                 str(self.native_apps).lower() in FALSE_STRINGS:
@@ -272,7 +284,8 @@ class HostConfig:
         if self.type == 'router' and self.native_apps:
             ints = [i for i, s in self.int_by_name.items()]
             run_cmd('start_zebra', self.hostname)
-            run_cmd('start_rip', self.hostname, *ints)
+            if 'ripd' in self.routers:
+                run_cmd('start_ripd', self.hostname, *ints)
 
     def start(self, comm_sock_file):
         '''Start this virtual host.  Call unshare to create the new namespace,
@@ -379,7 +392,8 @@ class HostConfig:
 
         if self.type == 'router' and self.native_apps:
             sys_cmd(['stop_zebra', self.hostname], check=False)
-            sys_cmd(['stop_rip', self.hostname], check=False)
+            if 'ripd' in self.routers:
+                sys_cmd(['stop_ripd', self.hostname], check=False)
 
         self.kill()
 

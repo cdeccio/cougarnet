@@ -630,7 +630,7 @@ class SysCmdHelper:
                 FRR_ZEBRA_PROG, self.zebra_started,
                 f'hostname {hostname}\n')
 
-    def start_rip(self, hostname, *ints):
+    def start_ripd(self, hostname, *ints):
         '''Prepare and start the ripd FRR daemon.'''
 
         contents = f'hostname {hostname}\n' + \
@@ -685,7 +685,7 @@ class SysCmdHelper:
         return self._kill_frr_daemon(hostname, 'zebra.conf',
                 'zebra.pid', self.zebra_started)
 
-    def stop_rip(self, hostname):
+    def stop_ripd(self, hostname):
         '''Terminate and clean up after the ripd FRR daemon.'''
 
         return self._kill_frr_daemon(hostname, 'ripd.conf',
