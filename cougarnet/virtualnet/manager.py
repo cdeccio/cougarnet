@@ -743,6 +743,7 @@ class VirtualNetwork:
         # start the raw packet helper for each host
         for _, host in self.host_by_name.items():
             host.start_raw_packet_helper()
+            host.start_router()
 
         # sleep for start_delay seconds
         time.sleep(start_delay)

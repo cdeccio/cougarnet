@@ -265,6 +265,15 @@ class HostConfig:
                 for i, s in self.helper_sock_pair_by_int.items()]
         run_cmd('start_rawpkt_helper', self.hostname, *ints)
 
+    def start_router(self):
+        '''Start the zebra and rip routing processes that will manage routing
+        on the device.'''
+
+        if self.type == 'router' and self.native_apps:
+            ints = [i for i, s in self.int_by_name.items()]
+            run_cmd('start_zebra', self.hostname)
+            run_cmd('start_rip', self.hostname, *ints)
+
     def start(self, comm_sock_file):
         '''Start this virtual host.  Call unshare to create the new namespace,
         initialize the virtual network within the new namespace, and start the
@@ -367,6 +376,10 @@ class HostConfig:
     def cleanup(self):
         '''Shut down and clean up resources allocated for the this virtual
         host, including processes, interfaces, and files.'''
+
+        if self.type == 'router' and self.native_apps:
+            sys_cmd(['stop_zebra', self.hostname], check=False)
+            sys_cmd(['stop_rip', self.hostname], check=False)
 
         self.kill()
 

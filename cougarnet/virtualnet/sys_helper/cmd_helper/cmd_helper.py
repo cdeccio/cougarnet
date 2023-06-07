@@ -21,6 +21,7 @@ privileges.'''
 
 import logging
 import os
+import signal
 import subprocess
 import struct
 import sys
@@ -33,6 +34,12 @@ from cougarnet.virtualnet.sys_helper.rawpkt_helper.manager import \
 from cougarnet import util
 
 RUN_NETNS_DIR = '/run/netns/'
+FRR_CONF_DIR = '/etc/frr/'
+FRR_RUN_DIR = '/var/run/frr/'
+FRR_ZEBRA_PROG = '/usr/lib/frr/zebra'
+FRR_RIPD_PROG = '/usr/lib/frr/ripd'
+FRR_ZEBRA_CONF_FILE = 'zebra.conf'
+FRR_RIPD_CONF_FILE = 'ripd.conf'
 HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
 
 logger = logging.getLogger(__name__)
@@ -41,9 +48,12 @@ class SysCmdHelper:
     '''A class for executing a set of canned commands that require
     privileges.'''
 
-    def __init__(self, uid, gid):
+    def __init__(self, uid, gid, frr_uid=None, frr_gid=None):
         self._uid = uid
         self._gid = gid
+
+        self._frr_uid = frr_uid
+        self._frr_gid = frr_gid
 
         self.links = {}
         # ns_exists contains the ns that exist in /run/netns/
@@ -55,6 +65,8 @@ class SysCmdHelper:
         self.netns_to_pid = {}
         self.pid_to_netns = {}
         self.netns_to_iproute = {}
+        self.zebra_started = set()
+        self.ripd_started = set()
 
     def require_netns(func):
         '''A decorator for ensuring that a method is called with a pid that has
@@ -107,6 +119,91 @@ class SysCmdHelper:
             return self._run_cmd_netns(cmd, self.netns_to_pid[netns])
 
         return '9,,No PID associated with namespace'
+
+    def _kill(self, pid, sig):
+        '''Call os.kill() to send a signal to a given process.'''
+
+        cmd = ['kill', f'-{sig}', str(pid)]
+        cmd_str = ' '.join(cmd)
+        logger.debug(cmd_str)
+
+        try:
+            os.kill(pid, sig)
+        except OSError as e:
+            return f'1,{cmd_str},{str(e)}'
+
+        return '0,'
+
+    def _mkdir(self, path, mode=0o777):
+        '''Call os.mkdir() to create a directory with the specified mode.'''
+
+        cmd = ['mkdir', path]
+        cmd_str = ' '.join(cmd)
+        logger.debug(cmd_str)
+
+        try:
+            os.mkdir(path, mode=mode)
+        except OSError as e:
+            return f'1,{cmd_str},{str(e)}'
+
+        return '0,'
+
+    def _unlink(self, path):
+        '''Call os.unlink() to remove a file.'''
+
+        cmd = ['rm', path]
+        cmd_str = ' '.join(cmd)
+        logger.debug(cmd_str)
+
+        try:
+            os.unlink(path)
+        except OSError as e:
+            return f'1,{cmd_str},{str(e)}'
+
+        return '0,'
+
+    def _rmdir(self, path):
+        '''Call os.rmdir() to remove a directory.'''
+
+        cmd = ['rmdir', path]
+        cmd_str = ' '.join(cmd)
+        logger.debug(cmd_str)
+
+        try:
+            os.rmdir(path)
+        except OSError as e:
+            return f'1,{cmd_str},{str(e)}'
+
+        return '0,'
+
+
+    def _chown(self, path, uid, gid):
+        '''Call os.chown() to change ownership on a file or directory.'''
+
+        cmd = ['chown', f'{uid}:{gid}', path]
+        cmd_str = ' '.join(cmd)
+        logger.debug(cmd_str)
+
+        try:
+            os.chown(path, uid, gid)
+        except OSError as e:
+            return f'1,{cmd_str},{str(e)}'
+
+        return '0,'
+
+    def _chmod(self, path, mode):
+        '''Call os.chmod() to change the mode of a file or directory.'''
+
+        cmd = ['chmod', str(mode), path]
+        cmd_str = ' '.join(cmd)
+        logger.debug(cmd_str)
+
+        try:
+            os.chmod(path, mode)
+        except OSError as e:
+            return f'1,{cmd_str},{str(e)}'
+
+        return '0,'
 
     def add_link_veth(self, intf1, intf2):
         '''Add one or two interaces of type veth (virtual interfaces) with the
@@ -462,6 +559,137 @@ class SysCmdHelper:
         if helper.start():
             return '0,'
         return '9,,Helper not started'
+
+    def _create_frr_conf_file(self, conf_file_path, contents):
+        '''Create a configuration file for an FRR daemon.'''
+
+        assert self._frr_uid is not None and self._frr_gid is not None, \
+                'A uid/gid associated with frr must be set when frr is used'
+
+        if os.path.exists(conf_file_path):
+            return f'9,,Config file already exists: {conf_file_path}'
+
+        frr_path = os.path.split(conf_file_path)[0]
+        for path in (FRR_CONF_DIR, frr_path):
+            if os.path.exists(path):
+                continue
+
+            val = self._mkdir(path, mode=0o750)
+            if not val.startswith('0,'):
+                return val
+
+            val = self._chown(path, self._frr_uid, self._frr_gid)
+            if not val.startswith('0,'):
+                self._rmdir(path)
+                return val
+
+        try:
+            with open(conf_file_path, 'w') as fh:
+                fh.write(contents)
+        except OSError as e:
+            parts = ['1', f'open({conf_file_path}, "w")', str(e)]
+            return util.list_to_csv_str(parts)
+
+        val = self._chown(conf_file_path, self._frr_uid, self._frr_gid)
+        if not val.startswith('0,'):
+            return val
+
+        val = self._chmod(conf_file_path, 0o640)
+        if not val.startswith('0,'):
+            return val
+
+        return '0,'
+
+    def _start_frr_daemon(self, hostname, conf_file, prog_path, started_set,
+            contents):
+        '''Prepare and start an FRR daemon.'''
+
+        ns = hostname
+        nspath = os.path.join(RUN_NETNS_DIR, ns)
+        conf_file_path = os.path.join(FRR_CONF_DIR, ns, conf_file)
+
+        if ns not in self.netns_mounted:
+            return f'9,,Namespace is not mounted: {nspath}'
+        if ns not in self.netns_to_pid:
+            return '9,,No PID associated with namespace'
+
+        ret = self._create_frr_conf_file(conf_file_path, contents)
+        if not ret.startswith('0,'):
+            return ret
+
+        cmd = [prog_path, '-d', '-N', ns, '-f', conf_file_path]
+        val = self._run_cmd_netns(cmd, self.netns_to_pid[ns])
+        if val.startswith('0,'):
+            started_set.add(hostname)
+        return val
+
+    def start_zebra(self, hostname):
+        '''Prepare and start the zebra FRR daemon.'''
+
+        return self._start_frr_daemon(hostname, FRR_ZEBRA_CONF_FILE,
+                FRR_ZEBRA_PROG, self.zebra_started,
+                f'hostname {hostname}\n')
+
+    def start_rip(self, hostname, *ints):
+        '''Prepare and start the ripd FRR daemon.'''
+
+        contents = f'hostname {hostname}\n' + \
+                'router rip\n redistribute connected\n'
+        for intf in ints:
+            contents += f' network {intf}\n'
+
+        return self._start_frr_daemon(hostname, FRR_RIPD_CONF_FILE,
+                FRR_RIPD_PROG, self.ripd_started,
+                contents)
+
+    def _kill_frr_daemon(self, hostname, conf_file, pid_file, started_set):
+        '''Send SIGTERM to an FRR daemon and then remove the associated config
+        file and pid file.'''
+
+        ns = hostname
+        conf_file_path = os.path.join(FRR_CONF_DIR, ns, conf_file)
+        pid_file_path = os.path.join(FRR_RUN_DIR, ns, pid_file)
+
+        if hostname not in started_set:
+            return f'9,,Daemon was not started'
+
+        try:
+            pid = int(open(pid_file_path, 'r').read().strip())
+        except OSError as e:
+            parts = ['1', f'open({pid_file_path}, "r")', str(e)]
+            return util.list_to_csv_str(parts)
+        except ValueError as e:
+            parts = ['1', f'read({pid_file_path})', str(e)]
+            return util.list_to_csv_str(parts)
+
+        val = self._kill(pid, signal.SIGTERM)
+        if not val.startswith('0,'):
+            return val
+
+        frr_run_path = os.path.split(pid_file_path)[0]
+        frr_conf_path = os.path.split(conf_file_path)[0]
+
+        self._unlink(conf_file_path)
+        self._rmdir(frr_conf_path)
+
+        self._unlink(pid_file_path)
+        self._rmdir(frr_run_path)
+
+        started_set.remove(hostname)
+
+        return '0,'
+
+    def stop_zebra(self, hostname):
+        '''Terminate and clean up after the zebra FRR daemon.'''
+
+        return self._kill_frr_daemon(hostname, 'zebra.conf',
+                'zebra.pid', self.zebra_started)
+
+    def stop_rip(self, hostname):
+        '''Terminate and clean up after the ripd FRR daemon.'''
+
+        return self._kill_frr_daemon(hostname, 'ripd.conf',
+                'ripd.pid', self.ripd_started)
 
     @require_netns
     def set_hostname(self, pid, hostname):

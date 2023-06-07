@@ -21,8 +21,10 @@
 import argparse
 import asyncio
 import atexit
+import grp
 import logging
 import logging.handlers
+import pwd
 import os
 import socket
 import subprocess
@@ -30,10 +32,11 @@ import sys
 
 from cougarnet.virtualnet.sys_helper.cmd_helper.cmd_helper import SysCmdHelper
 
-# From /usr/include/linux/if_ether.h
-ETH_P_ALL = 0x0003
+FRR_USERNAME = 'frr'
+FRR_GROUP = 'frr'
 
 logger = logging.getLogger()
+
 
 def _raise_int():
     raise KeyboardInterrupt()
@@ -77,14 +80,31 @@ def _send_byte_to_stdout():
     sys.stdout.buffer.write(b'\x00')
     sys.stdout.close()
 
+def _get_frr_uid_gid():
+    try:
+        pwd_entry = pwd.getpwnam(FRR_USERNAME)
+        grp_entry = grp.getgrnam(FRR_GROUP)
+    except KeyError:
+        return None, None
+    else:
+        return pwd_entry[2], grp_entry[2]
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--uid', '-u',
             action='store', type=int,
-            help='UID that should own the socket')
+            help='UID of the unprivileged user that should ' + \
+                    'be the target of unshared processes')
     parser.add_argument('--gid', '-g',
             action='store', type=int,
-            help='GID that should own the socket')
+            help='GID of the unprivileged group that should ' + \
+                    'be the target of unshared processes')
+    parser.add_argument('--frr-uid',
+            action='store', type=int,
+            help='UID of the user associated with frr')
+    parser.add_argument('--frr-gid',
+            action='store', type=int,
+            help='GID of the group associated with frr')
     parser.add_argument('--verbose', '-v',
             action='store_const', const=True, default=False,
             help='Use verbose mode')
@@ -129,9 +149,14 @@ def main():
                 'then the --uid and --gid options must be used.\n')
         sys.exit(1)
 
-    helper = SysCmdHelper(uid, gid)
-    loop = asyncio.get_event_loop()
+    frr_uid, frr_gid = _get_frr_uid_gid()
+    if args.frr_uid is not None:
+        frr_uid = args.frr_uid
+    if args.frr_gid is not None:
+        frr_gid = args.frr_gid
 
+    helper = SysCmdHelper(uid, gid, frr_uid=frr_uid, frr_gid=frr_gid)
+    loop = asyncio.get_event_loop()
     # exit as soon stdin is closed
     # (an indicator from our parent that we should terminate)
     loop.add_reader(sys.stdin, _raise_int)

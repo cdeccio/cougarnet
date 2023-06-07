@@ -23,7 +23,7 @@ and sys_cmd_with_cleanup().
 
 import os
 
-from .sys_helper.cmd_helper.cmd_helper import RUN_NETNS_DIR
+from .sys_helper.cmd_helper.cmd_helper import RUN_NETNS_DIR, FRR_CONF_DIR
 from .sys_helper.cmd_helper import sys_cmd, sys_cmd_with_cleanup
 
 class CommandWrapper:
@@ -81,6 +81,28 @@ class CommandWrapper:
                 ['sudo', 'umount', os.path.join(RUN_NETNS_DIR, hostname)],
                 ['sudo', 'rm', '-rf', \
                 os.path.join(RUN_NETNS_DIR, hostname)]]
+        sys_cmd_with_cleanup(cmd, cleanup_cmds, check=True)
+
+    @classmethod
+    def start_zebra(cls, hostname):
+        '''Call sys_cmd_with_cleanup(['start_zebra', ...]) with the
+        appropriate cleanup commands.'''
+
+        cmd = ['start_zebra', hostname]
+        cleanup_cmds = [
+                ['sudo', 'rm', '-f', \
+                os.path.join(FRR_CONF_DIR, hostname, 'zebra.conf')]]
+        sys_cmd_with_cleanup(cmd, cleanup_cmds, check=True)
+
+    @classmethod
+    def start_rip(cls, hostname, *ints):
+        '''Call sys_cmd_with_cleanup(['start_rip', ...]) with the
+        appropriate cleanup commands.'''
+
+        cmd = ['start_rip', hostname] + [i for i in ints]
+        cleanup_cmds = [
+                ['sudo', 'rm', '-f', \
+                os.path.join(FRR_CONF_DIR, hostname, 'ripd.conf')]]
         sys_cmd_with_cleanup(cmd, cleanup_cmds, check=True)
 
 def run_cmd(cmd, *args):
