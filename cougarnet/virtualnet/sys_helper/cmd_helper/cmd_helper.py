@@ -38,6 +38,8 @@ FRR_CONF_DIR = '/etc/frr/'
 FRR_RUN_DIR = '/var/run/frr/'
 FRR_ZEBRA_PROG = '/usr/lib/frr/zebra'
 FRR_RIPD_PROG = '/usr/lib/frr/ripd'
+FRR_ZEBRA_PID_FILE = 'zebra.pid'
+FRR_RIPD_PID_FILE = 'ripd.pid'
 FRR_ZEBRA_CONF_FILE = 'zebra.conf'
 FRR_RIPD_CONF_FILE = 'ripd.conf'
 HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
@@ -600,8 +602,24 @@ class SysCmdHelper:
 
         return '0,'
 
-    def _start_frr_daemon(self, hostname, conf_file, prog_path, started_set,
-            contents):
+    def _frr_daemon_running(self, hostname, pid_file):
+        '''Return True if the FRR daemon corresponding to the hostname and
+        pid_file is running, False otherwise.'''
+
+        ns = hostname
+        pid_file_path = os.path.join(FRR_RUN_DIR, ns, pid_file)
+
+        try:
+            pid = int(open(pid_file_path, 'r').read().strip())
+        except (OSError, ValueError) as e:
+            return False
+
+        cmd = ['ps', '-p', str(pid)]
+        val = self._run_cmd(cmd)
+        return val.startswith('0,')
+
+    def _start_frr_daemon(self, hostname, conf_file, pid_file,
+            prog_path, started_set, contents):
         '''Prepare and start an FRR daemon.'''
 
         ns = hostname
@@ -612,6 +630,8 @@ class SysCmdHelper:
             return f'9,,Namespace is not mounted: {nspath}'
         if ns not in self.netns_to_pid:
             return '9,,No PID associated with namespace'
+        if self._frr_daemon_running(hostname, pid_file):
+            return '9,,Daemon still running'
 
         ret = self._create_frr_conf_file(conf_file_path, contents)
         if not ret.startswith('0,'):
@@ -627,7 +647,7 @@ class SysCmdHelper:
         '''Prepare and start the zebra FRR daemon.'''
 
         return self._start_frr_daemon(hostname, FRR_ZEBRA_CONF_FILE,
-                FRR_ZEBRA_PROG, self.zebra_started,
+                FRR_ZEBRA_PID_FILE, FRR_ZEBRA_PROG, self.zebra_started,
                 f'hostname {hostname}\n')
 
     def start_ripd(self, hostname, *ints):
@@ -639,7 +659,7 @@ class SysCmdHelper:
             contents += f' network {intf}\n'
 
         return self._start_frr_daemon(hostname, FRR_RIPD_CONF_FILE,
-                FRR_RIPD_PROG, self.ripd_started,
+                FRR_RIPD_PID_FILE, FRR_RIPD_PROG, self.ripd_started,
                 contents)
 
     def _kill_frr_daemon(self, hostname, conf_file, pid_file, started_set):
@@ -682,14 +702,14 @@ class SysCmdHelper:
     def stop_zebra(self, hostname):
         '''Terminate and clean up after the zebra FRR daemon.'''
 
-        return self._kill_frr_daemon(hostname, 'zebra.conf',
-                'zebra.pid', self.zebra_started)
+        return self._kill_frr_daemon(hostname, FRR_ZEBRA_CONF_FILE,
+                FRR_ZEBRA_PID_FILE, self.zebra_started)
 
     def stop_ripd(self, hostname):
         '''Terminate and clean up after the ripd FRR daemon.'''
 
-        return self._kill_frr_daemon(hostname, 'ripd.conf',
-                'ripd.pid', self.ripd_started)
+        return self._kill_frr_daemon(hostname, FRR_RIPD_CONF_FILE,
+                FRR_RIPD_PID_FILE, self.ripd_started)
 
     @require_netns
     def set_hostname(self, pid, hostname):

@@ -23,7 +23,10 @@ and sys_cmd_with_cleanup().
 
 import os
 
-from .sys_helper.cmd_helper.cmd_helper import RUN_NETNS_DIR, FRR_CONF_DIR
+from .sys_helper.cmd_helper.cmd_helper import \
+        RUN_NETNS_DIR, FRR_CONF_DIR, FRR_RUN_DIR, \
+        FRR_ZEBRA_PID_FILE, FRR_RIPD_PID_FILE, \
+        FRR_ZEBRA_CONF_FILE, FRR_RIPD_CONF_FILE
 from .sys_helper.cmd_helper import sys_cmd, sys_cmd_with_cleanup
 
 class CommandWrapper:
@@ -88,10 +91,16 @@ class CommandWrapper:
         '''Call sys_cmd_with_cleanup(['start_zebra', ...]) with the
         appropriate cleanup commands.'''
 
+        pid_file_path = os.path.join(FRR_RUN_DIR,
+                hostname, FRR_ZEBRA_PID_FILE)
+        conf_file_path = os.path.join(FRR_CONF_DIR,
+                hostname, FRR_ZEBRA_CONF_FILE)
+
         cmd = ['start_zebra', hostname]
         cleanup_cmds = [
-                ['sudo', 'rm', '-f', \
-                os.path.join(FRR_CONF_DIR, hostname, 'zebra.conf')]]
+                ['sudo', 'pkill', '--signal', 'TERM',
+                    '-F', pid_file_path],
+                ['sudo', 'rm', conf_file_path]]
         sys_cmd_with_cleanup(cmd, cleanup_cmds, check=True)
 
     @classmethod
@@ -99,10 +108,16 @@ class CommandWrapper:
         '''Call sys_cmd_with_cleanup(['start_ripd', ...]) with the
         appropriate cleanup commands.'''
 
+        pid_file_path = os.path.join(FRR_RUN_DIR,
+                hostname, FRR_RIPD_PID_FILE)
+        conf_file_path = os.path.join(FRR_CONF_DIR,
+                hostname, FRR_RIPD_CONF_FILE)
+
         cmd = ['start_ripd', hostname] + [i for i in ints]
         cleanup_cmds = [
-                ['sudo', 'rm', '-f', \
-                os.path.join(FRR_CONF_DIR, hostname, 'ripd.conf')]]
+                ['sudo', 'pkill', '--signal', 'TERM',
+                    '-F', pid_file_path],
+                ['sudo', 'rm', conf_file_path]]
         sys_cmd_with_cleanup(cmd, cleanup_cmds, check=True)
 
 def run_cmd(cmd, *args):
