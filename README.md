@@ -324,8 +324,8 @@ h4 terminal=false,routes=0.0.0.0/0|s2|10.0.1.30
 s1 type=switch,terminal=false
 s2 type=switch,terminal=false
 
-r1 type=router,terminal=false,routers=ripd
-r2 type=router,terminal=false,routers=ripd
+r1 type=router,terminal=false,routers=rip
+r2 type=router,terminal=false,routers=rip
 
 LINKS
 h1,10.0.0.1/24 s1
@@ -340,7 +340,7 @@ h4,10.0.1.2/24 s2
 Note that the only difference between this configuration file and the one in
 the previous example is that the static routes on `r1` and `r2` have been
 replaced with the instantiation of a RIP (Routing Information Protocol) routing
-engine, `ripd`.  Now the routes will be learned automatically instead of having
+engine, `rip`.  Now the routes will be learned automatically instead of having
 to specify them manually.
 
 ```bash
@@ -507,8 +507,8 @@ host option names are the following, accompanied by the expected value:
    to local subnets.  See [Routes](#routes) for more information.
  - `routers`: a semi-colon-delimited list of router engines that will be
    employed by a router that uses native apps mode.  Currently, the only
-   acceptable router engine is `ripd`.  For example, the following would start
-   the `ripd` daemon, having the nodes run RIP to exchange routes: `ripd`.
+   acceptable router engine is `rip`.  For example, the following would start
+   the `ripd` daemon, having the nodes run RIP to exchange routes: `rip`.
    Default: no router engines.
  - `prog`: a string representing a program and its arguments, which are to be
    run, instead of an interactive shell.  The program path and its arguments
