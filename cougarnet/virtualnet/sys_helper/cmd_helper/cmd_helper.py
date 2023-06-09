@@ -36,12 +36,16 @@ from cougarnet import util
 RUN_NETNS_DIR = '/run/netns/'
 FRR_CONF_DIR = '/etc/frr/'
 FRR_RUN_DIR = '/var/run/frr/'
-FRR_ZEBRA_PROG = '/usr/lib/frr/zebra'
-FRR_RIPD_PROG = '/usr/lib/frr/ripd'
+FRR_PROG_DIR = '/usr/lib/frr'
+FRR_ZEBRA_PROG = os.path.join(FRR_PROG_DIR, 'zebra')
+FRR_RIPD_PROG = os.path.join(FRR_PROG_DIR, 'ripd')
+FRR_RIPNGD_PROG = os.path.join(FRR_PROG_DIR, 'ripngd')
 FRR_ZEBRA_PID_FILE = 'zebra.pid'
 FRR_RIPD_PID_FILE = 'ripd.pid'
+FRR_RIPNGD_PID_FILE = 'ripngd.pid'
 FRR_ZEBRA_CONF_FILE = 'zebra.conf'
 FRR_RIPD_CONF_FILE = 'ripd.conf'
+FRR_RIPNGD_CONF_FILE = 'ripngd.conf'
 HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
 
 logger = logging.getLogger(__name__)
@@ -69,6 +73,7 @@ class SysCmdHelper:
         self.netns_to_iproute = {}
         self.zebra_started = set()
         self.ripd_started = set()
+        self.ripngd_started = set()
 
     def require_netns(func):
         '''A decorator for ensuring that a method is called with a pid that has
@@ -662,6 +667,18 @@ class SysCmdHelper:
                 FRR_RIPD_PID_FILE, FRR_RIPD_PROG, self.ripd_started,
                 contents)
 
+    def start_ripngd(self, hostname, *ints):
+        '''Prepare and start the ripngd FRR daemon.'''
+
+        contents = f'hostname {hostname}\n' + \
+                'router ripng\n redistribute connected\n'
+        for intf in ints:
+            contents += f' network {intf}\n'
+
+        return self._start_frr_daemon(hostname, FRR_RIPNGD_CONF_FILE,
+                FRR_RIPNGD_PID_FILE, FRR_RIPNGD_PROG, self.ripngd_started,
+                contents)
+
     def _kill_frr_daemon(self, hostname, conf_file, pid_file, started_set):
         '''Send SIGTERM to an FRR daemon and then remove the associated config
         file and pid file.'''
@@ -710,6 +727,12 @@ class SysCmdHelper:
 
         return self._kill_frr_daemon(hostname, FRR_RIPD_CONF_FILE,
                 FRR_RIPD_PID_FILE, self.ripd_started)
+
+    def stop_ripngd(self, hostname):
+        '''Terminate and clean up after the ripngd FRR daemon.'''
+
+        return self._kill_frr_daemon(hostname, FRR_RIPNGD_CONF_FILE,
+                FRR_RIPNGD_PID_FILE, self.ripngd_started)
 
     @require_netns
     def set_hostname(self, pid, hostname):

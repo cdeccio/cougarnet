@@ -507,9 +507,10 @@ host option names are the following, accompanied by the expected value:
    to local subnets.  See [Routes](#routes) for more information.
  - `routers`: a semi-colon-delimited list of router engines that will be
    employed by a router that uses native apps mode.  Currently, the only
-   acceptable router engine is `rip`.  For example, the following would start
-   the `ripd` daemon, having the nodes run RIP to exchange routes: `rip`.
-   Default: no router engines.
+   acceptable router engines are `rip` and `ripng`, which run the RIP routing
+   protocols for IPv4 and IPv6, respectively.  For example, the following would
+   start both the `ripd` and `ripngd` daemons, having the nodes run RIP to
+   exchange routes: `rip;ripng`.  Default: no router engines.
  - `prog`: a string representing a program and its arguments, which are to be
    run, instead of an interactive shell.  The program path and its arguments
    are delimited by `|`.  For example, `echo|foo|bar` would execute

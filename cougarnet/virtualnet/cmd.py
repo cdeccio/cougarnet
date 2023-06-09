@@ -25,8 +25,8 @@ import os
 
 from .sys_helper.cmd_helper.cmd_helper import \
         RUN_NETNS_DIR, FRR_CONF_DIR, FRR_RUN_DIR, \
-        FRR_ZEBRA_PID_FILE, FRR_RIPD_PID_FILE, \
-        FRR_ZEBRA_CONF_FILE, FRR_RIPD_CONF_FILE
+        FRR_ZEBRA_PID_FILE, FRR_RIPD_PID_FILE, FRR_RIPNGD_PID_FILE, \
+        FRR_ZEBRA_CONF_FILE, FRR_RIPD_CONF_FILE, FRR_RIPNGD_CONF_FILE
 from .sys_helper.cmd_helper import sys_cmd, sys_cmd_with_cleanup
 
 class CommandWrapper:
@@ -114,6 +114,23 @@ class CommandWrapper:
                 hostname, FRR_RIPD_CONF_FILE)
 
         cmd = ['start_ripd', hostname] + [i for i in ints]
+        cleanup_cmds = [
+                ['sudo', 'pkill', '--signal', 'TERM',
+                    '-F', pid_file_path],
+                ['sudo', 'rm', conf_file_path]]
+        sys_cmd_with_cleanup(cmd, cleanup_cmds, check=True)
+
+    @classmethod
+    def start_ripngd(cls, hostname, *ints):
+        '''Call sys_cmd_with_cleanup(['start_ripngd', ...]) with the
+        appropriate cleanup commands.'''
+
+        pid_file_path = os.path.join(FRR_RUN_DIR,
+                hostname, FRR_RIPNGD_PID_FILE)
+        conf_file_path = os.path.join(FRR_CONF_DIR,
+                hostname, FRR_RIPNGD_CONF_FILE)
+
+        cmd = ['start_ripngd', hostname] + [i for i in ints]
         cleanup_cmds = [
                 ['sudo', 'pkill', '--signal', 'TERM',
                     '-F', pid_file_path],

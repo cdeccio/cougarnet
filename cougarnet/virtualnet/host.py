@@ -37,7 +37,7 @@ HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
 RAWPKT_HELPER_MODULE = "cougarnet.sim.rawpkt_helper"
 MAIN_WINDOW_NAME = "main"
 CMD_WINDOW_NAME = "prog"
-ALLOWED_ROUTERS = set(['rip'])
+ALLOWED_ROUTERS = set(['rip', 'ripng'])
 
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 
@@ -286,6 +286,8 @@ class HostConfig:
             run_cmd('start_zebra', self.hostname)
             if 'rip' in self.routers:
                 run_cmd('start_ripd', self.hostname, *ints)
+            if 'ripng' in self.routers:
+                run_cmd('start_ripngd', self.hostname, *ints)
 
     def start(self, comm_sock_file):
         '''Start this virtual host.  Call unshare to create the new namespace,
@@ -394,6 +396,8 @@ class HostConfig:
             sys_cmd(['stop_zebra', self.hostname], check=False)
             if 'rip' in self.routers:
                 sys_cmd(['stop_ripd', self.hostname], check=False)
+            if 'ripng' in self.routers:
+                sys_cmd(['stop_ripngd', self.hostname], check=False)
 
         self.kill()
 
