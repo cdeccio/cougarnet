@@ -40,12 +40,14 @@ FRR_PROG_DIR = '/usr/lib/frr'
 FRR_ZEBRA_PROG = os.path.join(FRR_PROG_DIR, 'zebra')
 FRR_RIPD_PROG = os.path.join(FRR_PROG_DIR, 'ripd')
 FRR_RIPNGD_PROG = os.path.join(FRR_PROG_DIR, 'ripngd')
+
 FRR_ZEBRA_PID_FILE = 'zebra.pid'
 FRR_RIPD_PID_FILE = 'ripd.pid'
 FRR_RIPNGD_PID_FILE = 'ripngd.pid'
 FRR_ZEBRA_CONF_FILE = 'zebra.conf'
 FRR_RIPD_CONF_FILE = 'ripd.conf'
 FRR_RIPNGD_CONF_FILE = 'ripngd.conf'
+
 HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
 
 logger = logging.getLogger(__name__)
@@ -512,7 +514,7 @@ class SysCmdHelper:
         cmd = ['sysctl', f'net/ipv6/conf/{intf}/router_solicitations=0']
         return self._run_cmd_netns_or_not(cmd, intf)
 
-    def unshare_hostinit(self, hostname, net, hosts_file, mount_sys,
+    def unshare_hostinit(self, hostname, net, hosts_file, mount_sys, use_vty,
             config_file, sys_cmd_helper_sock_remote, sys_cmd_helper_sock_local,
             comm_sock_remote, comm_sock_local, script_file):
         '''Run the hostinit module in a namespace that we have created, and
@@ -530,6 +532,9 @@ class SysCmdHelper:
                     '--hosts-file', hosts_file]
         if mount_sys:
             cmd += ['--mount-sys']
+        if use_vty:
+            vty = os.path.join(FRR_RUN_DIR, hostname)
+            cmd += ['--vty-socket', vty]
         cmd += [config_file,
                 sys_cmd_helper_sock_remote, sys_cmd_helper_sock_local,
                 comm_sock_remote, comm_sock_local,

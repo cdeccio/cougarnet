@@ -309,6 +309,10 @@ class HostConfig:
             args += ['1']
         else:
             args += ['']
+        if self.type == 'router' and self.native_apps:
+            args += ['1']
+        else:
+            args += ['']
         args += [self.config_file,
                 cmd_helper.sys_cmd_helper.remote_sock_path,
                 self.sys_cmd_helper_local,

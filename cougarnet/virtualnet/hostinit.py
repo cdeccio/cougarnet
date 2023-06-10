@@ -168,6 +168,9 @@ def main():
     parser.add_argument('--mount-sys',
             action='store_const', const=True, default=False,
             help='Whether or not to mount sysfs on /sys')
+    parser.add_argument('--vty-socket', action='store',
+            type=str, default=None,
+            help='The directory for the FRR vty socket')
     parser.add_argument('config_file',
             type=argparse.FileType('r'), action='store',
             help='File containing the network configuration for host')
@@ -206,6 +209,9 @@ def main():
             'remote': args.comm_sock_remote
             }
     env['COUGARNET_COMM_SOCK'] = json.dumps(comm_sock_paths)
+
+    if args.vty_socket is not None:
+        env['COUGARNET_VTY_SOCK'] = args.vty_socket
 
     if not join_sys_cmd_helper(
             args.sys_cmd_helper_sock_remote, args.sys_cmd_helper_sock_local):
