@@ -397,11 +397,11 @@ class HostConfig:
         host, including processes, interfaces, and files.'''
 
         if self.type == 'router' and self.native_apps:
-            sys_cmd(['stop_zebra', self.hostname], check=False)
             if 'rip' in self.routers:
                 sys_cmd(['stop_ripd', self.hostname], check=False)
             if 'ripng' in self.routers:
                 sys_cmd(['stop_ripngd', self.hostname], check=False)
+            sys_cmd(['stop_zebra', self.hostname], check=False)
 
         self.kill()
 

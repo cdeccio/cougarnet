@@ -47,6 +47,10 @@ FRR_RIPNGD_PID_FILE = 'ripngd.pid'
 FRR_ZEBRA_CONF_FILE = 'zebra.conf'
 FRR_RIPD_CONF_FILE = 'ripd.conf'
 FRR_RIPNGD_CONF_FILE = 'ripngd.conf'
+FRR_ZEBRA_VTY_FILE = 'zebra.vty'
+FRR_RIPD_VTY_FILE = 'ripd.vty'
+FRR_RIPNGD_VTY_FILE = 'ripngd.vty'
+FRR_ZSERV_FILE = 'zserv.api'
 
 HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
 
@@ -388,8 +392,7 @@ class SysCmdHelper:
         if nspath not in self.netns_exists:
             return f'9,,Namespace does not exist: {nspath}'
 
-        cmd = ['rm', nspath]
-        val = self._run_cmd(cmd)
+        val = self._unlink(nspath)
         if not val.startswith('0,'):
             return val
 
@@ -684,13 +687,15 @@ class SysCmdHelper:
                 FRR_RIPNGD_PID_FILE, FRR_RIPNGD_PROG, self.ripngd_started,
                 contents)
 
-    def _kill_frr_daemon(self, hostname, conf_file, pid_file, started_set):
+    def _kill_frr_daemon(self, hostname, conf_file, pid_file, vty_file,
+            started_set):
         '''Send SIGTERM to an FRR daemon and then remove the associated config
         file and pid file.'''
 
         ns = hostname
         conf_file_path = os.path.join(FRR_CONF_DIR, ns, conf_file)
         pid_file_path = os.path.join(FRR_RUN_DIR, ns, pid_file)
+        vty_file_path = os.path.join(FRR_RUN_DIR, ns, vty_file)
 
         if hostname not in started_set:
             return f'9,,Daemon was not started'
@@ -715,29 +720,44 @@ class SysCmdHelper:
         self._rmdir(frr_conf_path)
 
         self._unlink(pid_file_path)
+        self._unlink(vty_file_path)
         self._rmdir(frr_run_path)
 
         started_set.remove(hostname)
 
         return '0,'
 
+
     def stop_zebra(self, hostname):
         '''Terminate and clean up after the zebra FRR daemon.'''
 
-        return self._kill_frr_daemon(hostname, FRR_ZEBRA_CONF_FILE,
-                FRR_ZEBRA_PID_FILE, self.zebra_started)
+        val = self._kill_frr_daemon(hostname, FRR_ZEBRA_CONF_FILE,
+                FRR_ZEBRA_PID_FILE, FRR_ZEBRA_VTY_FILE, self.zebra_started)
+
+        if not val.startswith('0,'):
+            return val
+
+        ns = hostname
+        zserv_file_path = os.path.join(FRR_RUN_DIR, ns, FRR_ZSERV_FILE)
+        frr_run_path = os.path.split(zserv_file_path)[0]
+
+        self._unlink(zserv_file_path)
+        self._rmdir(frr_run_path)
+
+        return '0,'
+
 
     def stop_ripd(self, hostname):
         '''Terminate and clean up after the ripd FRR daemon.'''
 
         return self._kill_frr_daemon(hostname, FRR_RIPD_CONF_FILE,
-                FRR_RIPD_PID_FILE, self.ripd_started)
+                FRR_RIPD_PID_FILE, FRR_RIPD_VTY_FILE, self.ripd_started)
 
     def stop_ripngd(self, hostname):
         '''Terminate and clean up after the ripngd FRR daemon.'''
 
         return self._kill_frr_daemon(hostname, FRR_RIPNGD_CONF_FILE,
-                FRR_RIPNGD_PID_FILE, self.ripngd_started)
+                FRR_RIPNGD_PID_FILE, FRR_RIPNGD_VTY_FILE, self.ripngd_started)
 
     @require_netns
     def set_hostname(self, pid, hostname):
