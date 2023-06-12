@@ -1,13 +1,3 @@
 name: cougarnet
 dependencies:
-  - numpy
-  - pandas
-  - openvswitch-switch
-  - frr
-  - tmux
-  - python3-pyroute2
-  - lxterminal
-  - python3-pygraphviz
-  - libgraph-easy-perl
-  - wireshark
-  - socat
+  - pyroute2
