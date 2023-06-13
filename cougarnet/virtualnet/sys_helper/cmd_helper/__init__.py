@@ -85,20 +85,25 @@ def sys_cmd(cmd, check=False):
         else:
             raise CommandExecError(f'Command failed: "{cmd_str}": {err}')
 
-def sys_cmd_with_cleanup(cmd, cleanup_cmds, check=False):
+def sys_cmd_with_cleanup(cmd, cleanup_cmds, check=False, default_yes=False):
     try:
         sys_cmd(cmd, check)
     except SysCmdError as e:
+        n = len(cleanup_cmds)
         sys.stderr.write('%s\n' % e)
-        sys.stderr.write('The following command(s) should ' + \
+        sys.stderr.write(f'The following {n} command(s) should ' + \
                 'be executed before trying again.\n')
         for i, cleanup_cmd in enumerate(cleanup_cmds):
             cmd_str = ' '.join(cleanup_cmd)
             sys.stderr.write(f'  {i+1}: {cmd_str}\n')
-            sys.stderr.write('     Run? [y/N] ')
+            if default_yes:
+                sys.stderr.write('     Run? [(y)/n] ')
+            else:
+                sys.stderr.write('     Run? [y/(n)] ')
             sys.stderr.flush()
             ans = sys.stdin.readline().strip()
-            if ans.lower() in ('y', 'yes'):
+            if ans.lower() in ('y', 'yes') or \
+                    (default_yes and not ans):
                 subprocess.run(cleanup_cmd, check=False)
 
         # try to run the original command again
