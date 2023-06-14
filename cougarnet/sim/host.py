@@ -27,7 +27,7 @@ import socket
 import subprocess
 
 from cougarnet.util import recv_raw, ETH_P_ALL, SOL_PACKET, PACKET_AUXDATA
-from cougarnet.virtualnet.sys_helper.cmd_helper import \
+from cougarnet.sys_helper.cmd_helper import \
         start_sys_cmd_helper, join_sys_cmd_helper, stop_sys_cmd_helper
 from .interface import InterfaceInfo
 

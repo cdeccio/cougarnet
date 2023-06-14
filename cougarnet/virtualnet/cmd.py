@@ -23,11 +23,11 @@ and sys_cmd_with_cleanup().
 
 import os
 
-from .sys_helper.cmd_helper.cmd_helper import \
+from cougarnet.sys_helper.cmd_helper.cmd_helper import \
         RUN_NETNS_DIR, FRR_CONF_DIR, FRR_RUN_DIR, \
         FRR_ZEBRA_PID_FILE, FRR_RIPD_PID_FILE, FRR_RIPNGD_PID_FILE, \
         FRR_ZEBRA_CONF_FILE, FRR_RIPD_CONF_FILE, FRR_RIPNGD_CONF_FILE
-from .sys_helper.cmd_helper import sys_cmd, sys_cmd_with_cleanup
+from cougarnet.sys_helper.cmd_helper import sys_cmd, sys_cmd_with_cleanup
 
 class CommandWrapper:
     '''

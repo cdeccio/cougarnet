@@ -21,7 +21,7 @@ socket and sends them to a UNIX domain socket, and vice-versa.'''
 
 import os
 
-from cougarnet.virtualnet.sys_helper.manager import \
+from cougarnet.sys_helper.manager import \
         SysHelperManager, LIBEXEC_DIR
 
 RAWPKT_HELPER_SCRIPT = os.path.join(LIBEXEC_DIR, 'rawpkt_helper')

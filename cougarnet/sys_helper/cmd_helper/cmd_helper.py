@@ -29,7 +29,7 @@ import sys
 from pyroute2 import NetNS, netns
 from pyroute2.netlink.exceptions import NetlinkError
 
-from cougarnet.virtualnet.sys_helper.rawpkt_helper.manager import \
+from cougarnet.sys_helper.rawpkt_helper.manager import \
         RawPktHelperManager
 from cougarnet import util
 

@@ -30,7 +30,7 @@ import socket
 import subprocess
 import sys
 
-from cougarnet.virtualnet.sys_helper.cmd_helper.cmd_helper import SysCmdHelper
+from cougarnet.sys_helper.cmd_helper.cmd_helper import SysCmdHelper
 
 FRR_USERNAME = 'frr'
 FRR_GROUP = 'frr'

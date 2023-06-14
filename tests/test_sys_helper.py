@@ -4,7 +4,7 @@ import sys
 import tempfile
 import unittest
 
-from cougarnet.virtualnet.sys_helper.cmd_helper.cmd_helper import SysCmdHelper
+from cougarnet.sys_helper.cmd_helper.cmd_helper import SysCmdHelper
 
 class NetConfigTestCase(unittest.TestCase):
     def test_interfaces(self):

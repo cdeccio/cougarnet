@@ -24,7 +24,7 @@ import socket
 import subprocess
 
 from cougarnet import util
-from cougarnet.virtualnet.sys_helper.manager import \
+from cougarnet.sys_helper.manager import \
         SysHelperManager, LIBEXEC_DIR
 
 SYSCMD_HELPER_SCRIPT = os.path.join(LIBEXEC_DIR, 'syscmd_helper')

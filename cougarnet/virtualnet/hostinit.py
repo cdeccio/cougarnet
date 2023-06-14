@@ -28,7 +28,7 @@ import socket
 import subprocess
 import sys
 
-from .sys_helper.cmd_helper import \
+from cougarnet.sys_helper.cmd_helper import \
         join_sys_cmd_helper, stop_sys_cmd_helper, sys_cmd
 
 #XXX show debug to terminal until very end
