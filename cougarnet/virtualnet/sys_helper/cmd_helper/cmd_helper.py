@@ -126,10 +126,10 @@ class SysCmdHelper:
             # execute in default namespace
             return self._run_cmd(cmd)
 
-        netns = self.links[intf]
-        if netns in self.netns_to_pid:
+        netns1 = self.links[intf]
+        if netns1 in self.netns_to_pid:
             # execute using nsenter and pid
-            return self._run_cmd_netns(cmd, self.netns_to_pid[netns])
+            return self._run_cmd_netns(cmd, self.netns_to_pid[netns1])
 
         return '9,,No PID associated with namespace'
 
@@ -779,10 +779,10 @@ class SysCmdHelper:
         cmd_str = ' '.join(cmd)
         logger.debug(cmd_str)
 
-        netns = self.pid_to_netns[pid]
-        if netns not in self.netns_to_iproute:
-            self.netns_to_iproute[netns] = NetNS(netns)
-        ns = self.netns_to_iproute[netns]
+        netns1 = self.pid_to_netns[pid]
+        if netns1 not in self.netns_to_iproute:
+            self.netns_to_iproute[netns1] = NetNS(netns1)
+        ns = self.netns_to_iproute[netns1]
 
         kwargs = { 'dst': prefix }
         if next_hop:
@@ -809,10 +809,10 @@ class SysCmdHelper:
         cmd_str = ' '.join(cmd)
         logger.debug(cmd_str)
 
-        netns = self.pid_to_netns[pid]
-        if netns not in self.netns_to_iproute:
-            self.netns_to_iproute[netns] = NetNS(netns)
-        ns = self.netns_to_iproute[netns]
+        netns1 = self.pid_to_netns[pid]
+        if netns1 not in self.netns_to_iproute:
+            self.netns_to_iproute[netns1] = NetNS(netns1)
+        ns = self.netns_to_iproute[netns1]
 
         kwargs = { 'dst': prefix }
         try:
