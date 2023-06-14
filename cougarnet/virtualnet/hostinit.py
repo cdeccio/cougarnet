@@ -28,8 +28,6 @@ import socket
 import subprocess
 import sys
 
-from cougarnet.errors import StartupError
-
 from .sys_helper.cmd_helper import \
         join_sys_cmd_helper, stop_sys_cmd_helper, sys_cmd
 
