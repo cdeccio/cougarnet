@@ -703,7 +703,7 @@ class SysCmdHelper:
         vty_file_path = os.path.join(FRR_RUN_DIR, ns, vty_file)
 
         if hostname not in started_set:
-            return f'9,,Daemon was not started'
+            return '9,,Daemon was not started'
 
         try:
             pid = int(open(pid_file_path, 'r').read().strip())
