@@ -30,7 +30,8 @@ import sys
 
 from cougarnet.errors import StartupError
 
-from .sys_helper.cmd_helper import join_sys_cmd_helper, sys_cmd
+from .sys_helper.cmd_helper import \
+        join_sys_cmd_helper, stop_sys_cmd_helper, sys_cmd
 
 #XXX show debug to terminal until very end
 
@@ -252,6 +253,9 @@ def main():
         cmd = ['mount_hosts', pid, args.hosts_file]
         sys_cmd(cmd, check=True)
 
+    # clean up sys_cmd_helper
+    stop_sys_cmd_helper()
+
     # tell the coordinating process that everything is ready to go
     comm_sock.send(b'\x00')
 
@@ -261,7 +265,6 @@ def main():
     # close socket and remove the associated file
     comm_sock.close()
     os.unlink(comm_sock_paths['local'])
-    os.unlink(sys_cmd_helper_sock_paths['local'])
 
     # close all file descriptors, except stderr
     close_file_descriptors([2])

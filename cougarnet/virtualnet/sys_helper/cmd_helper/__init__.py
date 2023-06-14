@@ -20,6 +20,7 @@
 Various utility functions for the cmd_helper module.
 '''
 
+import os
 import subprocess
 import sys
 
@@ -42,7 +43,8 @@ def start_sys_cmd_helper(remote_sock_path, local_sock_path, verbose):
 
     return sys_cmd_helper.start()
 
-def join_sys_cmd_helper(remote_sock_path, local_sock_path):
+def join_sys_cmd_helper(remote_sock_path, local_sock_path,
+        add_pid_for_netns=False):
     global sys_cmd_helper
 
     assert sys_cmd_helper is None, \
@@ -51,7 +53,10 @@ def join_sys_cmd_helper(remote_sock_path, local_sock_path):
     sys_cmd_helper = SysCmdHelperManagerStarted(
             remote_sock_path, local_sock_path)
 
-    return sys_cmd_helper.start()
+    sys_cmd_helper.start()
+    if add_pid_for_netns:
+        sys_cmd(['add_pid_for_netns', str(os.getpid())], check=True)
+    return True
 
 def stop_sys_cmd_helper():
     assert sys_cmd_helper is not None, \
@@ -84,6 +89,13 @@ def sys_cmd(cmd, check=False):
                     f'"{cmd_str}": {err}')
         else:
             raise CommandExecError(f'Command failed: "{cmd_str}": {err}')
+
+def sys_cmd_pid(cmd, check=False):
+    '''Insert the pid of this process into cmd, and call sys_cmd() on the
+    resulting command.'''
+
+    pid = str(os.getpid())
+    return sys_cmd([cmd[0]] + [pid] + cmd[1:], check=check)
 
 def sys_cmd_with_cleanup(cmd, cleanup_cmds, check=False, default_yes=False):
     try:

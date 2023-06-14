@@ -173,6 +173,9 @@ class VirtualNetwork:
                 remote_sock_path, self.helper_local_sock_path, self.verbose):
             raise StartupError('Could not start system command helper!')
 
+    def _stop_sys_cmd_helper(self):
+        stop_sys_cmd_helper()
+
     def parse_int(self, hostname_addr):
         '''Parse a string containing hostname and address information for a
         given interface, and return the parsed information.'''
@@ -767,13 +770,12 @@ class VirtualNetwork:
         for intf in self.bridge_interfaces:
             sys_cmd(['del_link', intf], check=False)
 
-        stop_sys_cmd_helper()
+        self._stop_sys_cmd_helper()
 
         os.unlink(self.hosts_file)
 
         self.comm_sock.close()
         os.unlink(self.comm_sock_file)
-        os.unlink(self.helper_local_sock_path)
         os.unlink(self.env_file)
 
         for d in self.comm_dir, self.config_dir, self.hosts_dir, \

@@ -27,6 +27,8 @@ import socket
 import subprocess
 
 from cougarnet.util import recv_raw, ETH_P_ALL, SOL_PACKET, PACKET_AUXDATA
+from cougarnet.virtualnet.sys_helper.cmd_helper import \
+        start_sys_cmd_helper, join_sys_cmd_helper, stop_sys_cmd_helper
 from .interface import InterfaceInfo
 
 IP_ADDR_MTU_RE = re.compile(r'^\d:\s+.*\smtu\s+(\d+)(\s|$)')
@@ -57,6 +59,7 @@ class BaseHost:
         self.hostname = socket.gethostname()
 
         self._setup_comm_sock()
+        self._join_sys_cmd_helper()
 
         self._detect_interfaces()
         self._set_interface_info()
@@ -87,6 +90,18 @@ class BaseHost:
 
         self._remove_comm_sock()
         self._remove_helper_socks()
+        self._stop_sys_cmd_helper()
+
+    def _join_sys_cmd_helper(self):
+        helper_sock_paths = json.loads(os.environ['COUGARNET_SYS_CMD_HELPER_SOCK'])
+        if not join_sys_cmd_helper(
+                helper_sock_paths['remote'], helper_sock_paths['local'],
+                add_pid_for_netns=True):
+            #XXX need something more specific here
+            raise Exception('Could not connect to command helper socket')
+
+    def _stop_sys_cmd_helper(self):
+        stop_sys_cmd_helper()
 
     def _remove_comm_sock(self):
         '''Attempt to remove the file associated with the socket used for

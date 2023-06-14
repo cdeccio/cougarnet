@@ -71,12 +71,24 @@ class SysCmdHelperManager(SysHelperManager):
             self._setup_sock()
         return val
 
+    def close(self):
+        '''Stop the helper process, and clean up the socket.'''
+
+        super().close()
+        self._remove_sock()
+
     def _setup_sock(self):
         '''Create the socket that will be used for issuing commands to the
         privilged process.'''
 
         self.sock = _setup_unix_sock(
                 self.local_sock_path, self.remote_sock_path)
+
+    def _remove_sock(self):
+        '''Remove the local socket, which was used for issuing commands to the
+        privileged process.'''
+
+        os.unlink(self.local_sock_path)
 
     def cmd(self, cmd):
         '''Issue the provided command, a list, to the privileged process, by
@@ -96,3 +108,8 @@ class SysCmdHelperManagerStarted(SysCmdHelperManager):
     def start(self):
         self._setup_sock()
         return True
+
+    def close(self):
+        '''Clean up the socket.'''
+
+        self._remove_sock()
