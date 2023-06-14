@@ -144,7 +144,8 @@ class SysCmdHelper:
         try:
             os.kill(pid, sig)
         except OSError as e:
-            return f'1,{cmd_str},{str(e)}'
+            parts = ['1', cmd_str, str(e)]
+            return util.list_to_csv_str(parts)
 
         return '0,'
 
@@ -159,7 +160,8 @@ class SysCmdHelper:
         try:
             os.mkdir(path, mode=mode)
         except OSError as e:
-            return f'1,{cmd_str},{str(e)}'
+            parts = ['1', cmd_str, str(e)]
+            return util.list_to_csv_str(parts)
 
         return '0,'
 
@@ -174,7 +176,8 @@ class SysCmdHelper:
         try:
             os.unlink(path)
         except OSError as e:
-            return f'1,{cmd_str},{str(e)}'
+            parts = ['1', cmd_str, str(e)]
+            return util.list_to_csv_str(parts)
 
         return '0,'
 
@@ -189,7 +192,8 @@ class SysCmdHelper:
         try:
             os.rmdir(path)
         except OSError as e:
-            return f'1,{cmd_str},{str(e)}'
+            parts = ['1', cmd_str, str(e)]
+            return util.list_to_csv_str(parts)
 
         return '0,'
 
@@ -204,7 +208,8 @@ class SysCmdHelper:
         try:
             os.chown(path, uid, gid)
         except OSError as e:
-            return f'1,{cmd_str},{str(e)}'
+            parts = ['1', cmd_str, str(e)]
+            return util.list_to_csv_str(parts)
 
         return '0,'
 
@@ -219,7 +224,8 @@ class SysCmdHelper:
         try:
             os.chmod(path, mode)
         except OSError as e:
-            return f'1,{cmd_str},{str(e)}'
+            parts = ['1', cmd_str, str(e)]
+            return util.list_to_csv_str(parts)
 
         return '0,'
 
@@ -802,7 +808,8 @@ class SysCmdHelper:
         try:
             ns.route('add', **kwargs)
         except (NetlinkError, OSError, struct.error) as e:
-            return f'1,{cmd_str},{str(e)}'
+            parts = ['1', cmd_str, str(e)]
+            return util.list_to_csv_str(parts)
         return '0,{cmd_str}'
 
     @require_netns
@@ -823,7 +830,8 @@ class SysCmdHelper:
         try:
             ns.route('del', **kwargs)
         except (NetlinkError, OSError, struct.error) as e:
-            return f'1,{cmd_str},{str(e)}'
+            parts = ['1', cmd_str, str(e)]
+            return util.list_to_csv_str(parts)
         return f'0,{cmd_str}'
 
     @require_netns
