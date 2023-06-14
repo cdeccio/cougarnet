@@ -133,7 +133,8 @@ class SysCmdHelper:
 
         return '9,,No PID associated with namespace'
 
-    def _kill(self, pid, sig):
+    @classmethod
+    def _kill(cls, pid, sig):
         '''Call os.kill() to send a signal to a given process.'''
 
         cmd = ['kill', f'-{sig}', str(pid)]
@@ -147,7 +148,8 @@ class SysCmdHelper:
 
         return '0,'
 
-    def _mkdir(self, path, mode=0o777):
+    @classmethod
+    def _mkdir(cls, path, mode=0o777):
         '''Call os.mkdir() to create a directory with the specified mode.'''
 
         cmd = ['mkdir', path]
@@ -161,7 +163,8 @@ class SysCmdHelper:
 
         return '0,'
 
-    def _unlink(self, path):
+    @classmethod
+    def _unlink(cls, path):
         '''Call os.unlink() to remove a file.'''
 
         cmd = ['rm', path]
@@ -175,7 +178,8 @@ class SysCmdHelper:
 
         return '0,'
 
-    def _rmdir(self, path):
+    @classmethod
+    def _rmdir(cls, path):
         '''Call os.rmdir() to remove a directory.'''
 
         cmd = ['rmdir', path]
@@ -189,8 +193,8 @@ class SysCmdHelper:
 
         return '0,'
 
-
-    def _chown(self, path, uid, gid):
+    @classmethod
+    def _chown(cls, path, uid, gid):
         '''Call os.chown() to change ownership on a file or directory.'''
 
         cmd = ['chown', f'{uid}:{gid}', path]
@@ -204,7 +208,8 @@ class SysCmdHelper:
 
         return '0,'
 
-    def _chmod(self, path, mode):
+    @classmethod
+    def _chmod(cls, path, mode):
         '''Call os.chmod() to change the mode of a file or directory.'''
 
         cmd = ['chmod', str(mode), path]
