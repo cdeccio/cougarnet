@@ -29,6 +29,7 @@ import subprocess
 from cougarnet.util import recv_raw, ETH_P_ALL, SOL_PACKET, PACKET_AUXDATA
 from cougarnet.sys_helper.cmd_helper import \
         start_sys_cmd_helper, join_sys_cmd_helper, stop_sys_cmd_helper
+
 from .interface import InterfaceInfo
 
 IP_ADDR_MTU_RE = re.compile(r'^\d:\s+.*\smtu\s+(\d+)(\s|$)')
@@ -69,20 +70,6 @@ class BaseHost:
             self._setup_sockets_user()
         else:
             self._setup_sockets_raw()
-
-    #XXX this can be deleted once the dependent code is removed from the lab
-    # assignment code
-    def __enter__(self):
-        '''Simply return the object.'''
-
-        return self
-
-    #XXX this can be deleted once the dependent code is removed from the lab
-    # assignment code
-    def __exit__(self, exc_type, exc_value, traceback):
-        '''Call cleanup to clean resources on exit.'''
-
-        self.cleanup()
 
     def cleanup(self):
         '''Clean up by removing the files associated with the communication
