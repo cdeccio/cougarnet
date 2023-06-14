@@ -32,6 +32,11 @@ from .manager import SysCmdHelperManager, SysCmdHelperManagerStarted
 sys_cmd_helper = None
 
 def start_sys_cmd_helper(remote_sock_path, local_sock_path, verbose):
+    '''Instantiate a SysCmdHelperManager, which will start the privileged
+    process that will listen for commands using the remote_sock_path
+    provided.  Assign that object to the global variable sys_cmd_helper, so it
+    can be used for running commands using sys_cmd().'''
+
     global sys_cmd_helper
 
     assert sys_cmd_helper is None, \
@@ -45,6 +50,14 @@ def start_sys_cmd_helper(remote_sock_path, local_sock_path, verbose):
 
 def join_sys_cmd_helper(remote_sock_path, local_sock_path,
         add_pid_for_netns=False):
+    '''Instantiate a SysCmdHelperManagerStarted, which will setup sockets for
+    communication with an already running privileged process, i.e., associated
+    with a SysCmdHelperManager instance.  Assign that object to the global
+    variable sys_cmd_helper, so it can be used for running commands using
+    sys_cmd().  If add_pid_for_netns is True, then also add the pid of this
+    process to the approved list of pids and namespaces known to the privileged
+    process.'''
+
     global sys_cmd_helper
 
     assert sys_cmd_helper is None, \
@@ -59,12 +72,23 @@ def join_sys_cmd_helper(remote_sock_path, local_sock_path,
     return True
 
 def stop_sys_cmd_helper():
+    '''Call close() on sys_cmd_helper, which will terminate the privileged
+    process and clean up the sockets used for communication.'''
+
+    global sys_cmd_helper
+
     assert sys_cmd_helper is not None, \
         "sys_cmd_helper has not been initialized"
 
-    return sys_cmd_helper.close()
+    sys_cmd_helper.close()
+    sys_cmd_helper = None
 
 def sys_cmd(cmd, check=False):
+    '''Send a command to the privileged process by calling sys_cmd_helper.cmd()
+    on cmd, which is a list consisting of the command and its arguments.  If
+    the command fails, and check is True, then raise CommandPrereqError or
+    CommandExecError, depending on the nature of the error.'''
+
     assert sys_cmd_helper is not None, \
             "sys_cmd_helper must be initialized before sys_cmd() can be called"
 
@@ -98,6 +122,10 @@ def sys_cmd_pid(cmd, check=False):
     return sys_cmd([cmd[0]] + [pid] + cmd[1:], check=check)
 
 def sys_cmd_with_cleanup(cmd, cleanup_cmds, check=False, default_yes=False):
+    '''Call sys_cmd() with cmd as an argument.  If an exception is raised
+    (i.e., because the command fails), then run each of the commands specified
+    in the list cleanup_cmds and try again.'''
+
     try:
         sys_cmd(cmd, check)
     except SysCmdError as e:
