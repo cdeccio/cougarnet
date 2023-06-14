@@ -79,7 +79,7 @@ class SysCmdHelperManager(SysHelperManager):
 
     def _setup_sock(self):
         '''Create the socket that will be used for issuing commands to the
-        privilged process.'''
+        privileged process.'''
 
         self.sock = _setup_unix_sock(
                 self.local_sock_path, self.remote_sock_path)
@@ -106,6 +106,9 @@ class SysCmdHelperManagerStarted(SysCmdHelperManager):
     commands.'''
 
     def start(self):
+        '''Create and configure the socket that will be used for sending the
+        commands to the already-existing process, and return True.'''
+
         self._setup_sock()
         return True
 
