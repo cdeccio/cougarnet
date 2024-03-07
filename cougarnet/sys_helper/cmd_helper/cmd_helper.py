@@ -604,7 +604,7 @@ class SysCmdHelper:
             if not val.startswith('0,'):
                 return val
 
-            val = self._chown(path, self._frr_uid, self._frr_gid)
+            val = self._chown(path, 0, self._frr_gid)
             if not val.startswith('0,'):
                 self._rmdir(path)
                 return val
@@ -616,7 +616,7 @@ class SysCmdHelper:
             parts = ['1', f'open({conf_file_path}, "w")', str(e)]
             return util.list_to_csv_str(parts)
 
-        val = self._chown(conf_file_path, self._frr_uid, self._frr_gid)
+        val = self._chown(conf_file_path, 0, self._frr_gid)
         if not val.startswith('0,'):
             return val
 
