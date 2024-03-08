@@ -266,7 +266,8 @@ class SysCmdHelper:
 
         cmd = ['ip', 'link', 'add',
                 intf, 'type', 'bridge',
-                'stp_state', '0', 'vlan_filtering', '0']
+                'stp_state', '0', 'vlan_filtering', '0',
+                'ageing_time', '0']
 
         val = self._run_cmd(cmd)
         if val.startswith('0,'):
