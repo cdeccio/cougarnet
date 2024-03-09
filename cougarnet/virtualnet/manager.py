@@ -47,19 +47,24 @@ from .interface import PhysicalInterfaceConfig
 
 MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
 
-TMPDIR=os.path.join(os.environ.get('HOME', '.'), 'cougarnet-tmp')
-MAIN_FILENAME='_main'
-ENV_FILENAME='env'
-COMM_SOCK_DIR='comm'
-SYS_NET_HELPER_RAW_DIR='helper_sock_raw'
-SYS_NET_HELPER_USER_DIR='helper_sock_user'
-SYS_CMD_HELPER_SRV='sys_helper_srv'
-SYS_CMD_HELPER_DIR='sys_helper'
-CONFIG_DIR='config'
-HOSTS_DIR='hosts'
-SCRIPT_DIR='scripts'
-TMUX_DIR='tmux'
-SCRIPT_EXTENSION='sh'
+# Paths
+
+# Global path
+TMPDIR = os.path.join(os.environ.get('HOME', '.'), 'cougarnet-tmp')
+
+# Per instance paths
+MAIN_FILENAME = '_main'
+ENV_FILENAME = 'env'
+COMM_SOCK_DIR = 'comm'
+SYS_NET_HELPER_RAW_DIR = 'helper_sock_raw'
+SYS_NET_HELPER_USER_DIR = 'helper_sock_user'
+SYS_CMD_HELPER_SRV = 'sys_helper_srv'
+SYS_CMD_HELPER_DIR = 'sys_helper'
+CONFIG_DIR = 'config'
+HOSTS_DIR = 'hosts'
+SCRIPT_DIR = 'scripts'
+TMUX_DIR = 'tmux'
+SCRIPT_EXTENSION = 'sh'
 
 SYS_HELPER_MODULE = "cougarnet.virtualnet.sys_helper"
 
