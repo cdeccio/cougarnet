@@ -79,7 +79,9 @@ def _setup_raw_socket(intf):
     sock.setblocking(False)
     return sock
 
-def _setup_sockets(int_sock_mapping, loop, uid, gid):
+def _setup_sockets(int_sock_mapping, loop, uid, gid,
+                   user_sock_dir, raw_sock_dir):
+
     ints_available = set(os.listdir('/sys/class/net/'))
     for p in int_sock_mapping:
         try:
@@ -98,6 +100,15 @@ def _setup_sockets(int_sock_mapping, loop, uid, gid):
         if intf not in ints_available:
             sys.stderr.write(f'Invalid interface: {intf}\n')
             sys.exit(1)
+
+        if raw_sock_dir is not None and \
+                not os.path.isabs(helper_sock_raw_path):
+            helper_sock_raw_path = os.path.join(raw_sock_dir,
+                                                 helper_sock_raw_path)
+        if user_sock_dir is not None and \
+                not os.path.isabs(helper_sock_user_path):
+            helper_sock_user_path = os.path.join(user_sock_dir,
+                                                 helper_sock_user_path)
 
         helper_sock_raw = _setup_socket(helper_sock_raw_path, uid, gid)
         raw_sock = _setup_raw_socket(intf)
@@ -119,6 +130,12 @@ def main():
     parser.add_argument('--gid',
             action='store', type=int,
             help='GID that should own the socket')
+    parser.add_argument('--raw-sock-directory',
+            action='store', type=str,
+            help='Path to directory containing the sockets on the raw side')
+    parser.add_argument('--user-sock-directory',
+            action='store', type=str,
+            help='Path to directory containing the sockets on the user side')
     parser.add_argument('int_sock_mapping',
             action='store', type=str, nargs='+',
             help='Interface-to-socket mapping ' + \
@@ -149,7 +166,9 @@ def main():
     # (an indicator from our parent that we should terminate)
     loop.add_reader(sys.stdin, _raise_int)
 
-    _setup_sockets(args.int_sock_mapping, loop, uid, gid)
+    _setup_sockets(args.int_sock_mapping, loop, uid, gid,
+                   args.user_sock_directory,
+                   args.raw_sock_directory)
 
     # communicate to the parent that everything is set up
     _send_byte_to_stdout()
