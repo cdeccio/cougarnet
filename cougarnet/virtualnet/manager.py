@@ -53,7 +53,7 @@ MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
 TMPDIR = os.path.join(os.environ.get('HOME', '.'), 'cougarnet-tmp')
 
 # Per instance paths
-ENV_FILENAME = 'env'
+ENV_FILE = 'env'
 MAIN_FILENAME = '_main'
 COMM_SOCK_DIR = 'comm'
 SYS_NET_HELPER_RAW_DIR = 'helper_sock_raw'
@@ -151,7 +151,7 @@ class VirtualNetwork:
         self.helper_sock_user_dir = os.path.join(self.tmpdir, SYS_NET_HELPER_USER_DIR)
         self.sys_helper_dir = os.path.join(self.tmpdir, SYS_CMD_HELPER_DIR)
         self.helper_local_sock_path = os.path.join(self.sys_helper_dir, MAIN_FILENAME)
-        self.env_file = os.path.join(self.tmpdir, ENV_FILENAME)
+        self.env_file = os.path.join(self.tmpdir, ENV_FILE)
 
         self.comm_sock_file = None
         self.comm_sock = None
