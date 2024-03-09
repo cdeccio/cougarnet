@@ -59,7 +59,7 @@ class HostConfig:
 
     def __init__(self, hostname, bash_history, vtysh_history,
                  sys_cmd_helper_local, comm_sock_file,
-                 tmux_file, script_file,
+                 tmux_file, startup_script_file,
                  env_file, **kwargs):
 
         self.hostname = hostname
@@ -68,7 +68,7 @@ class HostConfig:
         self.sys_cmd_helper_local = sys_cmd_helper_local
         self.comm_sock_file = comm_sock_file
         self.tmux_file = tmux_file
-        self.script_file = script_file
+        self.startup_script_file = startup_script_file
         self.env_file = env_file
         self.pid = None
         self.config_file = None
@@ -125,7 +125,7 @@ class HostConfig:
         else:
             self.ipv6 = True
 
-        self.create_script_file()
+        self.create_startup_script_file()
 
     def __str__(self):
         return self.hostname
@@ -215,11 +215,11 @@ class HostConfig:
         with open(self.config_file, 'w') as fh:
             fh.write(json.dumps(host_config))
 
-    def create_script_file(self):
+    def create_startup_script_file(self):
         '''Create the script that is to be run by the virtual host after its
         network configuration has been applied.'''
 
-        with open(self.script_file, 'w') as fh:
+        with open(self.startup_script_file, 'w') as fh:
             fh.write('#!/bin/bash\n')
             fh.write(f'. {self.env_file}\n')
             fh.write(f'export HISTFILE={self.bash_history}\n\n')
@@ -245,7 +245,7 @@ class HostConfig:
 
             fh.write('\n')
 
-        cmd = ['chmod', '755', self.script_file]
+        cmd = ['chmod', '755', self.startup_script_file]
         subprocess.run(cmd, check=True)
 
     def create_hosts_file(self, other_hosts, hosts_file):
@@ -326,7 +326,7 @@ class HostConfig:
                 cmd_helper.sys_cmd_helper.remote_sock_path,
                 self.sys_cmd_helper_local,
                 comm_sock_file, self.comm_sock_file,
-                self.script_file]
+                self.startup_script_file]
 
         run_cmd('unshare_hostinit', *args)
 
@@ -434,7 +434,8 @@ class HostConfig:
             if os.path.exists(self.helper_sock_pair_by_int[intf][1]):
                 os.unlink(self.helper_sock_pair_by_int[intf][1])
 
-        for f in self.comm_sock_file, self.config_file, self.script_file, \
+        for f in self.comm_sock_file, self.config_file, \
+                self.startup_script_file, \
                 self.hosts_file, self.tmux_file:
             if f is not None and os.path.exists(f):
                 os.unlink(f)
