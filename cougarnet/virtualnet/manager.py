@@ -53,8 +53,8 @@ MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
 TMPDIR = os.path.join(os.environ.get('HOME', '.'), 'cougarnet-tmp')
 
 # Per instance paths
-MAIN_FILENAME = '_main'
 ENV_FILENAME = 'env'
+MAIN_FILENAME = '_main'
 COMM_SOCK_DIR = 'comm'
 SYS_NET_HELPER_RAW_DIR = 'helper_sock_raw'
 SYS_NET_HELPER_USER_DIR = 'helper_sock_user'
@@ -133,7 +133,7 @@ class VirtualNetwork:
     def __init__(self, terminal_hosts, tmpdir, ipv6, verbose):
         self.host_by_name = {}
         self.hostname_by_sock = {}
-        self.hosts_file = None
+        self.hosts_common_file = None
         self.terminal_hosts = terminal_hosts
         self.tmpdir = tmpdir
         self.ipv6 = ipv6
@@ -616,13 +616,13 @@ class VirtualNetwork:
                 else:
                     run_cmd('set_link_netns', intf.name, host.hostname)
 
-    def create_hosts_file(self):
+    def create_hosts_common_file(self):
         '''Create a hosts file containing the hostname-address mappings for all
         hosts mananged by the VirtualNetwork instance.'''
 
-        self.hosts_file = os.path.join(self.hosts_dir, MAIN_FILENAME)
+        self.hosts_common_file = os.path.join(self.hosts_dir, MAIN_FILENAME)
 
-        with open(self.hosts_file, 'w') as fh:
+        with open(self.hosts_common_file, 'w') as fh:
             for _, host in self.host_by_name.items():
                 host.create_hosts_file_entries(fh)
 
@@ -634,12 +634,12 @@ class VirtualNetwork:
         self.comm_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
         self.comm_sock.bind(self.comm_sock_file)
 
-        self.create_hosts_file()
+        self.create_hosts_common_file()
         for hostname, host in self.host_by_name.items():
             config_file = os.path.join(self.config_dir, f'{hostname}.cfg')
             hosts_file = os.path.join(self.hosts_dir, hostname)
             host.create_config(config_file)
-            host.create_hosts_file(self.hosts_file, hosts_file)
+            host.create_hosts_file(self.hosts_common_file, hosts_file)
 
     def wait_for_phase1_startup(self, host):
         '''Wait for a given virtual host to send its PID over the UNIX domain
@@ -776,7 +776,7 @@ class VirtualNetwork:
 
         self._stop_sys_cmd_helper()
 
-        os.unlink(self.hosts_file)
+        os.unlink(self.hosts_common_file)
 
         self.comm_sock.close()
         os.unlink(self.comm_sock_file)
