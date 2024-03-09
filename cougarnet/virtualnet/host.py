@@ -56,11 +56,14 @@ class HostConfig:
             'routers': None,
             }
 
-    def __init__(self, hostname, history_file, sys_cmd_helper_local,
-            comm_sock_file, tmux_file, script_file, env_file, **kwargs):
+    def __init__(self, hostname, bash_history, vtysh_history,
+                 sys_cmd_helper_local, comm_sock_file,
+                 tmux_file, script_file,
+                 env_file, **kwargs):
 
         self.hostname = hostname
-        self.history_file = history_file
+        self.bash_history = bash_history
+        self.vtysh_history = vtysh_history
         self.sys_cmd_helper_local = sys_cmd_helper_local
         self.comm_sock_file = comm_sock_file
         self.tmux_file = tmux_file
@@ -214,7 +217,8 @@ class HostConfig:
         with open(self.script_file, 'w') as fh:
             fh.write('#!/bin/bash\n')
             fh.write(f'. {self.env_file}\n')
-            fh.write(f'export HISTFILE={self.history_file}\n\n')
+            fh.write(f'export HISTFILE={self.bash_history}\n\n')
+            fh.write(f'export VTYSH_HISTFILE={self.vtysh_history}\n\n')
             fh.write(f'exec tmux -S {self.tmux_file} ' + \
                     'set -g default-terminal "tmux-256color" \\; \\\n' + \
                     f'new-session -s "{self.hostname}" ' + \
