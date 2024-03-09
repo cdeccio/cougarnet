@@ -25,6 +25,7 @@ import os
 import subprocess
 import time
 
+from cougarnet.errors import ConfigurationError
 from cougarnet.sys_helper import cmd_helper
 from cougarnet.sys_helper.cmd_helper import sys_cmd
 from cougarnet import util
@@ -104,8 +105,8 @@ class HostConfig:
             self.routers = []
         for router in self.routers:
             if router not in ALLOWED_ROUTERS:
-                raise ValueError(f'{router} is not an allowed router.') \
-                        from None
+                raise ConfigurationError(
+                        f'{router} is not an allowed router.')
 
         if not self.native_apps or \
                 str(self.native_apps).lower() in FALSE_STRINGS:
@@ -162,9 +163,13 @@ class HostConfig:
             try:
                 intf = self.int_by_neighbor[self.neighbor_by_hostname[neighbor]]
             except KeyError:
-                raise ValueError(f'The interface connected to {neighbor} ' + \
-                        'is designated as a next hop for one of ' + \
-                        f'{self.hostname}\'s routes, but {neighbor} ' + \
+                #XXX At the moment, this results in the ConfigurationError()
+                # instance being set with the line number corresponding to the
+                # last line in the config file, which doesn't make any sense in
+                # this case.  We need to find a better way to report this error.
+                raise ConfigurationError(f'The interface connected to ' + \
+                        f'{neighbor} is designated as a next hop for one ' + \
+                        f'of {self.hostname}\'s routes, but {neighbor} ' + \
                         f'is not directly connected to {self.hostname}.') \
                         from None
             self.routes.append((prefix, intf.name, next_hop))
@@ -355,7 +360,8 @@ class HostConfig:
         neighbor, and attributes.'''
 
         if neighbor in self.int_by_neighbor:
-            raise ValueError('Only one link can exist between two hosts')
+            raise ConfigurationError('Only one link can exist ' + \
+                    'between two hosts')
 
         intf = PhysicalInterfaceConfig(name, **kwargs)
         self.int_by_name[name] = intf
@@ -369,14 +375,15 @@ class HostConfig:
         VLAN ID.'''
 
         if vlan in self.int_by_vlan:
-            raise ValueError('A VLAN can only be assigned to one interface.')
+            raise ConfigurationError('A VLAN can only be assigned to ' + \
+                    'one interface.')
 
         intf = VirtualInterfaceConfig(phys_int, vlan)
         self.int_by_vlan[vlan] = intf
         return intf
 
     def next_int(self):
-        '''Return the number associated with the next interfacei, for a unique
+        '''Return the number associated with the next interface, for a unique
         name.'''
 
         int_next = self.next_int_num
