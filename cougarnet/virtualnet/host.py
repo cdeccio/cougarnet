@@ -429,10 +429,11 @@ class HostConfig:
             sys_cmd(['del_link', intf.name], check=False)
 
         for intf in self.helper_sock_pair_by_int:
-            if os.path.exists(self.helper_sock_pair_by_int[intf][0]):
-                os.unlink(self.helper_sock_pair_by_int[intf][0])
-            if os.path.exists(self.helper_sock_pair_by_int[intf][1]):
-                os.unlink(self.helper_sock_pair_by_int[intf][1])
+            sock1, sock2 = self.helper_sock_pair_by_int[intf]
+            if os.path.exists(sock1):
+                os.unlink(sock1)
+            if os.path.exists(sock2):
+                os.unlink(sock2)
 
         for f in self.comm_sock_file, self.config_file, \
                 self.startup_script_file, \
