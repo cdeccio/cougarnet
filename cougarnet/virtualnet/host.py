@@ -212,14 +212,16 @@ class HostConfig:
         host_config = self._host_config()
 
         self.config_file = config_file
-        with open(self.config_file, 'w') as fh:
+        fd = os.open(self.config_file, os.O_WRONLY | os.O_CREAT, 0o644)
+        with open(fd, 'w') as fh:
             fh.write(json.dumps(host_config))
 
     def create_startup_script_file(self):
         '''Create the script that is to be run by the virtual host after its
         network configuration has been applied.'''
 
-        with open(self.startup_script_file, 'w') as fh:
+        fd = os.open(self.startup_script_file, os.O_WRONLY | os.O_CREAT, 0o755)
+        with open(fd, 'w') as fh:
             fh.write('#!/bin/bash\n')
             fh.write(f'. {self.env_file}\n')
             fh.write(f'export HISTFILE={self.bash_history}\n\n')
@@ -245,15 +247,13 @@ class HostConfig:
 
             fh.write('\n')
 
-        cmd = ['chmod', '755', self.startup_script_file]
-        subprocess.run(cmd, check=True)
-
     def create_hosts_file(self, other_hosts, hosts_file):
         '''Create the hosts file for this virtual host.'''
 
         self.hosts_file = hosts_file
 
-        with open(self.hosts_file, 'w') as write_fh:
+        fd = os.open(self.hosts_file, os.O_WRONLY | os.O_CREAT, 0o644)
+        with open(fd, 'w') as write_fh:
             write_fh.write(f'127.0.0.1 localhost {self.hostname}\n')
             if self.ipv6:
                 write_fh.write(f'::1 localhost {self.hostname}\n')
