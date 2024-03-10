@@ -431,14 +431,17 @@ class HostConfig:
         for intf in self.helper_sock_pair_by_int:
             sock1, sock2 = self.helper_sock_pair_by_int[intf]
             if os.path.exists(sock1):
+                logger.debug(' '.join(['rm', sock1]))
                 os.unlink(sock1)
             if os.path.exists(sock2):
+                logger.debug(' '.join(['rm', sock2]))
                 os.unlink(sock2)
 
         for f in self.comm_sock_file, self.config_file, \
                 self.startup_script_file, \
                 self.hosts_file, self.tmux_file:
             if f is not None and os.path.exists(f):
+                logger.debug(' '.join(['rm', f]))
                 os.unlink(f)
 
     def label_for_int(self, intf):

@@ -782,12 +782,18 @@ class VirtualNetwork:
         for intf in self.bridge_interfaces:
             sys_cmd(['del_link', intf], check=False)
 
+        # This causes the privileged process to stop, but it
+        # also removes the client and server socket, so the
+        # removal does not need to be done separately.
         self._stop_sys_cmd_helper()
 
+        logger.debug(' '.join(['rm', self.hosts_common_file]))
         os.unlink(self.hosts_common_file)
 
         self.comm_sock.close()
+        logger.debug(' '.join(['rm', self.comm_sock_file]))
         os.unlink(self.comm_sock_file)
+        logger.debug(' '.join(['rm', self.env_file]))
         os.unlink(self.env_file)
 
         for d in self.comm_dir, self.config_dir, self.hosts_dir, \
