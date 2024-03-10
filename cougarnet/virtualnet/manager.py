@@ -54,17 +54,22 @@ TMPDIR = os.path.join(os.environ.get('HOME', '.'), 'cougarnet-tmp')
 
 # Per instance paths
 ENV_FILE = 'env'
-MAIN_FILENAME = '_main'
-COMM_SOCK_DIR = 'comm'
-SYS_NET_HELPER_RAW_DIR = 'helper_sock_raw'
-SYS_NET_HELPER_USER_DIR = 'helper_sock_user'
-SYS_CMD_HELPER_SRV = 'sys_helper_srv'
-SYS_CMD_HELPER_DIR = 'sys_helper'
-CONFIG_DIR = 'config'
 HOSTS_DIR = 'hosts'
-SCRIPT_DIR = 'scripts'
-TMUX_DIR = 'tmux'
-SCRIPT_EXTENSION = 'sh'
+HOSTS_INCLUDE_FILE = 'hosts_include'
+COMM_SRV_SOCK = 'comm_srv_sock'
+SYS_CMD_HELPER_SRV_SOCK = 'sys_cmd_helper_srv_sock'
+SYS_CMD_HELPER_CLIENT_MAIN_SOCK = 'sys_cmd_helper_client_sock'
+
+# Per hostname paths
+COMM_CLIENT_SOCK = 'comm_client_sock'
+CONFIG_FILE = 'config.json'
+HOSTS_FILE = 'hosts'
+TMUX_SOCK = 'tmux_sock'
+STARTUP_SCRIPT = 'startup.sh'
+SYS_CMD_HELPER_CLIENT_MAIN_SOCK_PER_HOST = 'sys_cmd_helper_sock'
+SYS_NET_HELPER_RAW_DIR = 'sys_net_helper_sock_raw'
+SYS_NET_HELPER_USER_DIR = 'sys_net_helper_sock_user'
+
 
 SYS_HELPER_MODULE = "cougarnet.virtualnet.sys_helper"
 
@@ -142,25 +147,16 @@ class VirtualNetwork:
         self.bridge_interfaces = set()
         self.ghost_interfaces = set()
 
-        self.comm_dir = os.path.join(self.tmpdir, COMM_SOCK_DIR)
-        self.config_dir = os.path.join(self.tmpdir, CONFIG_DIR)
-        self.hosts_dir = os.path.join(self.tmpdir, HOSTS_DIR)
-        self.script_dir = os.path.join(self.tmpdir, SCRIPT_DIR)
-        self.tmux_dir = os.path.join(self.tmpdir, TMUX_DIR)
-        self.helper_sock_raw_dir = os.path.join(self.tmpdir, SYS_NET_HELPER_RAW_DIR)
-        self.helper_sock_user_dir = os.path.join(self.tmpdir, SYS_NET_HELPER_USER_DIR)
-        self.sys_helper_dir = os.path.join(self.tmpdir, SYS_CMD_HELPER_DIR)
-        self.helper_local_sock_path = os.path.join(self.sys_helper_dir, MAIN_FILENAME)
+        self.sys_cmd_helper_client = \
+                os.path.join(self.tmpdir, SYS_CMD_HELPER_CLIENT_MAIN_SOCK)
         self.env_file = os.path.join(self.tmpdir, ENV_FILE)
 
         self.comm_sock_file = None
         self.comm_sock = None
 
-        for d in self.comm_dir, self.config_dir, self.hosts_dir, \
-                self.script_dir, self.tmux_dir, self.helper_sock_raw_dir, \
-                self.helper_sock_user_dir, self.sys_helper_dir:
-            cmd = ['mkdir', '-p', d]
-            subprocess.run(cmd, check=True)
+        self.hostsdir = os.path.join(self.tmpdir, HOSTS_DIR)
+        logger.debug(' '.join(['mkdir', self.hostsdir]))
+        os.mkdir(self.hostsdir)
 
         self._build_env_file()
         self._start_sys_cmd_helper()
@@ -171,10 +167,10 @@ class VirtualNetwork:
                 fh.write(f'export {key}="{os.environ[key]}"\n')
 
     def _start_sys_cmd_helper(self):
-        remote_sock_path = os.path.join(self.tmpdir, SYS_CMD_HELPER_SRV)
+        remote_sock_path = os.path.join(self.tmpdir, SYS_CMD_HELPER_SRV_SOCK)
 
         if not start_sys_cmd_helper(
-                remote_sock_path, self.helper_local_sock_path, self.verbose):
+                remote_sock_path, self.sys_cmd_helper_client, self.verbose):
             raise StartupError('Could not start system command helper!')
 
     def _stop_sys_cmd_helper(self):
@@ -368,13 +364,14 @@ class VirtualNetwork:
         hostname = parts[0]
         if not util.is_valid_hostname(hostname):
             raise ConfigurationError(f'The hostname is invalid: {hostname}')
-        if hostname == MAIN_FILENAME:
-            raise ConfigurationError(f'The hostname is reserved: {hostname}')
 
-        comm_sock_file = os.path.join(self.comm_dir, hostname)
-        script_file = os.path.join(self.script_dir, f'{hostname}.sh')
-        tmux_file = os.path.join(self.tmux_dir, hostname)
-        sys_cmd_helper_local = os.path.join(self.sys_helper_dir, hostname)
+        hostdir = os.path.join(self.hostsdir, hostname)
+        sys_net_helper_raw_dir = os.path.join(hostdir, SYS_NET_HELPER_RAW_DIR)
+        sys_net_helper_user_dir = os.path.join(hostdir, SYS_NET_HELPER_USER_DIR)
+        comm_sock_file = os.path.join(hostdir, COMM_CLIENT_SOCK)
+        startup_script_file = os.path.join(hostdir, STARTUP_SCRIPT)
+        tmux_file = os.path.join(hostdir, TMUX_SOCK)
+        sys_cmd_helper_client = os.path.join(hostdir, SYS_CMD_HELPER_CLIENT_MAIN_SOCK_PER_HOST)
         if len(parts) > 1:
             s = io.StringIO(parts[1])
             csv_reader = csv.reader(s)
@@ -402,9 +399,10 @@ class VirtualNetwork:
 
         self.hostname_by_sock[comm_sock_file] = hostname
         self.host_by_name[hostname] = \
-                HostConfig(hostname, '/dev/null', '/dev/null',
-                           sys_cmd_helper_local, comm_sock_file,
-                           tmux_file, script_file, self.env_file,
+                HostConfig(hostname, hostdir, '/dev/null', '/dev/null',
+                           sys_cmd_helper_client, comm_sock_file,
+                           sys_net_helper_raw_dir, sys_net_helper_user_dir,
+                           tmux_file, startup_script_file, self.env_file,
                            **attrs)
 
     def add_link(self, host1, host2, **attrs):
@@ -483,11 +481,11 @@ class VirtualNetwork:
         # Create the mappings from helper sock to raw- and user-side UNIX
         # socket addresses
         host1.helper_sock_pair_by_int[int1_name] = \
-                (os.path.join(self.helper_sock_raw_dir, int1_name),
-                        os.path.join(self.helper_sock_user_dir, int1_name))
+                (os.path.join(host1.sys_net_helper_raw_dir, int1_name),
+                        os.path.join(host1.sys_net_helper_user_dir, int1_name))
         host2.helper_sock_pair_by_int[int2_name] = \
-                (os.path.join(self.helper_sock_raw_dir, int2_name),
-                        os.path.join(self.helper_sock_user_dir, int2_name))
+                (os.path.join(host2.sys_net_helper_raw_dir, int2_name),
+                        os.path.join(host2.sys_net_helper_user_dir, int2_name))
 
         return intf1, intf2
 
@@ -628,7 +626,7 @@ class VirtualNetwork:
         '''Create a hosts file containing the hostname-address mappings for all
         hosts mananged by the VirtualNetwork instance.'''
 
-        self.hosts_common_file = os.path.join(self.hosts_dir, MAIN_FILENAME)
+        self.hosts_common_file = os.path.join(self.tmpdir, HOSTS_INCLUDE_FILE)
 
         with open(self.hosts_common_file, 'w') as fh:
             for _, host in self.host_by_name.items():
@@ -638,14 +636,14 @@ class VirtualNetwork:
         '''Create the files containing network configuration information for
         each host managed by the VirtualNetwork instance.'''
 
-        self.comm_sock_file = os.path.join(self.comm_dir, MAIN_FILENAME)
+        self.comm_sock_file = os.path.join(self.tmpdir, COMM_SRV_SOCK)
         self.comm_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
         self.comm_sock.bind(self.comm_sock_file)
 
         self.create_hosts_common_file()
         for hostname, host in self.host_by_name.items():
-            config_file = os.path.join(self.config_dir, f'{hostname}.cfg')
-            hosts_file = os.path.join(self.hosts_dir, hostname)
+            config_file = os.path.join(host.hostdir, CONFIG_FILE)
+            hosts_file = os.path.join(host.hostdir, HOSTS_FILE)
             host.create_config(config_file)
             host.create_hosts_file(self.hosts_common_file, hosts_file)
 
@@ -796,21 +794,8 @@ class VirtualNetwork:
         logger.debug(' '.join(['rm', self.env_file]))
         os.unlink(self.env_file)
 
-        for d in self.comm_dir, self.config_dir, self.hosts_dir, \
-                self.script_dir, self.tmux_dir, self.helper_sock_raw_dir, \
-                self.helper_sock_user_dir:
-            os.rmdir(d)
-
-        # With sys_helper_dir, there might be a race condition in which we try
-        # to remove the directory, but the files have not yet been removed.
-        # This is because another process removes the remote socket from this
-        # directory.  However, even if we fail to remove the directory, the
-        # entire tmpfile directory will be removed when the process exits.
-        # This is merely due diligence.
-        try:
-            os.rmdir(self.sys_helper_dir)
-        except OSError:
-            pass
+        logger.debug(' '.join(['rmdir', self.hostsdir]))
+        os.rmdir(self.hostsdir)
 
     def label_for_link(self, host1, int1, host2, int2):
         '''Return a GraphViz label for a given link.'''

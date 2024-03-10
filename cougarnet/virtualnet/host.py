@@ -57,16 +57,20 @@ class HostConfig:
             'routers': None,
             }
 
-    def __init__(self, hostname, bash_history, vtysh_history,
+    def __init__(self, hostname, hostdir, bash_history, vtysh_history,
                  sys_cmd_helper_local, comm_sock_file,
+                 sys_net_helper_raw_dir, sys_net_helper_user_dir,
                  tmux_file, startup_script_file,
                  env_file, **kwargs):
 
         self.hostname = hostname
+        self.hostdir = hostdir
         self.bash_history = bash_history
         self.vtysh_history = vtysh_history
         self.sys_cmd_helper_local = sys_cmd_helper_local
         self.comm_sock_file = comm_sock_file
+        self.sys_net_helper_raw_dir = sys_net_helper_raw_dir
+        self.sys_net_helper_user_dir = sys_net_helper_user_dir
         self.tmux_file = tmux_file
         self.startup_script_file = startup_script_file
         self.env_file = env_file
@@ -125,10 +129,17 @@ class HostConfig:
         else:
             self.ipv6 = True
 
+        self._create_dirs()
         self.create_startup_script_file()
 
     def __str__(self):
         return self.hostname
+
+    def _create_dirs(self):
+        for d in (self.hostdir,
+                  self.sys_net_helper_raw_dir, self.sys_net_helper_user_dir):
+            logger.debug(' '.join(['mkdir', d]))
+            os.mkdir(d)
 
     def _get_tmux_server_pid(self):
         '''Return the PID associated with the tmux server for this virtual
@@ -438,11 +449,16 @@ class HostConfig:
                 os.unlink(sock2)
 
         for f in self.comm_sock_file, self.config_file, \
-                self.startup_script_file, \
+                self.startup_script_file, self.sys_cmd_helper_local, \
                 self.hosts_file, self.tmux_file:
             if f is not None and os.path.exists(f):
                 logger.debug(' '.join(['rm', f]))
                 os.unlink(f)
+
+        for d in (self.sys_net_helper_raw_dir, self.sys_net_helper_user_dir,
+                  self.hostdir):
+            logger.debug(' '.join(['rmdir', d]))
+            os.rmdir(d)
 
     def label_for_int(self, intf):
         '''Return a GraphViz HTML-like label for a given interface on this
