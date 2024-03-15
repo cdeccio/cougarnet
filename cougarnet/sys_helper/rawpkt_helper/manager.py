@@ -73,11 +73,14 @@ class RawPktHelperManager(SysHelperManager):
         (None, None, ['foo=/bar/bar1:baz/baz1'])
         >>> RawPktHelperManager.consolidate_dirs(['foo=bar/bar1:/baz/baz1'])
         (None, None, ['foo=bar/bar1:/baz/baz1'])
-        >>> RawPktHelperManager.consolidate_dirs(['foo=/bar/bar1:/baz/baz1', 'foo1=/bar2/bar1:/baz/baz1'])
+        >>> RawPktHelperManager.consolidate_dirs(['foo=/bar/bar1:/baz/baz1',
+        ...     'foo1=/bar2/bar1:/baz/baz1'])
         (None, None, ['foo=/bar/bar1:/baz/baz1', 'foo1=/bar2/bar1:/baz/baz1'])
-        >>> RawPktHelperManager.consolidate_dirs(['foo=/bar/bar1:/baz/baz1', 'foo1=bar1:baz1'])
+        >>> RawPktHelperManager.consolidate_dirs(['foo=/bar/bar1:/baz/baz1',
+        ...     'foo1=bar1:baz1'])
         (None, None, ['foo=/bar/bar1:/baz/baz1', 'foo1=bar1:baz1'])
-        >>> RawPktHelperManager.consolidate_dirs(['foo=/bar/bar1:/baz/baz1', 'foo1=/bar/bar1:/baz/baz1'])
+        >>> RawPktHelperManager.consolidate_dirs(['foo=/bar/bar1:/baz/baz1',
+        ...     'foo1=/bar/bar1:/baz/baz1'])
         ('/bar', '/baz', ['foo=bar1:baz1', 'foo1=bar1:baz1'])
         '''
 
