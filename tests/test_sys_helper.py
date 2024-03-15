@@ -271,4 +271,8 @@ class NetConfigTestCase(unittest.TestCase):
                     check=False)
 
 if __name__ == '__main__':
+    # make sure we are running as root
+    if os.geteuid() != 0:
+        sys.stderr.write('This program must be run as root.\n')
+        sys.exit(1)
     unittest.main()
