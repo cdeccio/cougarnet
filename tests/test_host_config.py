@@ -37,6 +37,37 @@ class BadConfigTestCase(unittest.TestCase):
                     TestVirtualNetwork.from_file,
                     cfg, [], {}, tmpdir, True, True)
 
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+
+            # Invalid route: outgoing interface coresponds to a host that does
+            # not exist.
+            cfg = io.StringIO('''NODES
+h1 routes=0.0.0.0/0|s2|10.0.0.1
+s1
+LINKS
+''')
+            self.assertRaises(ConfigurationError,
+                    TestVirtualNetwork.from_file,
+                    cfg, [], {}, tmpdir, True, True)
+
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+
+            # Invalid route: outgoing interface coresponding to a host that is
+            # not directly connected.
+            cfg = io.StringIO('''NODES
+h1 routes=0.0.0.0/0|s2|10.0.0.1
+s1
+s2
+LINKS
+h1 s1
+''')
+            self.assertRaises(ConfigurationError,
+                    TestVirtualNetwork.from_file,
+                    cfg, [], {}, tmpdir, True, True)
+
+
     def test_host_attrs(self):
         with tempfile.TemporaryDirectory() as tmpdir:
 
@@ -437,6 +468,20 @@ h1
 s1 type=switch
 LINKS
 h1 s1,10.0.0.1/24''')
+            self.assertRaises(ConfigurationError,
+                    TestVirtualNetwork.from_file,
+                    cfg, [], {}, tmpdir, True, True)
+
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+
+            # A link with two hosts that are already connected
+            cfg = io.StringIO('''NODES
+h1
+s1
+LINKS
+h1 s1
+h1 s1''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
                     cfg, [], {}, tmpdir, True, True)
@@ -856,6 +901,25 @@ LINKS
 s1 r1
 VLANS
 100 r1,s1,10.0.1.2/24
+''')
+            self.assertRaises(ConfigurationError,
+                    TestVirtualNetwork.from_file,
+                    cfg, [], {}, tmpdir, True, True)
+
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+
+            # Invalid VLAN - link between host and peer is not a trunk
+            cfg = io.StringIO('''NODES
+r1 type=router
+s1 type=switch
+s2 type=switch
+LINKS
+s1 r1 trunk=true
+s2 r1 trunk=true
+VLANS
+100 r1,s1,10.0.0.1/24
+100 r1,s2,10.0.0.1/24
 ''')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
