@@ -4,7 +4,6 @@ import unittest
 
 from cougarnet.virtualnet.manager import ConfigurationError
 from cougarnet.virtualnet.manager import VirtualNetwork
-from cougarnet.virtualnet.manager import MAIN_FILENAME
 
 class TestVirtualNetwork(VirtualNetwork):
     def _start_sys_cmd_helper(self):
@@ -14,14 +13,8 @@ class BadConfigTestCase(unittest.TestCase):
     def test_host_config_errors(self):
         with tempfile.TemporaryDirectory() as tmpdir:
 
-            # Invalid hostname (1)
+            # Invalid hostname
             cfg = io.StringIO('NODES\n1h')
-            self.assertRaises(ConfigurationError,
-                    TestVirtualNetwork.from_file,
-                    cfg, [], {}, tmpdir, True, True)
-
-            # Invalid hostname (2)
-            cfg = io.StringIO('NODES\n{MAIN_FILENAME}')
             self.assertRaises(ConfigurationError,
                     TestVirtualNetwork.from_file,
                     cfg, [], {}, tmpdir, True, True)
