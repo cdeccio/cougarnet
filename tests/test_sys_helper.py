@@ -198,7 +198,12 @@ class NetConfigTestCase(unittest.TestCase):
                     helper.netns_exists,
                     {'/run/netns/cn-bar'})
 
-            p = subprocess.Popen(['unshare', '--net=/run/netns/cn-bar'],
+            p1 = subprocess.Popen(['unshare', '--uts',
+                                   '--net=/run/netns/cn-bar',
+                                   '/bin/sleep', '30'],
+                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+
+            p2 = subprocess.Popen(['/bin/sleep', '30'],
                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
 
             # add interface
@@ -254,6 +259,26 @@ class NetConfigTestCase(unittest.TestCase):
                     helper.netns_exists,
                     set())
 
+            # process doesn't exist
+            self.assertIsNone(
+                    helper._get_ns_info(0))
+
+            # process does exist, so namespace information is not None
+            self.assertIsNotNone(
+                    helper._get_ns_info(p1.pid))
+
+            # namespace information for this process and some other process
+            # started without unshare should be the same.
+            self.assertEqual(
+                    helper._get_ns_info(p2.pid),
+                    helper._get_ns_info(os.getpid()))
+
+            # namespace information for a process started without unshare and a
+            # process started with unshare should be different.
+            self.assertNotEqual(
+                    helper._get_ns_info(p1.pid),
+                    helper._get_ns_info(p2.pid))
+
         finally:
             subprocess.run(['umount', '/run/netns/cn-bar'],
                     stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
@@ -265,8 +290,12 @@ class NetConfigTestCase(unittest.TestCase):
             subprocess.run(['ip', 'link', 'del', 'cn-baz'],
                     stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
                     check=False)
-            if p is not None:
-                subprocess.run(['kill', str(p.pid)],
+            if p1 is not None:
+                subprocess.run(['kill', str(p1.pid)],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
+                    check=False)
+            if p2 is not None:
+                subprocess.run(['kill', str(p2.pid)],
                     stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
                     check=False)
 

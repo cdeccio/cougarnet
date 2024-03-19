@@ -33,6 +33,7 @@ from cougarnet.sys_helper.rawpkt_helper.manager import \
         RawPktHelperManager
 from cougarnet import util
 
+PROC_NS_DIR = '/proc/%d/ns/'
 RUN_NETNS_DIR = '/run/netns/'
 FRR_CONF_DIR = '/etc/frr/'
 FRR_RUN_DIR = '/var/run/frr/'
@@ -80,6 +81,8 @@ class SysCmdHelper:
         self.zebra_started = set()
         self.ripd_started = set()
         self.ripngd_started = set()
+
+        self.ns_info_cache = {}
 
     def require_netns(func):
         '''A decorator for ensuring that a method is called with a pid that has
@@ -228,6 +231,24 @@ class SysCmdHelper:
             return util.list_to_csv_str(parts)
 
         return '0,'
+
+    @classmethod
+    def _get_ns_info(cls, pid):
+        '''Retrive the device and inode information associated with the
+        namespaces for a given process.'''
+
+        ns_info = {}
+        nsdir = PROC_NS_DIR % pid
+        try:
+            for f in os.listdir(nsdir):
+                path = os.path.join(nsdir, f)
+                with open(path) as fh:
+                    val = os.fstat(fh.fileno())
+                    ns_info[f] = (os.major(val.st_dev), os.minor(val.st_dev), val.st_ino)
+        except (FileNotFoundError, PermissionError) as e:
+            return None
+
+        return ns_info
 
     def add_link_veth(self, intf1, intf2):
         '''Add one or two interaces of type veth (virtual interfaces) with the
@@ -567,7 +588,6 @@ class SysCmdHelper:
         self.pid_to_netns[pid] = hostname
 
         ret = [0, cmd_str]
-
         return util.list_to_csv_str(ret)
 
     def start_rawpkt_helper(self, ns, *ints):
