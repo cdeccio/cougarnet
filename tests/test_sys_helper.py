@@ -259,11 +259,11 @@ class NetConfigTestCase(unittest.TestCase):
                     helper.netns_exists,
                     set())
 
-            # process doesn't exist
+            # process doesn't exist, so _get_ns_info() returns None
             self.assertIsNone(
                     helper._get_ns_info(0))
 
-            # process does exist, so namespace information is not None
+            # process does exist, so _get_ns_info() returns a non-None value
             self.assertIsNotNone(
                     helper._get_ns_info(p1.pid))
 
@@ -278,6 +278,75 @@ class NetConfigTestCase(unittest.TestCase):
             self.assertNotEqual(
                     helper._get_ns_info(p1.pid),
                     helper._get_ns_info(p2.pid))
+
+            # Cannot retrieve namespace information for p2.pid with
+            # store_ns_info() because the pid is not "registered".
+            self.assertEqual(
+                    helper.store_ns_info(str(p2.pid))[:2],
+                    '9,')
+
+            # Artificially populate the data structures as if
+            # unshare_hostinit() and update_pid() had been called.
+            helper.netns_mounted.add('cn-bar')
+            helper.pid_to_netns[str(p2.pid)] = 'cn-bar'
+            helper.netns_to_pid['cn-bar'] = str(p2.pid)
+
+            # Test that the data structures have the expected values.
+            self.assertEqual(
+                    helper.netns_to_pid,
+                    {'cn-bar': str(p2.pid)})
+            self.assertEqual(
+                    helper.pid_to_netns,
+                    {str(p2.pid): 'cn-bar'})
+            self.assertEqual(
+                    list(helper.ns_info_cache.keys()),
+                    [])
+
+            # Now that p2.pid is "registered" (i.e., through the above calls),
+            # call store_ns_info() again, and this time it shoudl succeed.
+            self.assertEqual(
+                    helper.store_ns_info(str(p2.pid))[:2],
+                    '0,')
+
+            # At this point, ns_info_cache() should be populated.
+            self.assertEqual(
+                    list(helper.ns_info_cache.keys()),
+                    [str(p2.pid)])
+
+            # Updating the pid will not work because the old pid is invalid.
+            self.assertEqual(
+                    helper.update_pid(0, str(p2.pid))[:2],
+                    '9,')
+
+            # Updating the pid will not work because the new pid is invalid.
+            self.assertEqual(
+                    helper.update_pid(str(p2.pid), 0)[:2],
+                    '9,')
+
+            # Updating the pid will not work because the namespace of the new
+            # pid does not match the namespace of the old pid.
+            self.assertEqual(
+                    helper.update_pid(str(p2.pid), str(p1.pid))[:2],
+                    '9,')
+
+            # Update the old pid with the new pid.  This time everything
+            # matches, so it should work.
+            self.assertEqual(
+                    helper.update_pid(str(p2.pid), str(os.getpid()))[:2],
+                    '0,')
+
+            # Test that the data structures have the expected values, after
+            # calling update_pid().  At this point, the new pid should have
+            # replaced old pid.
+            self.assertEqual(
+                    helper.netns_to_pid,
+                    { 'cn-bar': str(os.getpid()) })
+            self.assertEqual(
+                    helper.pid_to_netns,
+                    { str(os.getpid()): 'cn-bar' })
+            self.assertEqual(
+                    list(helper.ns_info_cache.keys()),
+                    [str(os.getpid())])
 
         finally:
             subprocess.run(['umount', '/run/netns/cn-bar'],

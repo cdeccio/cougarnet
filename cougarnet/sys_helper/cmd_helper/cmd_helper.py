@@ -590,6 +590,34 @@ class SysCmdHelper:
         ret = [0, cmd_str]
         return util.list_to_csv_str(ret)
 
+    @require_netns
+    def store_ns_info(self, pid):
+        self.ns_info_cache[pid] = self._get_ns_info(int(pid))
+        return '0,'
+
+    @require_netns
+    def update_pid(self, oldpid, newpid):
+        '''Update the information associated with oldpid with newpid.'''
+
+        oldns = self.ns_info_cache.get(oldpid, None)
+        newns = self._get_ns_info(int(newpid))
+
+        if oldns is None:
+            return f'9,Namespace for oldpid ({oldpid}) not known.'
+        if newns is None:
+            return f'9,Namespace for newpid ({newpid}) not known.'
+        if newns != oldns:
+            return f'9,Namespaces for newpid ({newpid}) ' + \
+                    f'and oldpid ({oldpid}) differ.'
+
+        self.netns_to_pid[self.pid_to_netns[str(oldpid)]] = str(newpid)
+        self.pid_to_netns[newpid] = self.pid_to_netns[str(oldpid)]
+        self.ns_info_cache[newpid] = newns
+        del self.pid_to_netns[oldpid]
+        del self.ns_info_cache[oldpid]
+
+        return '0,'
+
     def start_rawpkt_helper(self, ns, *ints):
         '''Launch a process for passing packets from raw sockets to UNIX domain
         sockets and vice-versa using the RawPktHelperManager. Return the
