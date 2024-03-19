@@ -42,40 +42,11 @@ from cougarnet.sys_helper.cmd_helper.manager import SYSCMD_HELPER_SCRIPT
 from cougarnet import util
 
 from .cmd import run_cmd
+from .globals import *
 from .host import HostConfig
 from .interface import PhysicalInterfaceConfig
 
 MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
-
-# Paths
-
-# Global path
-TMPDIR = os.path.join(os.environ.get('HOME', '.'), 'cougarnet-tmp')
-
-# Per instance paths
-ENV_FILE = 'env'
-HOSTS_DIR = 'hosts'
-HOSTS_INCLUDE_FILE = 'hosts_include'
-COMM_SRV_SOCK = 'comm_srv_sock'
-SYS_CMD_HELPER_SRV_SOCK = 'sys_cmd_helper_srv_sock'
-SYS_CMD_HELPER_CLIENT_MAIN_SOCK = 'sys_cmd_helper_client_sock'
-
-# Per hostname paths
-COMM_CLIENT_SOCK = 'comm_client_sock'
-CONFIG_FILE = 'config.json'
-HOSTS_FILE = 'hosts'
-TMUX_SOCK = 'tmux_sock'
-STARTUP_SCRIPT = 'startup.sh'
-SYS_CMD_HELPER_CLIENT_MAIN_SOCK_PER_HOST = 'sys_cmd_helper_sock'
-SYS_NET_HELPER_RAW_DIR = 'sys_net_helper_sock_raw'
-SYS_NET_HELPER_USER_DIR = 'sys_net_helper_sock_user'
-
-
-SYS_HELPER_MODULE = "cougarnet.virtualnet.sys_helper"
-
-FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
-
-VIRT_HOST_STARTUP_TIMEOUT = 6
 
 #XXX this should really be logging.getLogger(__name__), and it should be in
 # bin/cougarnet instead

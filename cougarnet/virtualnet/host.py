@@ -31,16 +31,8 @@ from cougarnet.sys_helper.cmd_helper import sys_cmd
 from cougarnet import util
 
 from .cmd import run_cmd
+from .globals import *
 from .interface import PhysicalInterfaceConfig, VirtualInterfaceConfig
-
-TERM = "lxterminal"
-HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
-RAWPKT_HELPER_MODULE = "cougarnet.sim.rawpkt_helper"
-MAIN_WINDOW_NAME = "main"
-CMD_WINDOW_NAME = "prog"
-ALLOWED_ROUTERS = set(['rip', 'ripng'])
-
-FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 
 logger = logging.getLogger(__name__)
 
