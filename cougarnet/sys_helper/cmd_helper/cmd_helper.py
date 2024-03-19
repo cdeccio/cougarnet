@@ -596,6 +596,28 @@ class SysCmdHelper:
         return '0,'
 
     @require_netns
+    def waitpid(self, pid):
+        '''Wait for the given child process to exit, and reap its resources.'''
+
+        cmd = ['waitpid', pid]
+        cmd_str = ' '.join(cmd)
+        logger.debug(cmd_str)
+
+        try:
+            pid = int(pid)
+        except ValueError as e:
+            parts = ['1', str(e)]
+            return util.list_to_csv_str(parts)
+
+        try:
+            pid, status = os.waitpid(pid, 0)
+        except OSError as e:
+            parts = ['1', str(e)]
+            return util.list_to_csv_str(parts)
+
+        return '0,'
+
+    @require_netns
     def update_pid(self, oldpid, newpid):
         '''Update the information associated with oldpid with newpid.'''
 
