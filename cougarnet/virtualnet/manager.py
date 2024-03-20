@@ -125,6 +125,10 @@ class VirtualNetwork:
         self.comm_sock_file = None
         self.comm_sock = None
 
+        self.pid_file = os.path.join(self.tmpdir, PID_FILE)
+        with open(self.pid_file, 'w') as fh:
+            fh.write(str(os.getpid()))
+
         self.hostsdir = os.path.join(self.tmpdir, HOSTS_DIR)
         logger.debug(' '.join(['mkdir', self.hostsdir]))
         os.mkdir(self.hostsdir)
@@ -769,6 +773,9 @@ class VirtualNetwork:
 
         logger.debug(' '.join(['rmdir', self.hostsdir]))
         os.rmdir(self.hostsdir)
+
+        logger.debug(' '.join(['rm', self.pid_file]))
+        os.unlink(self.pid_file)
 
     def label_for_link(self, host1, int1, host2, int2):
         '''Return a GraphViz label for a given link.'''

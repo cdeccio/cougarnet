@@ -8,6 +8,7 @@ import os
 TMPDIR = os.path.join(os.environ.get('HOME', '.'), 'cougarnet-tmp')
 
 # Per instance paths
+PID_FILE = 'pid'
 ENV_FILE = 'env'
 HOSTS_DIR = 'hosts'
 HOSTS_INCLUDE_FILE = 'hosts_include'
