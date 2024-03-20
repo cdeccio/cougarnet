@@ -32,7 +32,6 @@ import sys
 
 from cougarnet.sys_helper.cmd_helper.cmd_helper import SysCmdHelper
 
-FRR_USERNAME = 'frr'
 FRR_GROUP = 'frr'
 
 logger = logging.getLogger()
@@ -80,14 +79,13 @@ def _send_byte_to_stdout():
     sys.stdout.buffer.write(b'\x00')
     sys.stdout.close()
 
-def _get_frr_uid_gid():
+def _get_frr_gid():
     try:
-        pwd_entry = pwd.getpwnam(FRR_USERNAME)
         grp_entry = grp.getgrnam(FRR_GROUP)
     except KeyError:
-        return None, None
+        return None
     else:
-        return pwd_entry[2], grp_entry[2]
+        return grp_entry[2]
 
 def main():
     parser = argparse.ArgumentParser()
@@ -99,9 +97,6 @@ def main():
             action='store', type=int,
             help='GID of the unprivileged group that should ' + \
                     'be the target of unshared processes')
-    parser.add_argument('--frr-uid',
-            action='store', type=int,
-            help='UID of the user associated with frr')
     parser.add_argument('--frr-gid',
             action='store', type=int,
             help='GID of the group associated with frr')
@@ -149,13 +144,11 @@ def main():
                 'then the --uid and --gid options must be used.\n')
         sys.exit(1)
 
-    frr_uid, frr_gid = _get_frr_uid_gid()
-    if args.frr_uid is not None:
-        frr_uid = args.frr_uid
+    frr_gid = _get_frr_gid()
     if args.frr_gid is not None:
         frr_gid = args.frr_gid
 
-    helper = SysCmdHelper(uid, gid, frr_uid=frr_uid, frr_gid=frr_gid)
+    helper = SysCmdHelper(uid, gid, frr_gid=frr_gid)
     loop = asyncio.get_event_loop()
     # exit as soon stdin is closed
     # (an indicator from our parent that we should terminate)

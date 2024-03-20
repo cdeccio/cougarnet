@@ -61,11 +61,10 @@ class SysCmdHelper:
     '''A class for executing a set of canned commands that require
     privileges.'''
 
-    def __init__(self, uid, gid, frr_uid=None, frr_gid=None):
+    def __init__(self, uid, gid, frr_gid=None):
         self._uid = uid
         self._gid = gid
 
-        self._frr_uid = frr_uid
         self._frr_gid = frr_gid
 
         self.links = {}
@@ -660,8 +659,8 @@ class SysCmdHelper:
     def _create_frr_conf_file(self, conf_file_path, contents):
         '''Create a configuration file for an FRR daemon.'''
 
-        assert self._frr_uid is not None and self._frr_gid is not None, \
-                'A uid/gid associated with frr must be set when frr is used'
+        assert self._frr_gid is not None, \
+                'A gid associated with frr must be set when frr is used'
 
         if os.path.exists(conf_file_path):
             return f'9,,Config file already exists: {conf_file_path}'
