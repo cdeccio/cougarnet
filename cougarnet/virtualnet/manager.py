@@ -633,7 +633,7 @@ class VirtualNetwork:
         # set to non-bocking with timeout 3
         self.comm_sock.settimeout(3)
         try:
-            data, peer = self.comm_sock.recvfrom(16)
+            data, peer = self.comm_sock.recvfrom(32)
             if peer != host.comm_sock_file:
                 raise StartupError('While waiting for a communication from ' + \
                         f'{host.hostname}, a packet was received from a ' + \
