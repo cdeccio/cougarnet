@@ -52,7 +52,7 @@ class HostConfig:
     def __init__(self, hostname, hostdir, bash_history, vtysh_history,
                  sys_cmd_helper_local, comm_sock_file,
                  sys_net_helper_raw_dir, sys_net_helper_user_dir,
-                 tmux_file, startup_script_file,
+                 tmux_file, startup_script_file, pid_file,
                  env_file, **kwargs):
 
         self.hostname = hostname
@@ -65,6 +65,7 @@ class HostConfig:
         self.sys_net_helper_user_dir = sys_net_helper_user_dir
         self.tmux_file = tmux_file
         self.startup_script_file = startup_script_file
+        self.pid_file = pid_file
         self.env_file = env_file
         self.pid = None
         self.config_file = None
@@ -126,6 +127,33 @@ class HostConfig:
 
     def __str__(self):
         return self.hostname
+
+    def set_pid(self, pid):
+        '''Assign the specified pid to the pid member variable.  Store the
+        namespace info associated with this process in the helper, so commands
+        can be run.  Finally, write the pid to the pid file.'''
+
+        self.pid = pid
+        #XXX This line is redundant when calling update_pid()
+        run_cmd('store_ns_info', str(self.pid))
+        with open(self.pid_file, 'w') as fh:
+            fh.write(str(self.pid))
+
+    def update_pid(self):
+        '''tmux daemonizes by forking a child process and then having the
+        parent terminate, i.e., so the child is a daemon.  This method is
+        called after this daemonization has happened.  waitpid() is called on
+        the tmux parent -- which is a child process of the system command
+        helper.  Then the pid of the daemonized tmux process is retrieved, and
+        the pid is updated in the system command helper.  set_pid() is called,
+        which writes the updated pid to the file and stores the updated
+        namespace info.'''
+
+        oldpid = self.pid
+        sys_cmd(['waitpid', str(oldpid)], check=True)
+        newpid = self._get_tmux_server_pid()
+        sys_cmd(['update_pid', str(oldpid), str(newpid)], check=True)
+        self.set_pid(newpid)
 
     def _create_dirs(self):
         for d in (self.hostdir,
@@ -317,6 +345,7 @@ class HostConfig:
         else:
             args += ['']
         args += [self.hosts_file]
+        # Whether or not to use --net with the unshare command
         if not (self.type == 'switch' and self.native_apps):
             args += ['1']
         else:
@@ -418,6 +447,10 @@ class HostConfig:
             sys_cmd(['stop_zebra', self.hostname], check=False)
 
         self.kill()
+
+        if self.pid_file is not None and os.path.exists(self.pid_file):
+            logger.debug(' '.join(['rm', self.pid_file]))
+            os.unlink(self.pid_file)
 
         sys_cmd(['umount_netns', self.hostname], check=False)
         sys_cmd(['del_netns', self.hostname], check=False)

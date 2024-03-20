@@ -341,6 +341,7 @@ class VirtualNetwork:
         sys_net_helper_user_dir = os.path.join(hostdir, SYS_NET_HELPER_USER_DIR)
         comm_sock_file = os.path.join(hostdir, COMM_CLIENT_SOCK)
         startup_script_file = os.path.join(hostdir, STARTUP_SCRIPT)
+        pid_file = os.path.join(hostdir, PID_FILE_PER_HOST)
         tmux_file = os.path.join(hostdir, TMUX_SOCK)
         sys_cmd_helper_client = os.path.join(hostdir, SYS_CMD_HELPER_CLIENT_MAIN_SOCK_PER_HOST)
         if len(parts) > 1:
@@ -373,8 +374,8 @@ class VirtualNetwork:
                 HostConfig(hostname, hostdir, '/dev/null', '/dev/null',
                            sys_cmd_helper_client, comm_sock_file,
                            sys_net_helper_raw_dir, sys_net_helper_user_dir,
-                           tmux_file, startup_script_file, self.env_file,
-                           **attrs)
+                           tmux_file, startup_script_file, pid_file,
+                           self.env_file, **attrs)
 
     def add_link(self, host1, host2, **attrs):
         '''Add a link between two hosts, with the given attributes.  Make sure
@@ -633,7 +634,7 @@ class VirtualNetwork:
                 raise StartupError('While waiting for a communication from ' + \
                         f'{host.hostname}, a packet was received from a ' + \
                         'different virtual host.')
-            host.pid = int(data.decode('utf-8'))
+            host.set_pid(int(data.decode('utf-8')))
         except socket.timeout:
             raise StartupError(f'{host.hostname} did not start properly; ' + \
                     'no communication was received within the designated ' + \
@@ -738,6 +739,7 @@ class VirtualNetwork:
 
         # attach terminals
         for _, host in self.host_by_name.items():
+            host.update_pid()
             if host.terminal:
                 host.attach_terminal()
 

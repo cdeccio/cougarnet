@@ -16,6 +16,7 @@ SYS_CMD_HELPER_SRV_SOCK = 'sys_cmd_helper_srv_sock'
 SYS_CMD_HELPER_CLIENT_MAIN_SOCK = 'sys_cmd_helper_client_sock'
 
 # Per hostname paths
+PID_FILE_PER_HOST = 'pid'
 COMM_CLIENT_SOCK = 'comm_client_sock'
 CONFIG_FILE = 'config.json'
 HOSTS_FILE = 'hosts'
