@@ -342,12 +342,14 @@ class VirtualNetwork:
 
         hostdir = os.path.join(self.hostsdir, hostname)
         sys_net_helper_raw_dir = os.path.join(hostdir, SYS_NET_HELPER_RAW_DIR)
-        sys_net_helper_user_dir = os.path.join(hostdir, SYS_NET_HELPER_USER_DIR)
+        sys_net_helper_user_dir = \
+                os.path.join(hostdir, SYS_NET_HELPER_USER_DIR)
         comm_sock_file = os.path.join(hostdir, COMM_CLIENT_SOCK)
         startup_script_file = os.path.join(hostdir, STARTUP_SCRIPT)
         pid_file = os.path.join(hostdir, PID_FILE_PER_HOST)
         tmux_file = os.path.join(hostdir, TMUX_SOCK)
-        sys_cmd_helper_client = os.path.join(hostdir, SYS_CMD_HELPER_CLIENT_MAIN_SOCK_PER_HOST)
+        sys_cmd_helper_client = \
+                os.path.join(hostdir, SYS_CMD_HELPER_CLIENT_MAIN_SOCK_PER_HOST)
         if len(parts) > 1:
             s = io.StringIO(parts[1])
             csv_reader = csv.reader(s)
