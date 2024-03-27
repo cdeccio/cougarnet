@@ -431,23 +431,56 @@ class SysCmdHelper:
         self.netns_exists.remove(nspath)
         return val
 
+    def _getppid(self, pid):
+        '''Return the parent pid (ppid) of a given pid by parsing the
+        information in /proc/<pid>/stat.  If the pid is unknown, or if there is
+        some other error parsing the data, return None.'''
+
+        try:
+            with open('/proc/%d/stat' % (pid), 'r') as fh:
+                text = fh.read()
+                prog_index = text.rfind(')')
+                if prog_index < 0:
+                    return None
+                text = text[prog_index + 2:]
+                parts = text.split()
+                try:
+                    return int(parts[1])
+                except (IndexError, ValueError):
+                    return None
+        except FileNotFoundError:
+            return None
+
+    def _find_unshared_pid(self, pid):
+        '''Search through the ancestry of the given pid to find the one that
+        was created with the unshare command.  If none is found, return
+        None.'''
+
+        while pid != 1:
+            if str(pid) in self.pid_to_netns:
+                return pid
+            pid = self._getppid(pid)
+            if pid is None:
+                return None
+        return None
+
     def add_pid_for_netns(self, pid):
-        '''Associate a new pid with an existing namespace.'''
+        '''Associate a new pid with the namespace associated with an ancestor
+        pid, which must have been created with unshare and which is looked up
+        with _find_unshared_pid().'''
 
-        ns = netns.pid_to_ns(pid)
-        if ns is None:
-            return '9,,Process does not exist or ' + \
-                    f'process not in any namespace: {pid}'
-        nspath = os.path.join(RUN_NETNS_DIR, ns)
+        try:
+            int(pid)
+        except ValueError as e:
+            parts = ['9', str(e)]
+            return util.list_to_csv_str(parts)
 
-        if nspath not in self.netns_exists:
-            return f'9,,Namespace does not exist: {nspath}'
+        oldpid = self._find_unshared_pid(int(pid))
+        if oldpid is None:
+            return '9,No ancestor process found'
+        oldpid = str(oldpid)
 
-        if ns not in self.netns_to_pid:
-            self.netns_to_pid[ns] = pid
-        self.pid_to_netns[pid] = ns
-
-        return '0,'
+        return self._add_pid_for_netns(oldpid, pid)
 
     def set_link_netns(self, intf, ns):
         '''Move the specified interface into a given namespace (ns), and return
@@ -591,6 +624,9 @@ class SysCmdHelper:
 
     @require_netns
     def store_ns_info(self, pid):
+        '''Look up the namespace information for pid, a pid that has previously
+        been started with unshare_hostinit(), and store it in ns_info_cache.'''
+
         self.ns_info_cache[pid] = self._get_ns_info(int(pid))
         return '0,'
 
@@ -617,8 +653,10 @@ class SysCmdHelper:
         return '0,'
 
     @require_netns
-    def update_pid(self, oldpid, newpid):
-        '''Update the information associated with oldpid with newpid.'''
+    def _add_pid_for_netns(self, oldpid, newpid):
+        '''Associate a new pid with the namespace associated with oldpid.
+        newpid must be in the same namespace as oldpid, and it must have been
+        created with unshare_hostinit().'''
 
         oldns = self.ns_info_cache.get(oldpid, None)
         newns = self._get_ns_info(int(newpid))
@@ -631,9 +669,20 @@ class SysCmdHelper:
             return f'9,Namespaces for newpid ({newpid}) ' + \
                     f'and oldpid ({oldpid}) differ.'
 
-        self.netns_to_pid[self.pid_to_netns[str(oldpid)]] = str(newpid)
-        self.pid_to_netns[newpid] = self.pid_to_netns[str(oldpid)]
+        self.pid_to_netns[newpid] = self.pid_to_netns[oldpid]
         self.ns_info_cache[newpid] = newns
+
+        return '0,'
+
+    @require_netns
+    def update_pid(self, oldpid, newpid):
+        '''Replace the association of oldpid's information with newpid.'''
+
+        val = self._add_pid_for_netns(oldpid, newpid)
+        if not val.startswith('0,'):
+            return val
+
+        self.netns_to_pid[self.pid_to_netns[oldpid]] = newpid
         del self.pid_to_netns[oldpid]
         del self.ns_info_cache[oldpid]
 
