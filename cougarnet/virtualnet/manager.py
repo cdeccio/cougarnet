@@ -36,13 +36,13 @@ import tempfile
 import time
 
 from cougarnet.errors import ConfigurationError, StartupError, SysCmdError
+from cougarnet.globals import *
 from cougarnet.sys_helper.cmd_helper import \
         start_sys_cmd_helper, stop_sys_cmd_helper, sys_cmd
 from cougarnet.sys_helper.cmd_helper.manager import SYSCMD_HELPER_SCRIPT
 from cougarnet import util
 
 from .cmd import run_cmd
-from .globals import *
 from .host import HostConfig
 from .interface import PhysicalInterfaceConfig
 

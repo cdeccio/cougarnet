@@ -29,31 +29,10 @@ import sys
 from pyroute2 import NetNS, netns
 from pyroute2.netlink.exceptions import NetlinkError
 
+from cougarnet.globals import *
 from cougarnet.sys_helper.rawpkt_helper.manager import \
         RawPktHelperManager
 from cougarnet import util
-
-PROC_NS_DIR = '/proc/%d/ns/'
-RUN_NETNS_DIR = '/run/netns/'
-FRR_CONF_DIR = '/etc/frr/'
-FRR_RUN_DIR = '/var/run/frr/'
-FRR_PROG_DIR = '/usr/lib/frr'
-FRR_ZEBRA_PROG = os.path.join(FRR_PROG_DIR, 'zebra')
-FRR_RIPD_PROG = os.path.join(FRR_PROG_DIR, 'ripd')
-FRR_RIPNGD_PROG = os.path.join(FRR_PROG_DIR, 'ripngd')
-
-FRR_ZEBRA_PID_FILE = 'zebra.pid'
-FRR_RIPD_PID_FILE = 'ripd.pid'
-FRR_RIPNGD_PID_FILE = 'ripngd.pid'
-FRR_ZEBRA_CONF_FILE = 'zebra.conf'
-FRR_RIPD_CONF_FILE = 'ripd.conf'
-FRR_RIPNGD_CONF_FILE = 'ripngd.conf'
-FRR_ZEBRA_VTY_FILE = 'zebra.vty'
-FRR_RIPD_VTY_FILE = 'ripd.vty'
-FRR_RIPNGD_VTY_FILE = 'ripngd.vty'
-FRR_ZSERV_FILE = 'zserv.api'
-
-HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
 
 logger = logging.getLogger(__name__)
 
@@ -237,7 +216,7 @@ class SysCmdHelper:
         namespaces for a given process.'''
 
         ns_info = {}
-        nsdir = PROC_NS_DIR % pid
+        nsdir = PROC_NS_DIR_TEMPLATE % pid
         try:
             for f in os.listdir(nsdir):
                 path = os.path.join(nsdir, f)

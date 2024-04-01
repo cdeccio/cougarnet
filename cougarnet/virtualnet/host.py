@@ -26,12 +26,12 @@ import subprocess
 import time
 
 from cougarnet.errors import ConfigurationError
+from cougarnet.globals import *
 from cougarnet.sys_helper import cmd_helper
 from cougarnet.sys_helper.cmd_helper import sys_cmd
 from cougarnet import util
 
 from .cmd import run_cmd
-from .globals import *
 from .interface import PhysicalInterfaceConfig, VirtualInterfaceConfig
 
 logger = logging.getLogger(__name__)
