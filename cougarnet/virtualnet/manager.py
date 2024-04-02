@@ -649,11 +649,13 @@ class VirtualNetwork:
             # revert to non-blocking
             self.comm_sock.settimeout(None)
 
-    def wait_for_phase2_startup(self):
+    def _wait_for_null_byte(self, check_pid):
         '''Wait for all hosts to send a single null byte (i.e., b'\x00') over
         the UNIX domain socket designated for communication between host and
         virtual hosts, as a form of synchronization.  If any virtual hosts have
-        not sent the null byte within 3 seconds, then raise HostNotStarted.'''
+        not sent the null byte within 3 seconds, then raise HostNotStarted.  If
+        check_pid is True, then check if the process is alive, and customize
+        the error message.'''
 
         # set to non-bocking with timeout 3
         self.comm_sock.settimeout(VIRT_HOST_STARTUP_TIMEOUT)
@@ -685,14 +687,18 @@ class VirtualNetwork:
         for comm_sock_file in comm_sock_files:
             hostname = comm_sock_file_to_hostname[comm_sock_file]
             host = self.host_by_name[hostname]
-            cmd = ['ps', '-p', str(host.pid)]
-            p = subprocess.run(cmd, stdout=subprocess.DEVNULL, check=False)
-            #XXX
-            if p.returncode != 0:
-                raise StartupError(f'Host {host.hostname} ' + \
-                        'terminated early.')
+            if check_pid:
+                cmd = ['ps', '-p', str(host.pid)]
+                p = subprocess.run(cmd, stdout=subprocess.DEVNULL, check=False)
+                #XXX
+                if p.returncode != 0:
+                    raise StartupError(f'Host {host.hostname} ' + \
+                            'terminated early.')
             raise StartupError(f'Host {host.hostname} is taking ' + \
                     'too long to start.')
+
+    def wait_for_phase2_startup(self):
+        self._wait_for_null_byte(True) 
 
     def start(self, start_delay, wireshark_ints):
         '''Start the hosts and links comprising the VirtualNetwork instance,
