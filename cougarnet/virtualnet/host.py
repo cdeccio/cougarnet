@@ -394,8 +394,9 @@ class HostConfig:
                 '-e', f'tmux -S {self.tmux_file} attach \\; ' + \
                         'set exit-unattached on \\;']
             logger.debug(' '.join(cmd))
-            subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
+            return subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return None
 
     def add_int(self, name, neighbor, **kwargs):
         '''Add a new interface on this virtual host with the specified name,

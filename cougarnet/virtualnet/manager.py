@@ -756,6 +756,7 @@ class VirtualNetwork:
         # started.
         self.wait_for_phase3_startup()
 
+        processes = []
         for _, host in self.host_by_name.items():
             # Now that tmux has been started on the host, wait on the parent
             # process, and store the updated pid of the tmux server process
@@ -766,7 +767,14 @@ class VirtualNetwork:
             self.comm_sock.sendto(b'\x00', host.comm_sock_file)
             # Attach terminal
             if host.terminal:
-                host.attach_terminal()
+                p = host.attach_terminal()
+                if p is not None:
+                    processes.append(p)
+
+        # Terminal will daemonize, so wait() on each of the processes to clean
+        # up the parent.
+        for p in processes:
+            p.wait()
 
     def cleanup(self):
         '''Shut down and clean up resources allocated for the
