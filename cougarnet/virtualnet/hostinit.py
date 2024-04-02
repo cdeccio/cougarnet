@@ -161,39 +161,9 @@ def main():
     apply network configuration, and set appropriate environment variables.'''
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--hosts-file', '-f',
-            action='store', type=str, default=None,
-            help='Specify the hosts file')
-    parser.add_argument('--mount-sys',
-            action='store_const', const=True, default=False,
-            help='Whether or not to mount sysfs on /sys')
-    parser.add_argument('--vty-socket', action='store',
-            type=str, default=None,
-            help='The directory for the FRR vty socket')
     parser.add_argument('config_file',
             type=argparse.FileType('r'), action='store',
             help='File containing the network configuration for host')
-    parser.add_argument('sys_cmd_helper_sock_remote',
-            type=str, action='store',
-            help='The remote "address" (path) of a UNIX domain socket to ' + \
-                    'which commands requiring privileges are executed on ' + \
-                    'behalf of this process.')
-    parser.add_argument('sys_cmd_helper_sock_local',
-            type=str, action='store',
-            help='The local "address" (path) of a UNIX domain socket to ' + \
-                    'which commands requiring privileges are executed on ' + \
-                    'behalf of this process.')
-    parser.add_argument('comm_sock_remote',
-            action='store', type=str, default=None,
-            help='Remote "address" (path) for UNIX domain socket with which we ' + \
-                    'communicate with the coordinating process')
-    parser.add_argument('comm_sock_local',
-            action='store', type=str, default=None,
-            help='Local "address" (path) for UNIX domain socket with which we ' + \
-                    'communicate with the coordinating process')
-    parser.add_argument('prog',
-            action='store', type=str, default=None,
-            help='Path to program that should be executed at start')
 
     args = parser.parse_args(sys.argv[1:])
 
@@ -201,34 +171,30 @@ def main():
         sys.stderr.write('Please run this program as a non-privileged user.\n')
         sys.exit(1)
 
+    config = json.loads(args.config_file.read())
+    args.config_file.close()
+
     env = {}
 
-    comm_sock_paths = {
-            'local': args.comm_sock_local,
-            'remote': args.comm_sock_remote
-            }
-    env['COUGARNET_COMM_SOCK'] = json.dumps(comm_sock_paths)
+    env['COUGARNET_COMM_SOCK'] = json.dumps(config['comm_sock'])
+    env['COUGARNET_SYS_CMD_HELPER_SOCK'] = \
+            json.dumps(config['sys_cmd_helper_sock'])
 
-    if args.vty_socket is not None:
-        env['COUGARNET_VTY_SOCK'] = args.vty_socket
+    if config.get('vty_socket', None) is not None:
+        env['COUGARNET_VTY_SOCK'] = config['vty_socket']
 
     if not join_sys_cmd_helper(
-            args.sys_cmd_helper_sock_remote, args.sys_cmd_helper_sock_local):
+            config['sys_cmd_helper_sock']['remote'],
+            config['sys_cmd_helper_sock']['local']):
         sys.stderr.write('Could not join system command helper!\n')
         sys.exit(1)
 
     comm_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
-    comm_sock.bind(comm_sock_paths['local'])
-    comm_sock.connect(comm_sock_paths['remote'])
+    comm_sock.bind(config['comm_sock']['local'])
+    comm_sock.connect(config['comm_sock']['remote'])
 
-    cmd = ['chmod', '700', comm_sock_paths['local']]
+    cmd = ['chmod', '700', config['comm_sock']['local']]
     subprocess.run(cmd, check=True)
-
-    sys_cmd_helper_sock_paths = {
-            'local': args.sys_cmd_helper_sock_local,
-            'remote': args.sys_cmd_helper_sock_remote
-            }
-    env['COUGARNET_SYS_CMD_HELPER_SOCK'] = json.dumps(sys_cmd_helper_sock_paths)
 
     # Tell the coordinating process that the the process has started--and
     # thus that the namespaces have been created
@@ -239,16 +205,14 @@ def main():
     # interfaces have been added and configured
     comm_sock.recv(1)
 
-    config = json.loads(args.config_file.read())
-    args.config_file.close()
     _apply_config(config, env)
 
-    if args.mount_sys:
+    if config['mount_sys']:
         cmd = ['mount_sys', pid]
         sys_cmd(cmd, check=True)
 
-    if args.hosts_file is not None:
-        cmd = ['mount_hosts', pid, args.hosts_file]
+    if config['hosts_file'] is not None:
+        cmd = ['mount_hosts', pid, config['hosts_file']]
         sys_cmd(cmd, check=True)
 
     # clean up sys_cmd_helper
@@ -262,12 +226,12 @@ def main():
 
     # close socket and remove the associated file
     comm_sock.close()
-    os.unlink(comm_sock_paths['local'])
+    os.unlink(config['comm_sock']['local'])
 
     # close all file descriptors, except stderr
     close_file_descriptors([2])
 
-    prog_args = args.prog.split('|')
+    prog_args = config['startup_script'].split('|')
     os.execve(prog_args[0], prog_args, env)
 
 if __name__ == '__main__':

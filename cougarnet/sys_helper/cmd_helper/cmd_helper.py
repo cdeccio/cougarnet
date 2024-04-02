@@ -561,9 +561,7 @@ class SysCmdHelper:
         cmd = ['sysctl', f'net/ipv6/conf/{intf}/router_solicitations=0']
         return self._run_cmd_netns_or_not(cmd, intf)
 
-    def unshare_hostinit(self, hostname, net, hosts_file, mount_sys, use_vty,
-            config_file, sys_cmd_helper_sock_remote, sys_cmd_helper_sock_local,
-            comm_sock_remote, comm_sock_local, script_file):
+    def unshare_hostinit(self, hostname, net, config_file):
         '''Run the hostinit module in a namespace that we have created, and
         return the result.'''
 
@@ -575,17 +573,7 @@ class SysCmdHelper:
         cmd = ['unshare', '--mount', '--uts', f'--setuid={self._uid}']
         if net:
             cmd += [f'--net={nspath}']
-        cmd += [sys.executable, '-m', HOSTINIT_MODULE,
-                    '--hosts-file', hosts_file]
-        if mount_sys:
-            cmd += ['--mount-sys']
-        if use_vty:
-            vty = os.path.join(FRR_RUN_DIR, hostname)
-            cmd += ['--vty-socket', vty]
-        cmd += [config_file,
-                sys_cmd_helper_sock_remote, sys_cmd_helper_sock_local,
-                comm_sock_remote, comm_sock_local,
-                script_file]
+        cmd += [sys.executable, '-m', HOSTINIT_MODULE, config_file]
 
         cmd_str = ' '.join(cmd)
         logger.debug(cmd_str)

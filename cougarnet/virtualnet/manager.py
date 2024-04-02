@@ -620,10 +620,10 @@ class VirtualNetwork:
 
         self.create_hosts_common_file()
         for hostname, host in self.host_by_name.items():
-            config_file = os.path.join(host.hostdir, CONFIG_FILE)
             hosts_file = os.path.join(host.hostdir, HOSTS_FILE)
-            host.create_config(config_file)
             host.create_hosts_file(self.hosts_common_file, hosts_file)
+            config_file = os.path.join(host.hostdir, CONFIG_FILE)
+            host.create_config(config_file, self.comm_sock_file)
 
     def wait_for_phase1_startup(self, host):
         '''Wait for a given virtual host to send its PID over the UNIX domain
@@ -701,7 +701,7 @@ class VirtualNetwork:
 
         # start the hosts and wait for each to write its PID to the
         for _, host in self.host_by_name.items():
-            host.start(self.comm_sock_file)
+            host.start()
             self.wait_for_phase1_startup(host)
 
         # we have to wait to apply the links until the namespace is created

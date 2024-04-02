@@ -214,33 +214,51 @@ class HostConfig:
                     }
         return int_to_sock
 
-    def _host_config(self):
+    def _host_config(self, comm_sock_file):
         '''Return a dictionary containing the network configuration for this
         virtual host.'''
 
-        host_info = {
-                'hostname': self.hostname,
-                'routes': self.routes,
-                'native_apps': self.native_apps,
-                'type': self.type,
-                'ipv6': self.ipv6,
-                'int_to_sock': self._helper_sock_pair_for_user()
-                }
-        host_info['ip_forwarding'] = self.type == 'router' and self.native_apps
         int_infos = {}
         for intf in self.neighbor_by_int:
             int_infos[intf.name] = intf.as_dict()
         for vlan in self.int_by_vlan:
             intf = self.int_by_vlan[vlan]
             int_infos[intf.name] = intf.as_dict()
-        host_info['interfaces'] = int_infos
+
+        if self.type == 'router' and self.native_apps:
+            vty_file = os.path.join(FRR_RUN_DIR, self.hostname)
+        else:
+            vty_file = None
+
+        host_info = {
+                'hostname': self.hostname,
+                'type': self.type,
+                'native_apps': self.native_apps,
+                'mount_sys': not (self.type == 'switch' and self.native_apps),
+                'sys_cmd_helper_sock': {
+                    'local': self.sys_cmd_helper_local,
+                    'remote': cmd_helper.sys_cmd_helper.remote_sock_path,
+                    },
+                'comm_sock': {
+                    'local': self.comm_sock_file,
+                    'remote': comm_sock_file,
+                    },
+                'startup_script': self.startup_script_file,
+                'vty_socket': vty_file,
+                'hosts_file': self.hosts_file,
+                'routes': self.routes,
+                'ipv6': self.ipv6,
+                'int_to_sock': self._helper_sock_pair_for_user(),
+                'interfaces': int_infos,
+                'ip_forwarding': self.type == 'router' and self.native_apps,
+                }
         return host_info
 
-    def create_config(self, config_file):
+    def create_config(self, config_file, comm_sock_file):
         '''Create the specified file with the network configuration associated
         with this virtual host.'''
 
-        host_config = self._host_config()
+        host_config = self._host_config(comm_sock_file)
 
         self.config_file = config_file
         fd = os.open(self.config_file, os.O_WRONLY | os.O_CREAT, 0o644)
@@ -329,7 +347,7 @@ class HostConfig:
             if 'ripng' in self.routers:
                 run_cmd('start_ripngd', self.hostname, *ints)
 
-    def start(self, comm_sock_file):
+    def start(self):
         '''Start this virtual host.  Call unshare to create the new namespace,
         initialize the virtual network within the new namespace, and start the
         designated program within the new namespace.'''
@@ -344,22 +362,7 @@ class HostConfig:
             args += [self.hostname]
         else:
             args += ['']
-        args += [self.hosts_file]
-        # Whether or not to use --net with the unshare command
-        if not (self.type == 'switch' and self.native_apps):
-            args += ['1']
-        else:
-            args += ['']
-        if self.type == 'router' and self.native_apps:
-            args += ['1']
-        else:
-            args += ['']
-        args += [self.config_file,
-                cmd_helper.sys_cmd_helper.remote_sock_path,
-                self.sys_cmd_helper_local,
-                comm_sock_file, self.comm_sock_file,
-                self.startup_script_file]
-
+        args += [self.config_file]
         run_cmd('unshare_hostinit', *args)
 
     def flush_forwarding_table(self):
