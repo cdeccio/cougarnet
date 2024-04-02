@@ -61,6 +61,7 @@ TERM = "lxterminal"
 
 SYS_HELPER_MODULE = "cougarnet.virtualnet.sys_helper"
 HOSTINIT_MODULE = "cougarnet.virtualnet.hostinit"
+HOSTREADY_MODULE = "cougarnet.virtualnet.hostready"
 RAWPKT_HELPER_MODULE = "cougarnet.sim.rawpkt_helper"
 
 MAIN_WINDOW_NAME = "main"

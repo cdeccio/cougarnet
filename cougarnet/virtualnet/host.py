@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 import time
 
 from cougarnet.errors import ConfigurationError
@@ -280,16 +281,22 @@ class HostConfig:
                     f'new-session -s "{self.hostname}" ' + \
                     f'-n "{MAIN_WINDOW_NAME}" -d \\; \\\n')
 
+            ready_cmd = f'{sys.executable} -m {HOSTREADY_MODULE}'
             if self.prog is not None:
                 # start script in window
                 if self.prog_window == 'background':
                     fh.write(f'    new-window -n "{CMD_WINDOW_NAME}" \\; \\\n')
                 prog = self.prog.replace('|', ' ').replace('"', r'\"')
+                fh.write(f'    send-keys "{ready_cmd}" C-m \\; \\\n')
+                fh.write(f'    send-keys "history -c ; clear" C-m \\; \\\n')
                 fh.write(f'    send-keys "{prog}" C-m \\; \\\n')
                 fh.write(f'    select-window -t "{MAIN_WINDOW_NAME}" \\; \\\n')
                 if self.prog_window == 'split':
                     # split window, and make new pane the focus
                     fh.write('    split-window -v \\; \\\n')
+            else:
+                fh.write(f'    send-keys "{ready_cmd}" C-m \\; \\\n')
+                fh.write(f'    send-keys "history -c ; clear" C-m \\; \\\n')
 
             # allow scrolling in window
             fh.write('    setw -g mouse on \\; \\\n')

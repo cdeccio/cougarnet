@@ -700,6 +700,9 @@ class VirtualNetwork:
     def wait_for_phase2_startup(self):
         self._wait_for_null_byte(True) 
 
+    def wait_for_phase3_startup(self):
+        self._wait_for_null_byte(False) 
+
     def start(self, start_delay, wireshark_ints):
         '''Start the hosts and links comprising the VirtualNetwork instance,
         and synchronize appropriately between the VirtualNetwork instance and
@@ -745,13 +748,23 @@ class VirtualNetwork:
         # sleep for start_delay seconds
         time.sleep(start_delay)
 
-        # let hosts know that they can start now
+        # Let hosts know that they can start tmux now
         for _, host in self.host_by_name.items():
             self.comm_sock.sendto(b'\x00', host.comm_sock_file)
 
-        # attach terminals
+        # Wait for the indicator that tmux has been
+        # started.
+        self.wait_for_phase3_startup()
+
         for _, host in self.host_by_name.items():
+            # Now that tmux has been started on the host, wait on the parent
+            # process, and store the updated pid of the tmux server process
+            # that was orphaned.
             host.update_pid()
+            # Once the updated pid has been stored, let host know that they
+            # can begin whatever programs are to be started.
+            self.comm_sock.sendto(b'\x00', host.comm_sock_file)
+            # Attach terminal
             if host.terminal:
                 host.attach_terminal()
 
