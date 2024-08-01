@@ -29,10 +29,12 @@ LIBEXEC_DIR = os.path.join(sys.prefix, 'libexec', 'cougarnet')
 
 logger = logging.getLogger(__name__)
 
+
 def raise_interrupt(signum, frame):
     '''When a given signal is received, raise KeyboardInterrupt.'''
 
     raise KeyboardInterrupt()
+
 
 class SysHelperManager:
     '''A class for creating and managing a process running as a privileged

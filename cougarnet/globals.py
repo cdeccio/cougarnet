@@ -49,7 +49,7 @@ FRR_ZSERV_FILE = 'zserv.api'
 PROC_NS_DIR_TEMPLATE = '/proc/%d/ns/'
 RUN_NETNS_DIR = '/run/netns/'
 
- 
+
 ######################
 # Other options
 ######################

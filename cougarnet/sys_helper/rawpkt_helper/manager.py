@@ -26,13 +26,14 @@ from cougarnet.sys_helper.manager import \
 
 RAWPKT_HELPER_SCRIPT = os.path.join(LIBEXEC_DIR, 'rawpkt_helper')
 
+
 class RawPktHelperManager(SysHelperManager):
     '''A class for creating and managing a process that captures packets from a
     raw socket and sends them to a UNIX domain socket, and vice-versa.'''
 
     def __init__(self, pid, *ints):
         cmd = ['nsenter', '--target', str(pid), '--all',
-                         RAWPKT_HELPER_SCRIPT]
+               RAWPKT_HELPER_SCRIPT]
         dir1, dir2, new_ints = self.consolidate_dirs(ints)
         if dir1 and dir2:
             # Use the --raw-sock-directory and --user-sock-directory options to

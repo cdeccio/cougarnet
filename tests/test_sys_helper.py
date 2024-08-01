@@ -263,7 +263,7 @@ class NetConfigTestCase(unittest.TestCase):
             self.assertIsNone(
                     helper._get_ns_info(0))
 
-            # process does exist, so _get_ns_info() returns a non-None value
+            # process exists, so _get_ns_info() returns a non-None value
             self.assertIsNotNone(
                     helper._get_ns_info(p1.pid))
 
@@ -303,7 +303,7 @@ class NetConfigTestCase(unittest.TestCase):
                     [])
 
             # Now that p2.pid is "registered" (i.e., through the above calls),
-            # call store_ns_info() again, and this time it shoudl succeed.
+            # call store_ns_info() again, and this time it should succeed.
             self.assertEqual(
                     helper.store_ns_info(str(p2.pid))[:2],
                     '0,')

@@ -48,13 +48,15 @@ from .interface import PhysicalInterfaceConfig
 
 MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
 
-#XXX this should really be logging.getLogger(__name__), and it should be in
+# XXX this should really be logging.getLogger(__name__), and it should be in
 # bin/cougarnet instead
 logger = logging.getLogger()
 
+
 def sort_addresses(addrs):
     '''Sort a list of addresses into MAC address, IPv4 addresses, and IPv6
-    addresses, checking them for consistency, and return the sorted elements.'''
+    addresses, checking them for consistency, and return the sorted
+    elements.'''
 
     mac_addr = None
     ipv4_addrs = []
@@ -66,42 +68,47 @@ def sort_addresses(addrs):
         m = MAC_RE.search(addr)
         if m is not None:
             if mac_addr is not None:
-                raise ConfigurationError('Only one MAC address ' + \
-                        'is allowed for a given interface.')
+                raise ConfigurationError('Only one MAC address ' +
+                                         'is allowed for a given interface.')
             mac_addr = addr
             continue
 
         # IP address
         slash = addr.find('/')
         if slash < 0:
-            raise ConfigurationError('The IP address for an interface ' + \
-                    'must include a prefix length.')
+            raise ConfigurationError('The IP address for an interface ' +
+                                     'must include a prefix length.')
 
         if ':' in addr:
             # IPv6 address
             try:
                 subnet = str(ipaddress.IPv6Network(addr, strict=False))
-            except (ipaddress.AddressValueError, ipaddress.NetmaskValueError) as e:
+            except (ipaddress.AddressValueError, ipaddress.NetmaskValueError) \
+                    as e:
                 raise ConfigurationError(str(e)) from None
             if subnet6 is None:
                 subnet6 = subnet
             if subnet6 != subnet:
-                raise ConfigurationError('All IPv6 addresses for a given ' + \
-                        'interface must be on the same subnet.')
+                raise ConfigurationError('All IPv6 addresses for a given ' +
+                                         'interface must be on the same ' +
+                                         'subnet.')
             ipv6_addrs.append(addr)
         else:
             # IPv4 address
             try:
                 subnet = str(ipaddress.IPv4Network(addr, strict=False))
-            except (ipaddress.AddressValueError, ipaddress.NetmaskValueError) as e:
+            except (ipaddress.AddressValueError, ipaddress.NetmaskValueError) \
+                    as e:
                 raise ConfigurationError(str(e)) from None
             if subnet4 is None:
                 subnet4 = subnet
             if subnet4 != subnet:
-                raise ConfigurationError('All IPv4 addresses for a given ' + \
-                        'interface must be on the same subnet.')
+                raise ConfigurationError('All IPv4 addresses for a given ' +
+                                         'interface must be on the same ' +
+                                         'subnet.')
             ipv4_addrs.append(addr)
     return mac_addr, ipv4_addrs, ipv6_addrs, subnet4, subnet6
+
 
 class VirtualNetwork:
     '''The class that creates and manages a Cougarnet Virtual network.'''
@@ -119,7 +126,7 @@ class VirtualNetwork:
         self.ghost_interfaces = set()
 
         self.sys_cmd_helper_client = \
-                os.path.join(self.tmpdir, SYS_CMD_HELPER_CLIENT_MAIN_SOCK)
+            os.path.join(self.tmpdir, SYS_CMD_HELPER_CLIENT_MAIN_SOCK)
         self.env_file = os.path.join(self.tmpdir, ENV_FILE)
 
         self.comm_sock_file = None
@@ -159,8 +166,7 @@ class VirtualNetwork:
         hostname = parts[0]
         addrs = parts[1:]
 
-        mac, addrs4, addrs6, subnet4, subnet6 = \
-                sort_addresses(addrs)
+        mac, addrs4, addrs6, subnet4, subnet6 = sort_addresses(addrs)
 
         if hostname not in self.host_by_name:
             raise ConfigurationError(
@@ -183,19 +189,21 @@ class VirtualNetwork:
 
         int1_info, int2_info = parts[:2]
         host1, mac1, addrs41, addrs61, subnet41, subnet61 = \
-                self.parse_int(int1_info)
+            self.parse_int(int1_info)
         host2, mac2, addrs42, addrs62, subnet42, subnet62 = \
-                self.parse_int(int2_info)
+            self.parse_int(int2_info)
 
         if set(addrs41).intersection(set(addrs42)):
-            raise ConfigurationError('The IPv4 addresses for ' + \
-                    f'{host1.hostname} and {host2.hostname} ' + \
-                    'cannot be the same.')
+            raise ConfigurationError('The IPv4 addresses for ' +
+                                     f'{host1.hostname} and ' +
+                                     f'{host2.hostname} ' +
+                                    'cannot be the same.')
         if subnet41 is not None and subnet42 is not None and \
                 subnet41 != subnet42:
-            raise ConfigurationError('The IPv4 addresses for ' + \
-                    f'{host1.hostname} and {host2.hostname} ' + \
-                    'must be in the same subnet.')
+            raise ConfigurationError('The IPv4 addresses for ' +
+                                     f'{host1.hostname} and ' +
+                                     f'{host2.hostname} ' +
+                                    'cannot be the same.')
         if set(addrs61).intersection(set(addrs62)):
             raise ConfigurationError('The IPv6 addresses for ' + \
                     f'{host1.hostname} and {host2.hostname} ' + \
@@ -211,7 +219,7 @@ class VirtualNetwork:
             csv_reader = csv.reader(s)
             try:
                 attrs = dict([p.split('=', maxsplit=1) \
-                        for p in next(csv_reader)])
+                    for p in next(csv_reader)])
             except ValueError:
                 raise ConfigurationError('Invalid link format.') from None
         else:

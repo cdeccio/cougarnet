@@ -23,6 +23,7 @@ import socket
 
 from cougarnet import util
 
+
 def send_raw_to_user(raw_sock, helper_sock_raw, dst_sock):
     '''Receive one or more messages on raw_sock and send them on
     helper_sock_raw to dst_sock.'''
@@ -41,6 +42,7 @@ def send_raw_to_user(raw_sock, helper_sock_raw, dst_sock):
             except (FileNotFoundError, ConnectionRefusedError):
                 # other side has not connected yet
                 pass
+
 
 def send_user_to_raw(helper_sock_raw, raw_sock):
     '''Receive one or more messages on helper_sock_raw and send them to

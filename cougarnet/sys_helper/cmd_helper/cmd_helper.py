@@ -26,7 +26,7 @@ import subprocess
 import struct
 import sys
 
-from pyroute2 import NetNS, netns
+from pyroute2 import NetNS
 from pyroute2.netlink.exceptions import NetlinkError
 
 from cougarnet.globals import *
@@ -35,6 +35,7 @@ from cougarnet.sys_helper.rawpkt_helper.manager import \
 from cougarnet import util
 
 logger = logging.getLogger(__name__)
+
 
 class SysCmdHelper:
     '''A class for executing a set of canned commands that require
@@ -80,8 +81,8 @@ class SysCmdHelper:
         cmd_str = ' '.join(cmd)
         logger.debug(cmd_str)
 
-        proc = subprocess.run(cmd,
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, check=False)
         output = proc.stdout.decode('utf-8')
         ret = [proc.returncode, cmd_str, output]
 
@@ -222,8 +223,9 @@ class SysCmdHelper:
                 path = os.path.join(nsdir, f)
                 with open(path) as fh:
                     val = os.fstat(fh.fileno())
-                    ns_info[f] = (os.major(val.st_dev), os.minor(val.st_dev), val.st_ino)
-        except (FileNotFoundError, PermissionError) as e:
+                    ns_info[f] = (os.major(val.st_dev),
+                                  os.minor(val.st_dev), val.st_ino)
+        except (FileNotFoundError, PermissionError):
             return None
 
         return ns_info
@@ -252,7 +254,7 @@ class SysCmdHelper:
             return f'9,,Interface does not exist: {phys_intf}'
 
         cmd = ['ip', 'link', 'add', 'link', phys_intf, 'name',
-                vlan_intf, 'type', 'vlan', 'id', vlan]
+               vlan_intf, 'type', 'vlan', 'id', vlan]
 
         val = self._run_cmd(cmd)
         if val.startswith('0,'):
@@ -263,10 +265,8 @@ class SysCmdHelper:
         '''Add an interface of type bridge with the specified name, with STP
         disabled and no VLAN filtering.  Return the result.'''
 
-        cmd = ['ip', 'link', 'add',
-                intf, 'type', 'bridge',
-                'stp_state', '0', 'vlan_filtering', '0',
-                'ageing_time', '0']
+        cmd = ['ip', 'link', 'add', intf, 'type', 'bridge',
+               'stp_state', '0', 'vlan_filtering', '0', 'ageing_time', '0']
 
         val = self._run_cmd(cmd)
         if val.startswith('0,'):
@@ -314,7 +314,7 @@ class SysCmdHelper:
         interface, and return the result.'''
 
         cmd = ['tc', 'qdisc', 'add', 'dev', intf, 'root', 'netem'] + \
-                list(attrs)
+            list(attrs)
         return self._run_cmd_netns_or_not(cmd, intf)
 
     def set_link_ip_addr(self, intf, addr):
@@ -333,7 +333,7 @@ class SysCmdHelper:
         '''Bring up the lo interface in the namespace associated with pid, and
         return the result.'''
 
-        cmd = [ 'ip', 'link', 'set', 'lo', 'up']
+        cmd = ['ip', 'link', 'set', 'lo', 'up']
         return self._run_cmd_netns(cmd, pid)
 
     def del_link(self, intf):
@@ -577,9 +577,8 @@ class SysCmdHelper:
 
         cmd_str = ' '.join(cmd)
         logger.debug(cmd_str)
-        p = subprocess.Popen(cmd,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL)
+        p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL)
         pid = str(p.pid)
 
         self.netns_mounted.add(hostname)
@@ -676,7 +675,7 @@ class SysCmdHelper:
         '''Create a configuration file for an FRR daemon.'''
 
         assert self._frr_gid is not None, \
-                'A gid associated with frr must be set when frr is used'
+            'A gid associated with frr must be set when frr is used'
 
         if os.path.exists(conf_file_path):
             return f'9,,Config file already exists: {conf_file_path}'
@@ -721,7 +720,7 @@ class SysCmdHelper:
 
         try:
             pid = int(open(pid_file_path, 'r').read().strip())
-        except (OSError, ValueError) as e:
+        except (OSError, ValueError):
             return False
 
         cmd = ['ps', '-p', str(pid)]
@@ -729,7 +728,7 @@ class SysCmdHelper:
         return val.startswith('0,')
 
     def _start_frr_daemon(self, hostname, conf_file, pid_file,
-            prog_path, started_set, contents):
+                          prog_path, started_set, contents):
         '''Prepare and start an FRR daemon.'''
 
         ns = hostname
@@ -757,35 +756,36 @@ class SysCmdHelper:
         '''Prepare and start the zebra FRR daemon.'''
 
         return self._start_frr_daemon(hostname, FRR_ZEBRA_CONF_FILE,
-                FRR_ZEBRA_PID_FILE, FRR_ZEBRA_PROG, self.zebra_started,
-                f'hostname {hostname}\n')
+                                      FRR_ZEBRA_PID_FILE, FRR_ZEBRA_PROG,
+                                      self.zebra_started,
+                                      f'hostname {hostname}\n')
 
     def start_ripd(self, hostname, *ints):
         '''Prepare and start the ripd FRR daemon.'''
 
         contents = f'hostname {hostname}\n' + \
-                'router rip\n redistribute connected\n'
+            'router rip\n redistribute connected\n'
         for intf in ints:
             contents += f' network {intf}\n'
 
         return self._start_frr_daemon(hostname, FRR_RIPD_CONF_FILE,
-                FRR_RIPD_PID_FILE, FRR_RIPD_PROG, self.ripd_started,
-                contents)
+                                      FRR_RIPD_PID_FILE, FRR_RIPD_PROG,
+                                      self.ripd_started, contents)
 
     def start_ripngd(self, hostname, *ints):
         '''Prepare and start the ripngd FRR daemon.'''
 
         contents = f'hostname {hostname}\n' + \
-                'router ripng\n redistribute connected\n'
+            'router ripng\n redistribute connected\n'
         for intf in ints:
             contents += f' network {intf}\n'
 
         return self._start_frr_daemon(hostname, FRR_RIPNGD_CONF_FILE,
-                FRR_RIPNGD_PID_FILE, FRR_RIPNGD_PROG, self.ripngd_started,
-                contents)
+                                      FRR_RIPNGD_PID_FILE, FRR_RIPNGD_PROG,
+                                      self.ripngd_started, contents)
 
     def _kill_frr_daemon(self, hostname, conf_file, pid_file, vty_file,
-            started_set):
+                         started_set):
         '''Send SIGTERM to an FRR daemon and then remove the associated config
         file and pid file.'''
 
@@ -824,12 +824,12 @@ class SysCmdHelper:
 
         return '0,'
 
-
     def stop_zebra(self, hostname):
         '''Terminate and clean up after the zebra FRR daemon.'''
 
         val = self._kill_frr_daemon(hostname, FRR_ZEBRA_CONF_FILE,
-                FRR_ZEBRA_PID_FILE, FRR_ZEBRA_VTY_FILE, self.zebra_started)
+                                    FRR_ZEBRA_PID_FILE, FRR_ZEBRA_VTY_FILE,
+                                    self.zebra_started)
 
         if not val.startswith('0,'):
             return val
@@ -843,18 +843,19 @@ class SysCmdHelper:
 
         return '0,'
 
-
     def stop_ripd(self, hostname):
         '''Terminate and clean up after the ripd FRR daemon.'''
 
         return self._kill_frr_daemon(hostname, FRR_RIPD_CONF_FILE,
-                FRR_RIPD_PID_FILE, FRR_RIPD_VTY_FILE, self.ripd_started)
+                                     FRR_RIPD_PID_FILE, FRR_RIPD_VTY_FILE,
+                                     self.ripd_started)
 
     def stop_ripngd(self, hostname):
         '''Terminate and clean up after the ripngd FRR daemon.'''
 
         return self._kill_frr_daemon(hostname, FRR_RIPNGD_CONF_FILE,
-                FRR_RIPNGD_PID_FILE, FRR_RIPNGD_VTY_FILE, self.ripngd_started)
+                                     FRR_RIPNGD_PID_FILE, FRR_RIPNGD_VTY_FILE,
+                                     self.ripngd_started)
 
     @require_netns
     def set_hostname(self, pid, hostname):
@@ -881,7 +882,7 @@ class SysCmdHelper:
             self.netns_to_iproute[netns1] = NetNS(netns1)
         ns = self.netns_to_iproute[netns1]
 
-        kwargs = { 'dst': prefix }
+        kwargs = {'dst': prefix}
         if next_hop:
             kwargs['gateway'] = next_hop
         if intf:
@@ -912,7 +913,7 @@ class SysCmdHelper:
             self.netns_to_iproute[netns1] = NetNS(netns1)
         ns = self.netns_to_iproute[netns1]
 
-        kwargs = { 'dst': prefix }
+        kwargs = {'dst': prefix}
         try:
             ns.route('del', **kwargs)
         except (NetlinkError, OSError, struct.error) as e:
@@ -996,7 +997,8 @@ class SysCmdHelper:
                 else:
                     status = f'9,,Invalid command: {parts[0]}'
             except Exception as e:
-                status_list = [9, '', f'Command error: {msg.strip()}: {str(e)}']
+                status_list = [9, '',
+                               f'Command error: {msg.strip()}: {str(e)}']
                 status = util.list_to_csv_str(status_list)
             if peer is not None:
                 # only send a response if the other side has an address to send

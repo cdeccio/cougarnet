@@ -28,7 +28,7 @@ import subprocess
 
 from cougarnet.util import recv_raw, ETH_P_ALL, SOL_PACKET, PACKET_AUXDATA
 from cougarnet.sys_helper.cmd_helper import \
-        start_sys_cmd_helper, join_sys_cmd_helper, stop_sys_cmd_helper
+        join_sys_cmd_helper, stop_sys_cmd_helper
 
 from .interface import InterfaceInfo
 
@@ -80,11 +80,12 @@ class BaseHost:
         self._stop_sys_cmd_helper()
 
     def _join_sys_cmd_helper(self):
-        helper_sock_paths = json.loads(os.environ['COUGARNET_SYS_CMD_HELPER_SOCK'])
+        helper_sock_paths = \
+                json.loads(os.environ['COUGARNET_SYS_CMD_HELPER_SOCK'])
         if not join_sys_cmd_helper(
                 helper_sock_paths['remote'], helper_sock_paths['local'],
                 add_pid_for_netns=True):
-            #XXX need something more specific here
+            # XXX need something more specific here
             raise Exception('Could not connect to command helper socket')
 
     def _stop_sys_cmd_helper(self):
@@ -134,7 +135,8 @@ class BaseHost:
         loop = asyncio.get_event_loop()
         for intf in self.physical_interfaces:
 
-            sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_ALL))
+            sock = socket.socket(socket.AF_PACKET,
+                                 socket.SOCK_RAW, socket.htons(ETH_P_ALL))
             sock.bind((intf, 0))
             sock.setsockopt(SOL_PACKET, PACKET_AUXDATA, 1)
 
@@ -314,7 +316,8 @@ class BaseHost:
         except BlockingIOError:
             self._pending_frames[intf].append((frame, self.int_to_sock[intf]))
             loop = asyncio.get_event_loop()
-            loop.add_writer(self.int_to_sock[intf], self._send_pending_frames, intf)
+            loop.add_writer(self.int_to_sock[intf],
+                            self._send_pending_frames, intf)
 
     def _send_pending_frames(self, intf):
         '''Send all frames that are pending, until blocking might occur.'''

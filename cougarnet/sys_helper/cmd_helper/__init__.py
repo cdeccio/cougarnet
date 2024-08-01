@@ -25,11 +25,12 @@ import subprocess
 import sys
 
 from cougarnet.errors import SysCmdError, CommandPrereqError, CommandExecError
-from cougarnet.util import list_to_csv_str, csv_str_to_list
+from cougarnet.util import csv_str_to_list
 
 from .manager import SysCmdHelperManager, SysCmdHelperManagerStarted
 
 sys_cmd_helper = None
+
 
 def start_sys_cmd_helper(remote_sock_path, local_sock_path, verbose):
     '''Instantiate a SysCmdHelperManager, which will start the privileged
@@ -48,8 +49,9 @@ def start_sys_cmd_helper(remote_sock_path, local_sock_path, verbose):
 
     return sys_cmd_helper.start()
 
+
 def join_sys_cmd_helper(remote_sock_path, local_sock_path,
-        add_pid_for_netns=False):
+                        add_pid_for_netns=False):
     '''Instantiate a SysCmdHelperManagerStarted, which will setup sockets for
     communication with an already running privileged process, i.e., associated
     with a SysCmdHelperManager instance.  Assign that object to the global
@@ -71,6 +73,7 @@ def join_sys_cmd_helper(remote_sock_path, local_sock_path,
         sys_cmd(['add_pid_for_netns', str(os.getpid())], check=True)
     return True
 
+
 def stop_sys_cmd_helper():
     '''Call close() on sys_cmd_helper, which will terminate the privileged
     process and clean up the sockets used for communication.'''
@@ -83,6 +86,7 @@ def stop_sys_cmd_helper():
     sys_cmd_helper.close()
     sys_cmd_helper = None
 
+
 def sys_cmd(cmd, check=False):
     '''Send a command to the privileged process by calling sys_cmd_helper.cmd()
     on cmd, which is a list consisting of the command and its arguments.  If
@@ -90,7 +94,7 @@ def sys_cmd(cmd, check=False):
     CommandExecError, depending on the nature of the error.'''
 
     assert sys_cmd_helper is not None, \
-            "sys_cmd_helper must be initialized before sys_cmd() can be called"
+        "sys_cmd_helper must be initialized before sys_cmd() can be called"
 
     status = sys_cmd_helper.cmd(cmd).strip()
     if not status.startswith('0,') and check:
@@ -109,10 +113,11 @@ def sys_cmd(cmd, check=False):
             err = ''
         if not cmd_str:
             cmd_str = ' '.join(cmd)
-            raise CommandPrereqError('Unable to execute command ' + \
-                    f'"{cmd_str}": {err}')
+            raise CommandPrereqError('Unable to execute command ' +
+                                     f'"{cmd_str}": {err}')
         else:
             raise CommandExecError(f'Command failed: "{cmd_str}": {err}')
+
 
 def sys_cmd_pid(cmd, check=False):
     '''Insert the pid of this process into cmd, and call sys_cmd() on the
@@ -120,6 +125,7 @@ def sys_cmd_pid(cmd, check=False):
 
     pid = str(os.getpid())
     return sys_cmd([cmd[0]] + [pid] + cmd[1:], check=check)
+
 
 def sys_cmd_with_cleanup(cmd, cleanup_cmds, check=False, default_yes=False):
     '''Call sys_cmd() with cmd as an argument.  If an exception is raised
@@ -131,8 +137,8 @@ def sys_cmd_with_cleanup(cmd, cleanup_cmds, check=False, default_yes=False):
     except SysCmdError as e:
         n = len(cleanup_cmds)
         sys.stderr.write('%s\n' % e)
-        sys.stderr.write(f'The following {n} command(s) should ' + \
-                'be executed before trying again.\n')
+        sys.stderr.write(f'The following {n} command(s) should ' +
+                         'be executed before trying again.\n')
         for i, cleanup_cmd in enumerate(cleanup_cmds):
             cmd_str = ' '.join(cleanup_cmd)
             sys.stderr.write(f'  {i+1}: {cmd_str}\n')

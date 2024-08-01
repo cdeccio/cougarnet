@@ -39,9 +39,10 @@ SOL_PACKET = 263
 
 # /usr/include/linux/if_packet.h
 PACKET_AUXDATA = 8
-TP_STATUS_VLAN_VALID = 1 << 4 # auxdata has valid tp_vlan_tci
+TP_STATUS_VLAN_VALID = 1 << 4  # auxdata has valid tp_vlan_tci
 
 HOST_RE = re.compile(r'^[a-z]([a-z0-9-]*[a-z0-9])?$')
+
 
 class TpacketAuxdata(ctypes.Structure):
     '''A class with fields defined for copying and holding the auxiliary data
@@ -57,10 +58,12 @@ class TpacketAuxdata(ctypes.Structure):
         ("tp_padding", ctypes.c_ushort),
     ]
 
+
 def raise_interrupt(signum, frame):
     '''When a given signal is received, raise KeyboardInterrupt.'''
 
     raise KeyboardInterrupt()
+
 
 def mac_str_to_binary(mac_str):
     '''Given a MAC address in presentation format as a string, return the
@@ -68,11 +71,13 @@ def mac_str_to_binary(mac_str):
 
     return binascii.unhexlify(mac_str.replace(':', ''))
 
+
 def mac_binary_to_str(mac_bin):
     '''Given a bytes object, return the equivalent MAC address in presentation
     format as a string.'''
 
     return ':'.join(['%02x' % b for b in mac_bin])
+
 
 def ip_str_to_binary(ip_str):
     '''Given an IPv4 or IPv6 address in presentation format as a string, return
@@ -84,6 +89,7 @@ def ip_str_to_binary(ip_str):
         af = socket.AF_INET
     return socket.inet_pton(af, ip_str)
 
+
 def ip_binary_to_str(ip_bin):
     '''Given a bytes object, return the equivalent IPv4 or IPv6 address in
     presentation format as a string.'''
@@ -94,14 +100,16 @@ def ip_binary_to_str(ip_bin):
         af = socket.AF_INET
     return socket.inet_ntop(af, ip_bin)
 
+
 def pid_is_running(pid):
     '''Return True if the process associated with a given pid (int) is running;
     False otherwise.'''
 
     cmd = ['ps', '-p', str(pid)]
     p = subprocess.run(cmd, check=False,
-            stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+                       stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     return p.returncode == 0
+
 
 def is_valid_hostname(hostname):
     '''Return True  if a string begins with a letter, ends with a letter or
@@ -114,14 +122,16 @@ def is_valid_hostname(hostname):
         return False
     return True
 
+
 def kill(pid, sig):
     '''Send a signal (e.g., TERM, KILL) to a process.  Return True if the
     signal was sent successfully; False otherwise.'''
 
     cmd = ['kill', f'-{sig}', str(pid)]
     p = subprocess.run(cmd, stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE, check=False)
+                       stderr=subprocess.PIPE, check=False)
     return p.returncode == 0
+
 
 def kill_until_terminated(pid):
     '''Send TERM to a process.  If the process continues to run, then send
@@ -135,6 +145,7 @@ def kill_until_terminated(pid):
         if pid_is_running(pid):
             continue
         break
+
 
 def recv_raw(sock, bufsize):
     """Internal function to receive a Packet,
@@ -165,13 +176,15 @@ def recv_raw(sock, bufsize):
                 pkt = pkt[:12] + tag + pkt[12:]
     return pkt, sa_ll
 
-def list_to_csv_str(l):
+
+def list_to_csv_str(mylist):
     '''Convert a list to a CSV string.'''
 
     s = io.StringIO()
     csv_writer = csv.writer(s)
-    csv_writer.writerow(l)
+    csv_writer.writerow(mylist)
     return s.getvalue()
+
 
 def csv_str_to_list(csv_str):
     '''Convert a CSV string to a list.'''

@@ -29,6 +29,7 @@ from cougarnet.sys_helper.manager import \
 
 SYSCMD_HELPER_SCRIPT = os.path.join(LIBEXEC_DIR, 'syscmd_helper')
 
+
 def _setup_unix_sock(local_addr, remote_addr):
     '''Create and configured a UNIX domain socket of type SOCK_DGRAM with the
     given local and remote addresses.'''
@@ -43,6 +44,7 @@ def _setup_unix_sock(local_addr, remote_addr):
 
     return sock
 
+
 class SysCmdHelperManager(SysHelperManager):
     '''A class for creating and managing a process that listens for incoming
     requests for commands that require privileges and executes those
@@ -50,8 +52,8 @@ class SysCmdHelperManager(SysHelperManager):
 
     def __init__(self, remote_sock, local_sock, verbose=False):
         args = ['sudo', '-P', '-u', 'root',
-                    '-g', f'#{os.getegid()}',
-                    SYSCMD_HELPER_SCRIPT]
+                '-g', f'#{os.getegid()}', SYSCMD_HELPER_SCRIPT]
+
         if verbose:
             args.append('--verbose')
         args.append(remote_sock)
