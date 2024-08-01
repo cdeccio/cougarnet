@@ -871,44 +871,94 @@ The output is the same as the previous output.
 When Cougarnet is used for protocol development, it is desirable to send and
 receive raw Ethernet frames, rather than using the native network stack, i.e.,
 with the socket API.  The `BaseHost` class is useful for sending and receiving
-frames in Cougarnet.  The key components are the following:
+frames in Cougarnet.
 
- - `int_to_info` - a `dict` containing a mapping of
-   [interface names](#interface-names) to `InterfaceInfo` instances.  An
-   `InterfaceInfo` instance has the following attributes:
-   - `mac_addr` - the MAC address for the interface.
-   - `ipv4_addrs` - a list of IPv4 addresses with which the interface has been
-     configured.  Please note that _typically_ an interface will just be configured
-     with a single IP address.  Thus, usually `ipv4_addrs[0]` will work just fine.
-   - `ipv4_prefix_len` - the length of the IPv4 prefix associated with this
-     interface.
-   - `ipv6_addrs` - a list of IPv6 addresses with which the interface has been
-     configured.  Please note that just as with IPv4, an interface will typically
-     just be configured with a single IP address.  Thus, usually `ipv6_addrs[0]`
-     will work just fine.
-   - `ipv6_addr_link_local` - the link-local IPv6 address with which the
-     interface has been configured.
-   - `ipv6_prefix_len` - the length of the IPv6 prefix associated with this
-     interface.
-   - `mtu` - the MTU of the link associated with the interface.
-   - `vlan` - the VLAN associated with the link, an `int` with value greater
-     than or equal to 0.  In the case that the link is a trunk, then the value
-     will be -1.  In the case that there are no VLANs or trunks configured for
-     interfaces on the host, then the value is 0.
+Cougarnet uses pyroute2, which uses Netlink to communicate with the Linux
+kernel.  pyroute2 calls yields objects associated with IP addresses and network
+interfaces, the attributes of which can be accessed via a dictionary-like
+interface.
+
+ - Interface Objects.  Each interface object contains meta information about a
+   given interface on the system.  Among the useful attributes are the
+   following:
+   - `ifname` - the name of the interface.
+   - `address` - the string representation of the MAC address associated with
+     the interface.
+   - `mtu` - the maximum transmission unit (MTU) of the link.
+
+ - Address Objects.  Each address object contains meta information about a
+   given IP address on the system.  Among the useful attributes are the
+   following:
+   - `ifname` - the name of the interface on which the IP address is
+     configured.
+   - `address` - the string representation of the IP address.
+   - `family` - the address family of the IP address.
+   - `prefixlen` - the prefix length assocated with the IP subnet.
+   - `broadcast` - the broadcast IP address assocated with the IP subnet.
+
+For example, `myint['address']` would yield the string representation of the
+MAC address of `myint`, and `myaddr['prefixlen']` would yield the prefix length
+associated with the subnet.
+
+Here are a list of `BaseHost` methods that might be useful for retrieving
+interface objects, IP address objects, and other information associated with
+the host:
+ - `interfaces_info(intf=None)` - Returns the list of interface objects
+   for all interfaces on the (virtual) system, and optionally for only the
+   interface with name `intf`.
+ - `interface_info_single(intf)` - Returns the interface object correponding to
+   the interface with the specified interface name, or `None`, if that
+   interface doesn't exist.
+ - `physical_interfaces_info()` - Returns the list of interface objects for all
+   "physical" (non-VLAN) interfaces on the (virtual) system.
+ - `physical_interface_info_single()` - Returns the interface object
+   correponding to the one-and-only "physical" (non-VLAN) interface on the
+   (virtual) system.
+ - `vlan_interfaces_info()` - Returns the list of interface objects for all
+   VLAN interfaces on the (virtual) system.
+ - `interfaces()` - Returns the list of interface names for all interfaces on
+   the (virtual) system.
+ - `physical_interfaces()` - Returns the list of interface names for all
+   "physical" (non-VLAN) interfaces on the (virtual) system.
+ - `physical_interface_single()` - Returns the interface name correponding to
+   the one-and-only "physical" (non-VLAN) interface on the (virtual) system.
+ - `vlan_interfaces()` - Returns the list of interface names for all VLAN
+   interfaces on the (virtual) system.
+ - `addresses_info(intf=None)` - Returns the list of IP address objects for all
+   IP addresses on the (virtual) system, and optionally for only the interface
+   with name `intf`.
+ - `ipv4_addresses_info(intf=None)` - Returns the list of IP address objects
+   for all IPv4 addresses on the (virtual) system, and optionally for only the
+   interface with name `intf`.
+ - `ipv6_addresses_info(intf=None)` - Returns the list of IP address objects
+   for all IPv6 addresses on the (virtual) system, and optionally for only the
+   interface with name `intf`.
+ - `ipv4_address_info_single(intf)` - Returns the IP address object for the
+   one-and-only IPv4 address for the specified interface.
+ - `ipv6_address_info_single(intf)` - Returns the IP address object for the
+   one-and-only IPv4 address for the specified interface.
+ - `addresses(intf=None)` - Returns the list of IP addresses on the (virtual)
+   system having the specified attributes, and optionally for only the
+   interface with name `intf`.
+ - `ipv4_addresses(intf)` - Returns the list of IPv4 addresses on the (virtual)
+   system having the specified attributes, and optionally for only the
+   interface with name `intf`.
+ - `ipv6_addresses(intf)` - Returns the list of IPv6 addresses on the (virtual)
+   system having the specified attributes, and optionally for only the
+   interface with name `intf`.
+ - `ipv4_address_single(intf)` - Returns the one-and-only IPv4 address for the
+   specified interface.
+ - `ipv6_address_single(intf)` - Returns the one-and-only IPv6 address for the
+   specified interface.
+ - `int_to_vlan` - a dictionary mapping interface names to the corresponding
+   VLAN for that interface.  The VLAN will be an `int` with value greater than
+   or equal to 0.  In the case that the link is a trunk, then the value will be
+   -1.  In the case that there are no VLANs or trunks configured for interfaces
+   on the host, then the value is 0.
  - `hostname` - a `str` whose value is the [hostname](#hostnames) of the virtual host.
- - `physical_interfaces` - a list containing the names of all the "physical"
-   interfaces (type `str`) on the virtual host (see 
-   [Listing Interfaces](#listing-interfaces)).
- - `vlan_interfaces` - a list containing the names of all the VLAN endpoints on the
-   virtual host (see [Listing Interfaces](#listing-interfaces)).
- - `get_interface()` - returns the name of one of the interfaces on the virtual
-   host.  This can only be used when the device has just one interface.  It is
-   intended to facilitate easy retrieval of the interface.
  - `send_frame(frame, intf)` - send frame (type `bytes`) out on the interface
    designated by name `intf`, a `str`.  Generally calling this method is
    preferred over calling `sendto()` on a socket  directly.
- - `_is_trunk_link(intf)` - return `True` if `intf` (type `str`) corresponds to
-   a trunk link, on which 802.1Q packets are to be sent; `False` otherwise.
  - `log(msg)` - send message `msg` (type `str`) to the communications socket.
    Generally calling this method is preferred over calling `sendto()` on the
    communications socket (i.e., `comm_sock`) directly.
