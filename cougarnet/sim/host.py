@@ -22,24 +22,14 @@ virtual host environment.'''
 import asyncio
 import json
 import os
-import re
 import socket
-import subprocess
+
+from pyroute2.ndb.main import NDB
 
 from cougarnet.util import recv_raw, ETH_P_ALL, SOL_PACKET, PACKET_AUXDATA
 from cougarnet.sys_helper.cmd_helper import \
         join_sys_cmd_helper, stop_sys_cmd_helper
 
-from .interface import InterfaceInfo
-
-IP_ADDR_MTU_RE = re.compile(r'^\d:\s+.*\smtu\s+(\d+)(\s|$)')
-IP_ADDR_MAC_RE = re.compile(r'^\s+link/ether\s+' + \
-        r'([0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5})(\s|$)')
-IP_ADDR_IPV4_RE = re.compile(r'^\s+inet\s+([0-9]{1,3}(\.[0-9]{1,3}){3})' + \
-        r'\/(\d{1,2})\s+brd\s+([0-9]{1,3}(\.[0-9]{1,3}){3})(\s|$)')
-IP_ADDR_IPV6_RE = re.compile(r'^\s+inet6\s+([0-9a-f:]+)\/(\d{1,3})\s.*' + \
-        r'scope\s+(link|global)(\s|$)')
-VLAN_INT_NAME_RE = re.compile(r'\.vlan(\d+)$')
 
 class BaseHost:
     '''A base class for classes running network host-like functionality in a
@@ -49,11 +39,11 @@ class BaseHost:
     process.'''
 
     def __init__(self, user_mode=True):
-        self.all_interfaces = []
-        self.physical_interfaces = []
-        self.vlan_interfaces = []
         self.int_to_sock = {}
-        self.int_to_info = {}
+        self.int_to_vlan = {}
+        self.vlan_to_int = {}
+
+        self._ndb = NDB()
 
         self._pending_frames = {}
 
@@ -62,8 +52,6 @@ class BaseHost:
         self._setup_comm_sock()
         self._join_sys_cmd_helper()
 
-        self._detect_interfaces()
-        self._set_interface_info()
         self._set_vlan_info()
 
         if user_mode:
@@ -121,20 +109,184 @@ class BaseHost:
         self.comm_sock.connect(comm_sock_paths['remote'])
         self.comm_sock.bind(comm_sock_paths['local'])
 
-    def _detect_interfaces(self):
-        self.all_interfaces = os.listdir('/sys/class/net/')
-        self.physical_interfaces = [i for i in self.all_interfaces \
-            if not i.startswith('lo') and VLAN_INT_NAME_RE.search(i) is None]
-        self.vlan_interfaces = [i for i in self.all_interfaces \
-            if not i.startswith('lo') and VLAN_INT_NAME_RE.search(i) is not None]
+    @classmethod
+    def _return_one(cls, func, args, kwargs):
+        '''Call a specified function with the given args and kwargs.  If there
+        are no results or multiple results, then return an error.  Otherwise,
+        return the single result.'''
+
+        val = func(*args, **kwargs)
+        if len(val) == 0:
+            raise ValueError('There are none.')
+        if len(val) > 1:
+            raise ValueError('There is more than one.')
+        return val[0]
+
+    def interfaces_info(self, intf=None, **kwargs):
+        '''Return the list of dictionary-like objects for all interfaces on the
+        (virtual) system having the specified attributes (or all interfaces, if
+        intf and kwargs are empty).'''
+
+        if intf is not None:
+            kwargs['ifname'] = intf
+        return [obj for obj in
+                self._ndb.interfaces.dump().filter(**kwargs)]
+
+    def interface_info_single(self, intf):
+        '''Return the dictionary-like object correponding to the interface with
+        the specified interface name, or None, if that interface doesn't
+        exist.'''
+
+        try:
+            return self.interfaces_info(intf)[0]
+        except IndexError:
+            return None
+
+    def physical_interfaces_info(self, **kwargs):
+        '''Return the list of dictionary-like objects for all "physical"
+        (non-VLAN) interfaces on the (virtual) system having the specified
+        attributes (or all interfaces, if kwargs is empty).'''
+
+        if 'kind' in kwargs:
+            del kwargs['kind']
+        return self.interfaces_info(kind='veth', **kwargs)
+
+    def physical_interface_info_single(self):
+        '''Return the dictionary-like object correponding to the one-and-only
+        "physical" (non-VLAN) interface on the (virtual) system.  Raise
+        ValueError if there are no physical interfaces or if there is more than
+        one physical interface.'''
+
+        return self._return_one(self.physical_interfaces_info, (), {})
+
+    def vlan_interfaces_info(self, **kwargs):
+        '''Return the list of dictionary-like objects for all VLAN interfaces
+        on the (virtual) system having the specified attributes (or all
+        interfaces, if kwargs is empty).'''
+
+        if 'kind' in kwargs:
+            del kwargs['kind']
+        return self.interfaces_info(kind='vlan', **kwargs)
+
+    def interfaces(self, **kwargs):
+        '''Return the list of interface names for all interfaces on the
+        (virtual) system having the specified attributes (or all interfaces, if
+        kwargs is empty).'''
+
+        return [i['ifname'] for i in self.interfaces_info(**kwargs)]
+
+    def physical_interfaces(self, **kwargs):
+        '''Return the list of interface names for all "physical" (non-VLAN)
+        interfaces on the (virtual) system having the specified attributes (or
+        all interfaces, if kwargs is empty).'''
+
+        return [i['ifname'] for i in self.physical_interfaces_info(**kwargs)]
+
+    def physical_interface_single(self):
+        '''Return the interface name correponding to the one-and-only
+        "physical" (non-VLAN) interface on the (virtual) system.  Raise
+        ValueError if there are no physical interfaces or if there is more than
+        one physical interface.'''
+
+        return self._return_one(self.physical_interfaces, (), {})
+
+    def vlan_interfaces(self, **kwargs):
+        '''Return the list of interface names for all VLAN interfaces on the
+        (virtual) system having the specified attributes (or all interfaces, if
+        kwargs is empty).'''
+
+        return [i['ifname'] for i in self.vlan_interfaces_info(**kwargs)]
+
+    def addresses_info(self, intf=None, **kwargs):
+        '''Return the list of dictionary-like objects for all IP addresses on
+        the (virtual) system having the specified attributes (or all IP
+        addresses, if intf and kwargs are empty).'''
+
+        if intf is None:
+            q = self._ndb.addresses
+        else:
+            q = self._ndb.interfaces[intf].ipaddr
+        return [obj for obj in q.dump().filter(**kwargs)]
+
+    def ipv4_addresses_info(self, intf=None, **kwargs):
+        '''Return the list of dictionary-like objects for all IPv4 addresses on
+        the (virtual) system having the specified attributes (or all IPv4
+        addresses, if intf and kwargs are empty).'''
+
+        if 'family' in kwargs:
+            del kwargs['family']
+        return self.addresses_info(intf=intf, family=socket.AF_INET, **kwargs)
+
+    def ipv6_addresses_info(self, intf=None, **kwargs):
+        '''Return the list of dictionary-like objects for all IPv6 addresses on
+        the (virtual) system having the specified attributes (or all IPv6
+        addresses, if intf and kwargs are empty).'''
+
+        if 'family' in kwargs:
+            del kwargs['family']
+        return self.addresses_info(intf=intf, family=socket.AF_INET6, **kwargs)
+
+    def ipv4_address_info_single(self, intf):
+        '''Return the dictionary-like object for the one-and-only IPv4 address
+        for the specified interface.  Raise ValueError if there are no IPv4
+        addresses on the specified interface or if there is more than one IPv4
+        address on that interface.'''
+
+        return self._return_one(self.ipv4_addresses_info, (intf,), {})
+
+    def ipv6_address_info_single(self, intf):
+        '''Return the dictionary-like object for the one-and-only IPv6 address
+        for the specified interface.  Raise ValueError if there are no IPv6
+        addresses on the specified interface or if there is more than one IPv6
+        address on that interface.'''
+
+        return self._return_one(self.ipv6_addresses_info, (intf,), {})
+
+    def addresses(self, intf=None, **kwargs):
+        '''Return the list of IP addresses on the (virtual) system having the
+        specified attributes (or all IP addresses, if intf and kwargs are
+        empty).'''
+
+        return [a['address'] for a in self.addresses_info(intf=intf, **kwargs)]
+
+    def ipv4_addresses(self, intf=None, **kwargs):
+        '''Return the list of IPv4 addresses on the (virtual) system having the
+        specified attributes (or all IPv4 addresses, if intf and kwargs are
+        empty).'''
+
+        return [a['address'] for a in
+                self.ipv4_addresses_info(intf=intf, **kwargs)]
+
+    def ipv6_addresses(self, intf=None, **kwargs):
+        '''Return the list of IPv6 addresses on the (virtual) system having the
+        specified attributes (or all IPv6 addresses, if intf and kwargs are
+        empty).'''
+
+        return [a['address'] for a in
+                self.ipv6_addresses_info(intf=intf, **kwargs)]
+
+    def ipv4_address_single(self, intf):
+        '''Return the one-and-only IPv4 address for the specified interface.
+        Raise ValueError if there are no IPv4 addresses on the specified
+        interface or if there is more than one IPv4 address on that
+        interface.'''
+
+        return self._return_one(self.ipv4_addresses, (intf,), {})
+
+    def ipv6_address_single(self, intf):
+        '''Return the one-and-only IPv6 address for the specified interface.
+        Raise ValueError if there are no IPv6 addresses on the specified
+        interface or if there is more than one IPv6 address on that
+        interface.'''
+
+        return self._return_one(self.ipv6_addresses, (intf,), {})
 
     def _setup_sockets_raw(self):
         '''Create and configure a raw socket for send/recv on each
         interface.'''
 
         loop = asyncio.get_event_loop()
-        for intf in self.physical_interfaces:
-
+        for intf in self.physical_interfaces():
             sock = socket.socket(socket.AF_PACKET,
                                  socket.SOCK_RAW, socket.htons(ETH_P_ALL))
             sock.bind((intf, 0))
@@ -155,7 +307,7 @@ class BaseHost:
         int_sock_mapping = json.loads(os.environ['COUGARNET_INT_TO_SOCK'])
 
         loop = asyncio.get_event_loop()
-        for intf in self.physical_interfaces:
+        for intf in self.physical_interfaces():
 
             sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM, 0)
             sock.connect(int_sock_mapping[intf]['remote'])
@@ -167,64 +319,11 @@ class BaseHost:
             self.int_to_sock[intf] = sock
             self._pending_frames[intf] = []
 
-    @classmethod
-    def _get_interface_info(cls, intf):
-        '''Retrieve the information for a given interface (i.e., using the "ip
-        addr" command), instantiate an InterfaceInfo object, and return it.'''
-
-        mac_addr = None
-        mtu = None
-        ipv4_prefix_len = None
-        ipv4_broadcast = None
-        ipv4_addrs = []
-        ipv6_prefix_len = None
-        ipv6_addrs = []
-        ipv6_addr_link_local = None
-        p = subprocess.run(['ip', 'addr', 'show', intf],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-                check=True)
-        output = p.stdout.decode('utf-8')
-        for line in output.splitlines():
-            m = IP_ADDR_MAC_RE.match(line)
-            if m is not None:
-                # MAC address
-                mac_addr = m.group(1)
-                continue
-
-            m = IP_ADDR_IPV4_RE.match(line)
-            if m is not None:
-                # IPv4 address
-                ipv4_addrs.append(m.group(1))
-                ipv4_prefix_len = int(m.group(3))
-                ipv4_broadcast = m.group(4)
-                continue
-
-            m = IP_ADDR_IPV6_RE.match(line)
-            if m is not None:
-                # IPv6 address
-                if m.group(3) == 'global':
-                    # IPv6 global address
-                    ipv6_addrs.append(m.group(1))
-                    ipv6_prefix_len = int(m.group(2))
-                elif m.group(3) == 'link':
-                    # IPv6 link-local address
-                    ipv6_addr_link_local = m.group(1)
-                continue
-
-            m = IP_ADDR_MTU_RE.match(line)
-            if m is not None:
-                mtu = int(m.group(1))
-
-        return InterfaceInfo(mac_addr, ipv4_addrs, ipv4_prefix_len,
-                        ipv6_addrs, ipv6_addr_link_local, ipv6_prefix_len, mtu)
-
-    def _is_trunk_link(self, intf):
+    def is_trunk_link(self, intf):
         '''Return True if the given interface is on a trunk link; False
         otherwise.'''
 
-        return self.int_to_info[intf].vlan is not None and \
-                self.int_to_info[intf].vlan < 0
+        return self.int_to_vlan[intf] < 0
 
     def _handle_frame(self, frame, intf):
         '''Handle an incoming frame (bytes) received on the given interface
@@ -258,55 +357,43 @@ class BaseHost:
                 continue
             self._handle_frame(frame, intf)
 
-    def _set_interface_info(self):
-        '''Populate the information for each interface by calling
-        self._get_interface_info() on each.'''
-
-        for intf in self.all_interfaces:
-            self.int_to_info[intf] = self._get_interface_info(intf)
-
     def _set_vlan_info(self):
         '''Set the VLAN for each interface by using the environment variable
         set by cougarnet.'''
 
         info = json.loads(os.environ.get('COUGARNET_VLAN', '{}'))
 
-        if info:
-            non_vlan_interfaces = set(self.physical_interfaces)
-            interfaces_from_env = set(info)
+        physical_interfaces = self.physical_interfaces()
+        if not info:
+            for intf in physical_interfaces:
+                info[intf] = 'vlan0'
 
-            # Sanity check
-            if non_vlan_interfaces.difference(interfaces_from_env):
-                raise ValueError('Not all interfaces from /sys/class/net ' + \
-                        'exist in COUGARNET_VLAN!')
-            if interfaces_from_env.difference(non_vlan_interfaces):
-                raise ValueError('Not all interfaces in COUGARNET_VLAN ' + \
-                        'exist in /sys/class/net!')
+        non_vlan_interfaces = set(physical_interfaces)
+        interfaces_from_env = set(info)
 
-            for intf in info:
-                if info[intf].startswith('vlan'):
-                    self.int_to_info[intf].vlan = \
-                            int(info[intf].replace('vlan', ''))
-                elif info[intf] == 'trunk':
-                    self.int_to_info[intf].vlan = -1
-        else:
-            for intf in self.int_to_info:
-                self.int_to_info[intf].vlan = 0
+        # Sanity check
+        if non_vlan_interfaces.difference(interfaces_from_env):
+            raise ValueError('Not all interfaces from NDB ' +
+                             'exist in COUGARNET_VLAN!')
+        if interfaces_from_env.difference(non_vlan_interfaces):
+            raise ValueError('Not all interfaces in COUGARNET_VLAN ' +
+                             'exist in NDB!')
 
-    def get_interface(self):
-        '''Get the name of the single interface associated with this host.
-        Note that this is meant to be used as a convenience method for systems
-        with a single interface.'''
+        for intf in info:
+            if info[intf].startswith('vlan'):
+                vlan = int(info[intf].replace('vlan', ''))
+            elif info[intf] == 'trunk':
+                vlan = -1
+            else:
+                raise ValueError('Invalid value for VLAN: %s' % info[intf])
+            self.int_to_vlan[intf] = vlan
+            if vlan not in self.vlan_to_int:
+                self.vlan_to_int[vlan] = []
+            self.vlan_to_int[vlan].append(intf)
 
-        #XXX this should probably be renamed to get_physical_interface
-
-        if len(self.physical_interfaces) > 1:
-            raise ValueError('There is more than one interface on ' + \
-                    f'{self.hostname}')
-        try:
-            return self.physical_interfaces[0]
-        except IndexError:
-            return None
+    @property
+    def trunk_links(self):
+        return self.vlan_to_int[-1]
 
     def send_frame(self, frame, intf):
         '''Send a single frame (bytes) on the given interface, intf (str).'''
