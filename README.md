@@ -889,7 +889,7 @@ interface.
  - Address Objects.  Each address object contains meta information about a
    given IP address on the system.  Among the useful attributes are the
    following:
-   - `ifname` - the name of the interface on which the IP address is
+   - `label` - the name of the interface on which the IP address is
      configured.
    - `address` - the string representation of the IP address.
    - `family` - the address family of the IP address.
