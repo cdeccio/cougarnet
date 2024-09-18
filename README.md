@@ -1008,7 +1008,7 @@ from cougarnet.sim.host import BaseHost
 
 class Hub(BaseHost):
     def _handle_frame(self, frame: bytes, intf: str) -> None:
-        for myint in self.physical_interfaces:
+        for myint in self.physical_interfaces():
             if intf != myint:
                 self.send_frame(frame, myint)
 
