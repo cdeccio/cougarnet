@@ -940,10 +940,10 @@ the host:
  - `addresses(intf=None)` - Returns the list of IP addresses on the (virtual)
    system having the specified attributes, and optionally for only the
    interface with name `intf`.
- - `ipv4_addresses(intf)` - Returns the list of IPv4 addresses on the (virtual)
+ - `ipv4_addresses(intf=None)` - Returns the list of IPv4 addresses on the (virtual)
    system having the specified attributes, and optionally for only the
    interface with name `intf`.
- - `ipv6_addresses(intf)` - Returns the list of IPv6 addresses on the (virtual)
+ - `ipv6_addresses(intf=None)` - Returns the list of IPv6 addresses on the (virtual)
    system having the specified attributes, and optionally for only the
    interface with name `intf`.
  - `ipv4_address_single(intf)` - Returns the one-and-only IPv4 address for the
