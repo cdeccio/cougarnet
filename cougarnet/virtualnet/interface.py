@@ -23,10 +23,9 @@ class InterfaceConfigBase:
     '''Base class for configuration information for a network interface
     associated with a virtual host.'''
 
-    def __init__(self, name, mac_addr=None, ipv4_addrs=None, ipv6_addrs=None):
+    def __init__(self, name, ipv4_addrs=None, ipv6_addrs=None):
 
         self.name = name
-        self.mac_addr = mac_addr
         if ipv4_addrs is not None:
             self.ipv4_addrs = ipv4_addrs[:]
         else:
@@ -36,11 +35,9 @@ class InterfaceConfigBase:
         else:
             self.ipv6_addrs = []
 
-    def update(self, mac_addr=None, ipv4_addrs=None, ipv6_addrs=None):
+    def update(self, ipv4_addrs=None, ipv6_addrs=None):
         '''Update attributes with those specified.'''
 
-        if mac_addr is not None:
-            self.mac_addr = mac_addr
         if ipv4_addrs is not None:
             self.ipv4_addrs = ipv4_addrs[:]
         if ipv6_addrs is not None:
@@ -51,12 +48,39 @@ class InterfaceConfigBase:
         network interface instance.'''
 
         return {
-                'mac_addr': self.mac_addr,
                 'ipv4_addrs': self.ipv4_addrs,
                 'ipv6_addrs': self.ipv6_addrs,
                 }
 
-class PhysicalInterfaceConfig(InterfaceConfigBase):
+class LoopbackInterfaceConfig(InterfaceConfigBase):
+    pass
+
+class InterfaceWithMacAddrConfig(InterfaceConfigBase):
+    '''Class for configuration information for a network interface that has a
+    MAC address.'''
+
+    def __init__(self, name, mac_addr=None, ipv4_addrs=None, ipv6_addrs=None):
+
+        super().__init__(name, ipv4_addrs, ipv6_addrs)
+
+        self.mac_addr = mac_addr
+
+    def update(self, mac_addr=None, ipv4_addrs=None, ipv6_addrs=None):
+        '''Update attributes with those specified.'''
+
+        if mac_addr is not None:
+            self.mac_addr = mac_addr
+        super().update(ipv4_addrs, ipv6_addrs)
+
+    def as_dict(self):
+        '''Return a dictionary containing the attributes associated with this
+        network interface instance.'''
+
+        d = super().as_dict()
+        d['mac_addr'] = self.mac_addr
+        return d
+
+class PhysicalInterfaceConfig(InterfaceWithMacAddrConfig):
     '''Configuration information for a "physical" network interface associated
     with a virtual host.'''
 
@@ -94,7 +118,7 @@ class PhysicalInterfaceConfig(InterfaceConfigBase):
             d[attr] = getattr(self, attr)
         return d
 
-class VirtualInterfaceConfig(InterfaceConfigBase):
+class VirtualInterfaceConfig(InterfaceWithMacAddrConfig):
     '''Configuration information for a virtual network interface associated
     with a virtual host, i.e., for a VLAN.'''
 
