@@ -81,15 +81,6 @@ class HostConfig:
         self.neighbor_by_hostname = {}
         self.helper_sock_pair_by_int = {}
 
-        self.type = 'host'
-        self.native_apps = True
-        self.terminal = True
-        self.prog = None
-        self.prog_window = None
-        self.ipv6 = True
-        self.routes = None
-        self.routers = []
-
         for attr in self.__class__.attrs:
             setattr(self, attr, kwargs.get(attr, self.__class__.attrs[attr]))
 
