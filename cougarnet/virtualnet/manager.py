@@ -237,6 +237,12 @@ class VirtualNetwork:
             raise ConfigurationError('Invalid VLAN format.')
 
         vlan, host_peer_addr = parts
+        try:
+            vlan = int(vlan)
+        except ValueError:
+            raise ConfigurationError('VLAN value must be an integer.') \
+                    from None
+
         parts = host_peer_addr.split(',')
 
         if len(parts) < 2:
