@@ -329,6 +329,14 @@ class SysCmdHelper:
         return self._run_cmd_netns_or_not(cmd, intf)
 
     @require_netns
+    def set_lo_ip_addr(self, pid, addr):
+        '''Associate an IP address with the loopback interface, and return the
+        result.'''
+
+        cmd = ['ip', 'addr', 'add', addr, 'dev', 'lo']
+        return self._run_cmd_netns(cmd, pid)
+
+    @require_netns
     def set_lo_up(self, pid):
         '''Bring up the lo interface in the namespace associated with pid, and
         return the result.'''

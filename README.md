@@ -495,6 +495,11 @@ host option names are the following, accompanied by the expected value:
    `host`, `switch`, `router`.  Default: `host`. See [VLAN
    Attributes](#vlan-attributes) and [Routes](#routes) for more information on
    behavior specific to switches and routers, respectively.
+ - `loopback_addrs`: semi-colon-delimited list of IP addresses that will be
+   applied to the loopback interface.  For example, the following would start
+   add the addresses `192.0.2.1` and `2001:db8::1` to the loopback interface:
+   `192.0.2.1;2001:db8::1`.  Default: only `127.0.0.1` and (if IPv6 is enabled)
+   `::1`.
  - `routes`: a string containing one or more IP forwarding rules for the host.
    Each route consists of a three-tuple specifying IP prefix, outgoing
    interface (designated by neighboring node on that interface), and next hop

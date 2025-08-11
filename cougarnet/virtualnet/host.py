@@ -19,6 +19,7 @@
 '''Classes and functions for maintaining network configurations for virtual
 hosts.'''
 
+import ipaddress
 import json
 import logging
 import os
@@ -33,7 +34,8 @@ from cougarnet.sys_helper.cmd_helper import sys_cmd
 from cougarnet import util
 
 from .cmd import run_cmd
-from .interface import PhysicalInterfaceConfig, VirtualInterfaceConfig
+from .interface import LoopbackInterfaceConfig, \
+        PhysicalInterfaceConfig, VirtualInterfaceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +50,7 @@ class HostConfig:
             'ipv6': True,
             'routes': None,
             'routers': None,
+            'loopback_addrs': None,
             }
 
     def __init__(self, hostname, hostdir, bash_history, vtysh_history,
@@ -105,6 +108,17 @@ class HostConfig:
             if router not in ALLOWED_ROUTERS:
                 raise ConfigurationError(
                         f'{router} is not an allowed router.')
+
+        loopback_addrs = []
+        if self.loopback_addrs is not None:
+            for loopback_addr in self.loopback_addrs.split(';'):
+                try:
+                    ipaddress.ip_address(loopback_addr)
+                except ValueError:
+                    raise ConfigurationError(
+                            f'Invalid IP Address: {loopback_addr}')
+                loopback_addrs.append(loopback_addr)
+        self.loopback_addrs = loopback_addrs
 
         if not self.native_apps or \
                 str(self.native_apps).lower() in FALSE_STRINGS:
@@ -222,6 +236,13 @@ class HostConfig:
         int_infos = {}
         for intf in self.neighbor_by_int:
             int_infos[intf.name] = intf.as_dict()
+        if self.loopback_addrs:
+            ipv4_addrs = [addr for addr in self.loopback_addrs if \
+                    ':' not in addr]
+            ipv6_addrs = [addr for addr in self.loopback_addrs if \
+                    ':' in addr]
+            loopback = LoopbackInterfaceConfig('lo', ipv4_addrs, ipv6_addrs)
+            int_infos['lo'] = loopback.as_dict()
         for vlan in self.int_by_vlan:
             intf = self.int_by_vlan[vlan]
             int_infos[intf.name] = intf.as_dict()

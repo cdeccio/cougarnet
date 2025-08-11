@@ -71,7 +71,24 @@ def _apply_config(info, env):
     cmd = ['set_lo_up', pid]
     sys_cmd(cmd, check=True)
 
-    for intf in info.get('interfaces', []):
+    # handle addressing of loopback interface
+    intf = 'lo'
+    if intf in info.get('interfaces', {}):
+        int_info = info['interfaces'][intf]
+
+        # add each IP address
+        addrs = int_info.get('ipv4_addrs', [])[:]
+        if info.get('ipv6', True):
+            addrs += int_info.get('ipv6_addrs', [])
+        for addr in addrs:
+            cmd = ['set_lo_ip_addr', pid, addr]
+            sys_cmd(cmd, check=True)
+
+    for intf in info.get('interfaces', {}):
+        if intf == 'lo':
+            # We handled loopback previously
+            continue
+
         int_info = info['interfaces'][intf]
         if int_info.get('mac_addr', None):
             # set MAC address, if specified
