@@ -137,7 +137,7 @@ def main():
             action='store', type=str,
             help='Path to directory containing the sockets on the user side')
     parser.add_argument('int_sock_mapping',
-            action='store', type=str, nargs='+',
+            action='store', type=str, nargs='*',
             help='Interface-to-socket mapping ' + \
                     '(int=sock:sock[,int=sock:sock,...])')
 
