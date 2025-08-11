@@ -200,19 +200,19 @@ class VirtualNetwork:
                                     'cannot be the same.')
         if subnet41 is not None and subnet42 is not None and \
                 subnet41 != subnet42:
-            raise ConfigurationError('The IPv4 addresses for ' +
+            raise ConfigurationError('The IPv4 subnet for the link between ' +
                                      f'{host1.hostname} and ' +
                                      f'{host2.hostname} ' +
-                                    'cannot be the same.')
+                                    'must be the same.')
         if set(addrs61).intersection(set(addrs62)):
             raise ConfigurationError('The IPv6 addresses for ' + \
                     f'{host1.hostname} and {host2.hostname} ' + \
                     'cannot be the same.')
         if subnet61 is not None and subnet62 is not None and \
                 subnet61 != subnet62:
-            raise ConfigurationError('The IPv6 addresses for ' + \
+            raise ConfigurationError('The IPv6 subnet for the link between ' + \
                     f'{host1.hostname} and {host2.hostname} ' + \
-                    'must be in the same subnet.')
+                    'must be the same.')
 
         if len(parts) > 2:
             s = io.StringIO(parts[2])
