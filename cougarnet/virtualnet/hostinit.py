@@ -162,6 +162,11 @@ def _apply_config(info, env):
             cmd = ['add_route', pid, prefix, intf, next_hop]
             sys_cmd(cmd, check=True)
 
+    # allow ping for non-privileged users by setting ping_group_range
+    cmd = ['enable_ping', pid]
+    sys_cmd(cmd, check=True)
+
+
 def close_file_descriptors(exceptions):
     '''Close all open file descriptors except those specified.'''
 

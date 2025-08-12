@@ -569,6 +569,14 @@ class SysCmdHelper:
         cmd = ['sysctl', f'net/ipv6/conf/{intf}/router_solicitations=0']
         return self._run_cmd_netns_or_not(cmd, intf)
 
+    @require_netns
+    def enable_ping(self, pid):
+        '''Enable ping with ICMP by non-privileged users, and return the
+        result.'''
+
+        cmd = ['sysctl', 'net.ipv4.ping_group_range=0 2147483647']
+        return self._run_cmd_netns(cmd, pid)
+
     def unshare_hostinit(self, hostname, net, config_file):
         '''Run the hostinit module in a namespace that we have created, and
         return the result.'''
