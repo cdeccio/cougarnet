@@ -160,7 +160,8 @@ def main():
                 'then the --uid and --gid options must be used.\n')
         sys.exit(1)
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
+
 
     # exit as soon stdin is closed
     # (an indicator from our parent that we should terminate)
