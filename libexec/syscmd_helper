@@ -35,8 +35,6 @@ from cougarnet.sys_helper.cmd_helper.cmd_helper import SysCmdHelper
 
 FRR_GROUP = 'frr'
 
-logger = logging.getLogger()
-
 
 def _raise_int():
     raise KeyboardInterrupt()
@@ -116,16 +114,16 @@ def main():
     asyncio_logger.setLevel(logging.ERROR)
 
     # configure logging
-    logger.setLevel(logging.NOTSET)
-    handlers = []
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.NOTSET)
 
+    h = logging.StreamHandler()
+    h.setFormatter(logging.Formatter(fmt=LOG_FORMAT))
     if args.verbose:
-        handlers.append(logging.StreamHandler())
-
-    for handler in handlers:
-        handler.setFormatter(logging.Formatter(fmt=LOG_FORMAT))
-        handler.setLevel(logging.DEBUG)
-        logger.addHandler(handler)
+        h.setLevel(logging.DEBUG)
+    else:
+        h.setLevel(logging.INFO)
+    root_logger.addHandler(h)
 
     # make sure we are running as root
     if os.geteuid() != 0:

@@ -119,13 +119,16 @@ def main():
     args = parser.parse_args(sys.argv[1:])
 
     # configure logging
-    logger.setLevel(logging.NOTSET)
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.NOTSET)
 
+    h = logging.StreamHandler()
+    h.setFormatter(logging.Formatter(fmt=LOG_FORMAT))
     if args.verbose:
-        h = logging.StreamHandler()
         h.setLevel(logging.DEBUG)
-        h.setFormatter(logging.Formatter(fmt=LOG_FORMAT))
-        logger.addHandler(h)
+    else:
+        h.setLevel(logging.INFO)
+    root_logger.addHandler(h)
 
     check_requirements(args)
 
