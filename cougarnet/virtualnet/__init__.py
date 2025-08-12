@@ -8,11 +8,8 @@ import tempfile
 
 from cougarnet.errors import *
 from cougarnet.globals import *
-from cougarnet.sys_helper.cmd_helper.manager import SYSCMD_HELPER_SCRIPT
 
 from .manager import VirtualNetwork
-
-SYSCMD_HELPER_SCRIPT
 
 
 logger = logging.getLogger(__name__)
@@ -27,16 +24,7 @@ def check_requirements(args):
         sys.stderr.write('Please run this program as a non-privileged user.\n')
         sys.exit(1)
 
-    try:
-        subprocess.run(['sudo', '-k'], check=True)
-        subprocess.run(['sudo', '-n', SYSCMD_HELPER_SCRIPT, '-h'],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT, check=True)
-    except subprocess.CalledProcessError as e:
-        sys.stderr.write('Please run visudo to allow your user to run ' + \
-                f'{SYSCMD_HELPER_SCRIPT} without a password, using the ' + \
-                'NOPASSWD option.\n')
-        sys.exit(1)
+    subprocess.run(['sudo', '-v'], check=True)
 
     # make sure working directories exist
     cmd = ['mkdir', '-p', TMPDIR]
