@@ -47,10 +47,7 @@ from .interface import PhysicalInterfaceConfig
 
 MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
 
-# XXX this should really be logging.getLogger(__name__), and it should be in
-# bin/cougarnet instead
-logger = logging.getLogger()
-
+logger = logging.getLogger(__name__)
 
 def sort_addresses(addrs):
     '''Sort a list of addresses into MAC address, IPv4 addresses, and IPv6
