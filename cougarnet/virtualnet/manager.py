@@ -1030,13 +1030,12 @@ def main():
     args = parser.parse_args(sys.argv[1:])
 
     # configure logging
-    FORMAT = '%(message)s'
     logger.setLevel(logging.NOTSET)
 
     if args.verbose:
         h = logging.StreamHandler()
         h.setLevel(logging.DEBUG)
-        h.setFormatter(logging.Formatter(fmt=FORMAT))
+        h.setFormatter(logging.Formatter(fmt=LOG_FORMAT))
         logger.addHandler(h)
 
     check_requirements(args)

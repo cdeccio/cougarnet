@@ -30,6 +30,7 @@ import socket
 import subprocess
 import sys
 
+from cougarnet.globals import *
 from cougarnet.sys_helper.cmd_helper.cmd_helper import SysCmdHelper
 
 FRR_GROUP = 'frr'
@@ -115,7 +116,6 @@ def main():
     asyncio_logger.setLevel(logging.ERROR)
 
     # configure logging
-    FORMAT = f'%(message)s'
     logger.setLevel(logging.NOTSET)
     handlers = []
 
@@ -123,7 +123,7 @@ def main():
         handlers.append(logging.StreamHandler())
 
     for handler in handlers:
-        handler.setFormatter(logging.Formatter(fmt=FORMAT))
+        handler.setFormatter(logging.Formatter(fmt=LOG_FORMAT))
         handler.setLevel(logging.DEBUG)
         logger.addHandler(handler)
 

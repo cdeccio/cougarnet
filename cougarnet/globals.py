@@ -54,6 +54,8 @@ RUN_NETNS_DIR = '/run/netns/'
 # Other options
 ######################
 
+LOG_FORMAT = '%(levelname)s: (%(name)s) %(message)s'
+
 VIRT_HOST_STARTUP_TIMEOUT = 6
 FALSE_STRINGS = ('off', 'no', 'n', 'false', 'f', '0')
 
