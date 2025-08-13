@@ -76,8 +76,15 @@ allowed to call it.
 
 Additionally, `sudo` should be configured such that your user can run the
 cougarnet support script `/usr/libexec/cougarnet/syscmd_helper` as a privileged
-user without requiring a password (i.e., with the `NOPASSWD` option).  For
-example, your `/etc/sudoers` file might contain the following:
+user.  For example, your `/etc/sudoers` file might contain the following to
+allow users in the `cougarnet` group to run the script:
+
+```sudoers
+%cougarnet  ALL=(ALL:ALL) /usr/libexec/cougarnet/syscmd_helper
+```
+
+You might also consider making the script available without requiring a
+password (i.e., with the `NOPASSWD` option).
 
 ```sudoers
 %cougarnet  ALL=(ALL:ALL) NOPASSWD: /usr/libexec/cougarnet/syscmd_helper
@@ -87,13 +94,19 @@ To install Cougarnet, run the following:
 
 ```bash
 $ python3 setup.py build
-$ sudo python3 setup.py install
+$ sudo pip3 install --break-system-packages .
 ```
+
+Note that using `sudo pip3 install --break-system-packages` is
+[not recommended](#https://packaging.python.org/en/latest/tutorials/installing-packages/),
+but due to the complexity of this package, it is the best option at the moment.
+In the future, a more effective installation will be found.
 
 
 # Working Examples
 
-This section provides four examples of Cougarnet usage.
+This section provides five examples of Cougarnet usage.  Note that files for
+all the examples are found in the [examples directory](examples/).
 
 
 ## Two Hosts, Directly Connected
