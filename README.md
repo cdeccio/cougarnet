@@ -58,16 +58,17 @@ The following are dependencies for Cougarnet:
  - [FRRouting](https://frrouting.org/)
  - [tmux](https://github.com/tmux/tmux/)
  - [pyroute2](https://pyroute2.org/)
+ - [iptables](https://www.netfilter.org/projects/iptables/index.html)
  - [LXTerminal](https://wiki.lxde.org/en/LXTerminal)
- - [PyGraphviz](https://pygraphviz.github.io/)
- - [Graph::Easy](https://metacpan.org/pod/Graph::Easy)
+ - [PyGraphviz](https://pygraphviz.github.io/) (optional)
+ - [Graph::Easy](https://metacpan.org/pod/Graph::Easy) (optional)
  - [Wireshark](https://www.wireshark.org/) - (optional, but recommended)
  - [socat](http://www.dest-unreach.org/socat/) - (used only in examples in the documentation)
 
 To install these on a Debian system, run the following:
 
 ```bash
-$ sudo apt install openvswitch-switch frr tmux python3-pyroute2 lxterminal python3-pygraphviz libgraph-easy-perl wireshark socat
+$ sudo apt install openvswitch-switch frr tmux python3-pyroute2 iptables lxterminal python3-pygraphviz libgraph-easy-perl wireshark socat
 ```
 
 Of course, this assumes that you already have `sudo` installed and that your user is
