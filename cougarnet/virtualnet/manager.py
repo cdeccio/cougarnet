@@ -109,11 +109,12 @@ def sort_addresses(addrs):
 class VirtualNetwork:
     '''The class that creates and manages a Cougarnet Virtual network.'''
 
-    def __init__(self, terminal_hosts, tmpdir, ipv6, verbose):
+    def __init__(self, terminal_hosts, cwd, tmpdir, ipv6, verbose):
         self.host_by_name = {}
         self.hostname_by_sock = {}
         self.hosts_common_file = None
         self.terminal_hosts = terminal_hosts
+        self.cwd = cwd
         self.tmpdir = tmpdir
         self.ipv6 = ipv6
         self.verbose = verbose
@@ -297,7 +298,8 @@ class VirtualNetwork:
         virtual hosts and links, and return the resulting VirtualNetwork
         instance composed of those hosts and links.'''
 
-        net = cls(terminal_hosts, tmpdir, ipv6, verbose)
+        cwd = os.path.split(fh.name)[0]
+        net = cls(terminal_hosts, cwd, tmpdir, ipv6, verbose)
         mode = None
         lineno = 0
         try:
@@ -387,8 +389,8 @@ class VirtualNetwork:
 
         self.hostname_by_sock[comm_sock_file] = hostname
         self.host_by_name[hostname] = \
-                HostConfig(hostname, hostdir, '/dev/null', '/dev/null',
-                           sys_cmd_helper_client, comm_sock_file,
+                HostConfig(hostname, hostdir, self.cwd, '/dev/null',
+                           '/dev/null', sys_cmd_helper_client, comm_sock_file,
                            sys_net_helper_raw_dir, sys_net_helper_user_dir,
                            tmux_file, startup_script_file, pid_file,
                            self.env_file, **attrs)

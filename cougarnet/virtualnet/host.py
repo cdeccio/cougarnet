@@ -53,7 +53,7 @@ class HostConfig:
             'loopback_addrs': None,
             }
 
-    def __init__(self, hostname, hostdir, bash_history, vtysh_history,
+    def __init__(self, hostname, hostdir, cwd, bash_history, vtysh_history,
                  sys_cmd_helper_local, comm_sock_file,
                  sys_net_helper_raw_dir, sys_net_helper_user_dir,
                  tmux_file, startup_script_file, pid_file,
@@ -61,6 +61,7 @@ class HostConfig:
 
         self.hostname = hostname
         self.hostdir = hostdir
+        self.cwd = cwd
         self.bash_history = bash_history
         self.vtysh_history = vtysh_history
         self.sys_cmd_helper_local = sys_cmd_helper_local
@@ -299,6 +300,8 @@ class HostConfig:
                 if self.prog_window == 'background':
                     fh.write(f'    new-window -n "{CMD_WINDOW_NAME}" \\; \\\n')
                 prog = self.prog.replace('|', ' ').replace('"', r'\"')
+                if not os.path.isabs(prog) and self.cwd:
+                    prog = os.path.join(self.cwd, prog)
                 fh.write(f'    send-keys "{ready_cmd}" C-m \\; \\\n')
                 fh.write(f'    send-keys "history -c ; clear" C-m \\; \\\n')
                 fh.write(f'    send-keys "{prog}" C-m \\; \\\n')
