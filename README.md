@@ -197,14 +197,14 @@ h3
 s1 type=switch,terminal=false
 
 LINKS
-h1,10.0.0.1/24 s1
-h2,10.0.0.2/24 s1
-h3,10.0.0.3/24 s1
+h1,fd00::1/64,10.0.0.1/24 s1
+h2,fd00::2/64,10.0.0.2/24 s1
+h3,fd00::2/64,10.0.0.3/24 s1
 ```
 
 This configuration results in a network composed of three hosts, all connected
-to a single switch, `s1`.  Each host has an IP address in the prefix
-10.0.0.0/24 subnet.
+to a single switch, `s1`.  Each host has an IPv4 address in the 10.0.0.0/24
+subnet _and_ an IPv6 address in the fd00::/64 subnet.
 
 Start Cougarnet with this configuration by running the following command:
 
@@ -240,18 +240,28 @@ clicking in the pane in which you would like to focus.
 In one pane of `h1`, enter the following command:
 
 ```bash
-h1$ ping h2
+h1$ ping -4 h2
 ```
 
 While that is running, switch panes, and enter enter the following:
 
 ```bash
-h1$ ping h3
+h1$ ping -4 h3
 ```
 
 You should now see a lot of activity in your Wireshark window!  In particular,
 you should see ICMP (Echo) request and reply packets between `10.0.0.1` (`h1`)
 and `10.0.0.2` (`h2`) and between `10.0.0.1` (`h1`) and `10.0.0.3` (`h3`).
+
+Return to the `h1` pane running the ping to `h2`.  Enter `Ctrl`+`c` to stop the
+pinging.  Restart it without the `-4` option:
+
+```bash
+h1$ ping h2
+```
+
+You should now see IPv6 ICMP traffic between the two hosts, being forwarded by
+your switch.
 
 Now return to the terminal on which you ran the `cougarnet` command, and enter
 `Ctrl`+`c`.  Then close Wireshark.
