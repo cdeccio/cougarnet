@@ -276,9 +276,9 @@ information on the [`native_apps` attribute](#additional-options) and the
 [`prog` attribute](#running-programs) is found later in this document.
 
 Create a new file called `hub.py` the same directory as
-`three-node-switch-custom.cfg`, with the contents found in the section on
-[sending and receiving Ethernet frames](#sending-and-receiving-frames).
-Make `hub.py` executable with the following command:
+`three-node-switch-custom.cfg`, with the contents found
+[later in this document](#hub-example).  Make `hub.py` executable with the
+following command:
 
 ```bash
 chmod 755 hub.py
@@ -945,6 +945,9 @@ kernel.  pyroute2 calls yields objects associated with IP addresses and network
 interfaces, the attributes of which can be accessed via a dictionary-like
 interface.
 
+
+### pyroute2 API
+
  - Interface Objects.  Each interface object contains meta information about a
    given interface on the system.  Among the useful attributes are the
    following:
@@ -966,6 +969,9 @@ interface.
 For example, `myint['address']` would yield the string representation of the
 MAC address of `myint`, and `myaddr['prefixlen']` would yield the prefix length
 associated with the subnet.
+
+
+### BaseHost API
 
 Here are a list of `BaseHost` methods that might be useful for retrieving
 interface objects, IP address objects, and other information associated with
@@ -1044,7 +1050,10 @@ is received on an interface of the virtual host running the script, the
  - `frame` (type `bytes`) - the frame received; and
  - `intf` (type `str`) - the name of the interface out which it should be sent.
 
-For example, consider the following code:
+
+### Frame Printer Example
+
+Consider the following code:
 
 ```python
 #!/usr/bin/python3
@@ -1064,6 +1073,10 @@ representation of the frame and the name of the interface on which it was
 received is sent to the calling process over the UNIX domain socket set up for
 that purpose, with the `log()` method.  Of course, `_handle_frame()` can be
 overridden to do whatever the developer would like; this is simply an example.
+
+
+### Hub Example
+
 Another example, which is perhaps more practical, is a Hub, which simply
 forwards any frame received out all interfaces except the one on which it was
 received.
@@ -1072,9 +1085,13 @@ received.
 #!/usr/bin/python3
 
 from cougarnet.sim.host import BaseHost
+from cougarnet.util import mac_binary_to_str
 
 class Hub(BaseHost):
     def _handle_frame(self, frame: bytes, intf: str) -> None:
+        print(f'Frame received on {intf} ' + \
+                f'(src: {mac_binary_to_str(frame[6:12])} ' \
+                f'; dst: {mac_binary_to_str(frame[:6])})')
         for myint in self.physical_interfaces():
             if intf != myint:
                 self.send_frame(frame, myint)
