@@ -21,6 +21,7 @@ stack and some that do not.
  - [Working Examples](#working-examples)
    - [Two Hosts, Directly Connected](#two-hosts-directly-connected)
    - [Three Hosts, Connected by a Switch](#three-hosts-connected-by-a-switch)
+   - [Three Hosts, Connected by a Custom Hub](#three-hosts-connected-by-a-custom-hub)
    - [Hosts Connected Across Multiple Switches and Routers](#hosts-connected-across-multiple-switches-and-routers)
    - [Using Routing to Populate Forwarding Tables](#using-routing-to-populate-forwarding-tables)
    - [Hosts from Multiple VLANs Connected with a Switch and Router](#hosts-from-multiple-vlans-connected-with-a-switch-and-router)
@@ -240,6 +241,53 @@ and `10.0.0.2` (`h2`) and between `10.0.0.1` (`h1`) and `10.0.0.3` (`h3`).
 
 Now return to the terminal on which you ran the `cougarnet` command, and enter
 `Ctrl`+`c`.  Then close Wireshark.
+
+
+## Three Hosts, Connected by a Custom Hub
+
+This example is nearly the same as the last one, but with one difference: we
+have replaced the default switch with a hub (i.e., like a switch, but
+broadcasts incoming frames on all interfaces) implemented in a python script,
+`hub.py`.  Copy the file `three-node-switch.cfg` to a new file
+`three-node-switch-custom.cfg`.  Then modify the contents of
+`three-node-switch-custom.cfg`, such that the line for `s1` looks like this:
+
+```
+s1 type=switch,native_apps=false,prog=hub.py
+```
+
+Note that `s1` is no longer using the native stack (`native_apps=false`), and a
+program is designated to run (`prog=hub.py`) on `s1` once it is started.  More
+information on the [`native_apps` attribute](#additional-options) and the
+[`prog` attribute](#running-programs) is found later in this document.
+
+Create a new file called `hub.py` the same directory as
+`three-node-switch-custom.cfg`, with the contents found in the section on
+[sending and receiving Ethernet frames](#sending-and-receiving-frames).
+Make `hub.py` executable with the following command:
+
+```bash
+chmod 755 hub.py
+```
+
+Start Cougarnet with this configuration by running the following command:
+
+```bash
+$ cougarnet three-node-switch-custom.cfg
+```
+
+When it starts up, it will launch four new terminals, including one for `s1`.
+In one pane of `h1`, enter the following command:
+
+```bash
+h1$ ping h2
+```
+
+You should see successful responses to your pings in the window.  That means
+the frames are successfully being forwarded by the code in `hub.py`.
+
+Now return to the terminal on which you ran the `cougarnet` command, and enter
+`Ctrl`+`c`.
 
 
 ## Hosts Connected Across Multiple Switches and Routers
