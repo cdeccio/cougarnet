@@ -20,6 +20,7 @@
 Various utility functions for the cmd_helper module.
 '''
 
+import logging
 import os
 import subprocess
 import sys
@@ -30,6 +31,8 @@ from cougarnet.util import csv_str_to_list
 from .manager import SysCmdHelperManager, SysCmdHelperManagerStarted
 
 sys_cmd_helper = None
+
+logger = logging.getLogger(__name__)
 
 
 def start_sys_cmd_helper(remote_sock_path, local_sock_path, verbose):
@@ -97,7 +100,7 @@ def sys_cmd(cmd, check=False):
         "sys_cmd_helper must be initialized before sys_cmd() can be called"
 
     status = sys_cmd_helper.cmd(cmd).strip()
-    if not status.startswith('0,') and check:
+    if not status.startswith('0,'):
         row = csv_str_to_list(status)
         try:
             exit_code = int(row[0])
@@ -113,10 +116,16 @@ def sys_cmd(cmd, check=False):
             err = ''
         if not cmd_str:
             cmd_str = ' '.join(cmd)
-            raise CommandPrereqError('Unable to execute command ' +
-                                     f'"{cmd_str}": {err}')
+            if check:
+                raise CommandPrereqError('Unable to execute command ' +
+                                         f'"{cmd_str}": {err}')
+            else:
+                logger.debug('Unable to execute command "{cmd_str}": {err}')
         else:
-            raise CommandExecError(f'Command failed: "{cmd_str}": {err}')
+            if check:
+                raise CommandExecError(f'Command failed: "{cmd_str}": {err}')
+            else:
+                logger.debug(f'Command failed: "{cmd_str}": {err}')
 
 
 def sys_cmd_pid(cmd, check=False):
