@@ -379,29 +379,6 @@ class SysCmdHelper:
         self.netns_exists.add(nspath)
         return val
 
-    def umount_netns(self, ns):
-        '''Unmount the specified mountpoint for a named namespace, and return
-        the result.'''
-
-        nspath = os.path.join(RUN_NETNS_DIR, ns)
-
-        if ns not in self.netns_mounted:
-            return f'9,,Namespace is not mounted: {nspath}'
-
-        cmd = ['umount', nspath]
-        val = val1 = None
-        while True:
-            # umount in a loop because sometimes it is mounted multiple times
-            val1 = self._run_cmd(cmd)
-            if val is None:
-                val = val1
-            if not val1.startswith('0,'):
-                break
-
-        if val.startswith('0,'):
-            self.netns_mounted.remove(ns)
-        return val
-
     def del_netns(self, ns):
         '''Delete the specified mountpoint for a named namespace, and return
         the result.'''
@@ -411,11 +388,12 @@ class SysCmdHelper:
         if nspath not in self.netns_exists:
             return f'9,,Namespace does not exist: {nspath}'
 
-        val = self._unlink(nspath)
-        if not val.startswith('0,'):
-            return val
-
-        self.netns_exists.remove(nspath)
+        # Remove the namespace.  This will unmount any the nspath and remove
+        # the file.
+        cmd = ['ip', 'netns', 'delete', ns]
+        val = self._run_cmd(cmd)
+        if val.startswith('0,'):
+            self.netns_exists.remove(nspath)
         return val
 
     def _getppid(self, pid):

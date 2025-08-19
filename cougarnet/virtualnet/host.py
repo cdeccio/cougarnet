@@ -478,7 +478,6 @@ class HostConfig:
             logger.debug(' '.join(['rm', self.pid_file]))
             os.unlink(self.pid_file)
 
-        sys_cmd(['umount_netns', self.hostname], check=False)
         sys_cmd(['del_netns', self.hostname], check=False)
 
         if self.type == 'switch' and self.native_apps:
