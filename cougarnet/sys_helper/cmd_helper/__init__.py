@@ -120,7 +120,7 @@ def sys_cmd(cmd, check=False):
                 raise CommandPrereqError('Unable to execute command ' +
                                          f'"{cmd_str}": {err}')
             else:
-                logger.debug('Unable to execute command "{cmd_str}": {err}')
+                logger.debug(f'Unable to execute command "{cmd_str}": {err}')
         else:
             if check:
                 raise CommandExecError(f'Command failed: "{cmd_str}": {err}')
