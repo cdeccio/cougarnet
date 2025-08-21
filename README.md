@@ -94,7 +94,7 @@ To install Cougarnet, run the following:
 
 ```bash
 $ python3 setup.py build
-$ sudo pip3 install --break-system-packages .
+$ sudo pip3 install --root-user-action ignore --break-system-packages .
 ```
 
 Note that using `sudo pip3 install --break-system-packages` is
