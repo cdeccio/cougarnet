@@ -74,21 +74,42 @@ $ sudo apt install openvswitch-switch frr tmux python3-pyroute2 iptables lxtermi
 Of course, this assumes that you already have `sudo` installed and that your user is
 allowed to call it.
 
-Additionally, `sudo` should be configured such that your user can run the
-cougarnet support script `/usr/libexec/cougarnet/syscmd_helper` as a privileged
-user.  For example, your `/etc/sudoers` file might contain the following to
-allow users in the `cougarnet` group to run the script:
+Cougarnet uses the script installed at `/usr/libexec/cougarnet/syscmd_helper`
+as a helper script, so it can run a limited set of operations as the root user,
+without giving root privileges to the main Cougarnet process.  It launches that
+script by using `sudo`.  Any users that want to run Cougarnet will need `sudo`
+access to run that one script.  You might consider creating a `cougarnet` group
+and adding those users to the group.  Then you could add a line like the
+following to `/etc/sudoers`:
 
 ```sudoers
 %cougarnet  ALL=(ALL:ALL) /usr/libexec/cougarnet/syscmd_helper
 ```
 
 You might also consider making the script available without requiring a
-password (i.e., with the `NOPASSWD` option).
+password (i.e., with the `NOPASSWD` option):
 
 ```sudoers
 %cougarnet  ALL=(ALL:ALL) NOPASSWD: /usr/libexec/cougarnet/syscmd_helper
 ```
+
+If you intend to use routing with Cougarnet, then you should modify the
+`/etc/frr/daemons` file in the following two ways:
+
+ 1. Modify the line for every routing daemon you intend to use, such that its
+    value is "yes".  For example, to enable RIP, the following line should be
+    present in `/etc/frr/daemons`:
+
+    ```
+    ripd=yes
+    ```
+
+ 2. Modify the value of the `frr_global_options` option, such that it contains
+    "-w".  For example:
+
+    ```
+    frr_global_options="-w"
+    ```
 
 To install Cougarnet, run the following:
 

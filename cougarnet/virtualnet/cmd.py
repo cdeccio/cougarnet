@@ -83,57 +83,6 @@ class CommandWrapper:
                 os.path.join(RUN_NETNS_DIR, hostname)]]
         sys_cmd_with_cleanup(cmd, cleanup_cmds, check=True)
 
-    @classmethod
-    def start_zebra(cls, hostname):
-        '''Call sys_cmd_with_cleanup(['start_zebra', ...]) with the
-        appropriate cleanup commands.'''
-
-        pid_file_path = os.path.join(FRR_RUN_DIR,
-                hostname, FRR_ZEBRA_PID_FILE)
-        conf_file_path = os.path.join(FRR_CONF_DIR,
-                hostname, FRR_ZEBRA_CONF_FILE)
-
-        cmd = ['start_zebra', hostname]
-        cleanup_cmds = [
-                ['sudo', 'pkill', '--signal', 'TERM',
-                    '-F', pid_file_path],
-                ['sudo', 'rm', conf_file_path]]
-        sys_cmd_with_cleanup(cmd, cleanup_cmds, check=True)
-
-    @classmethod
-    def start_ripd(cls, hostname, *ints):
-        '''Call sys_cmd_with_cleanup(['start_ripd', ...]) with the
-        appropriate cleanup commands.'''
-
-        pid_file_path = os.path.join(FRR_RUN_DIR,
-                hostname, FRR_RIPD_PID_FILE)
-        conf_file_path = os.path.join(FRR_CONF_DIR,
-                hostname, FRR_RIPD_CONF_FILE)
-
-        cmd = ['start_ripd', hostname] + [i for i in ints]
-        cleanup_cmds = [
-                ['sudo', 'pkill', '--signal', 'TERM',
-                    '-F', pid_file_path],
-                ['sudo', 'rm', conf_file_path]]
-        sys_cmd_with_cleanup(cmd, cleanup_cmds, check=True)
-
-    @classmethod
-    def start_ripngd(cls, hostname, *ints):
-        '''Call sys_cmd_with_cleanup(['start_ripngd', ...]) with the
-        appropriate cleanup commands.'''
-
-        pid_file_path = os.path.join(FRR_RUN_DIR,
-                hostname, FRR_RIPNGD_PID_FILE)
-        conf_file_path = os.path.join(FRR_CONF_DIR,
-                hostname, FRR_RIPNGD_CONF_FILE)
-
-        cmd = ['start_ripngd', hostname] + [i for i in ints]
-        cleanup_cmds = [
-                ['sudo', 'pkill', '--signal', 'TERM',
-                    '-F', pid_file_path],
-                ['sudo', 'rm', conf_file_path]]
-        sys_cmd_with_cleanup(cmd, cleanup_cmds, check=True)
-
 def run_cmd(cmd, *args):
     '''Call the class method associated with cmd, if there is one; otherwise
     call sys_cmd(['cmd', ...]).'''

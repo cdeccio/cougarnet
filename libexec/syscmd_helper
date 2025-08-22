@@ -21,10 +21,8 @@
 import argparse
 import asyncio
 import atexit
-import grp
 import logging
 import logging.handlers
-import pwd
 import os
 import socket
 import subprocess
@@ -32,8 +30,6 @@ import sys
 
 from cougarnet.globals import *
 from cougarnet.sys_helper.cmd_helper.cmd_helper import SysCmdHelper
-
-FRR_GROUP = 'frr'
 
 
 def _raise_int():
@@ -78,13 +74,6 @@ def _send_byte_to_stdout():
     sys.stdout.buffer.write(b'\x00')
     sys.stdout.close()
 
-def _get_frr_gid():
-    try:
-        grp_entry = grp.getgrnam(FRR_GROUP)
-    except KeyError:
-        return None
-    else:
-        return grp_entry[2]
 
 def main():
     parser = argparse.ArgumentParser()
@@ -96,9 +85,6 @@ def main():
             action='store', type=int,
             help='GID of the unprivileged group that should ' + \
                     'be the target of unshared processes')
-    parser.add_argument('--frr-gid',
-            action='store', type=int,
-            help='GID of the group associated with frr')
     parser.add_argument('--verbose', '-v',
             action='store_const', const=True, default=False,
             help='Use verbose mode')
@@ -142,11 +128,7 @@ def main():
                 'then the --uid and --gid options must be used.\n')
         sys.exit(1)
 
-    frr_gid = _get_frr_gid()
-    if args.frr_gid is not None:
-        frr_gid = args.frr_gid
-
-    helper = SysCmdHelper(uid, gid, frr_gid=frr_gid)
+    helper = SysCmdHelper(uid, gid)
     loop = asyncio.new_event_loop()
     # exit as soon stdin is closed
     # (an indicator from our parent that we should terminate)

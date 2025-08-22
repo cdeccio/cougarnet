@@ -27,24 +27,6 @@ SYS_CMD_HELPER_CLIENT_MAIN_SOCK_PER_HOST = 'sys_cmd_helper_sock'
 SYS_NET_HELPER_RAW_DIR = 'sys_net_helper_sock_raw'
 SYS_NET_HELPER_USER_DIR = 'sys_net_helper_sock_user'
 
-# FRR-related paths
-FRR_CONF_DIR = '/etc/frr/'
-FRR_RUN_DIR = '/var/run/frr/'
-FRR_PROG_DIR = '/usr/lib/frr'
-FRR_ZEBRA_PROG = os.path.join(FRR_PROG_DIR, 'zebra')
-FRR_RIPD_PROG = os.path.join(FRR_PROG_DIR, 'ripd')
-FRR_RIPNGD_PROG = os.path.join(FRR_PROG_DIR, 'ripngd')
-FRR_ZEBRA_PID_FILE = 'zebra.pid'
-FRR_RIPD_PID_FILE = 'ripd.pid'
-FRR_RIPNGD_PID_FILE = 'ripngd.pid'
-FRR_ZEBRA_CONF_FILE = 'zebra.conf'
-FRR_RIPD_CONF_FILE = 'ripd.conf'
-FRR_RIPNGD_CONF_FILE = 'ripngd.conf'
-FRR_ZEBRA_VTY_FILE = 'zebra.vty'
-FRR_RIPD_VTY_FILE = 'ripd.vty'
-FRR_RIPNGD_VTY_FILE = 'ripngd.vty'
-FRR_ZSERV_FILE = 'zserv.api'
-
 # Generic system paths
 PROC_NS_DIR_TEMPLATE = '/proc/%d/ns/'
 RUN_NETNS_DIR = '/run/netns/'

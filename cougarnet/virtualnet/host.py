@@ -239,11 +239,6 @@ class HostConfig:
             intf = self.int_by_vlan[vlan]
             int_infos[intf.name] = intf.as_dict()
 
-        if self.type == 'router' and self.native_apps:
-            vty_file = os.path.join(FRR_RUN_DIR, self.hostname)
-        else:
-            vty_file = None
-
         host_info = {
                 'hostname': self.hostname,
                 'type': self.type,
@@ -258,7 +253,6 @@ class HostConfig:
                     'remote': comm_sock_file,
                     },
                 'startup_script': self.startup_script_file,
-                'vty_socket': vty_file,
                 'hosts_file': self.hosts_file,
                 'routes': self.routes,
                 'ipv6': self.ipv6,
@@ -363,7 +357,6 @@ class HostConfig:
 
         if self.type == 'router' and self.native_apps:
             ints = [i for i, s in self.int_by_name.items()]
-            run_cmd('start_zebra', self.hostname)
             if 'rip' in self.routers:
                 run_cmd('start_ripd', self.hostname, *ints)
             if 'ripng' in self.routers:
@@ -470,7 +463,6 @@ class HostConfig:
                 sys_cmd(['stop_ripd', self.hostname], check=False)
             if 'ripng' in self.routers:
                 sys_cmd(['stop_ripngd', self.hostname], check=False)
-            sys_cmd(['stop_zebra', self.hostname], check=False)
 
         self.kill()
 

@@ -21,6 +21,7 @@ privileges.'''
 
 import logging
 import os
+import re
 import signal
 import subprocess
 import struct
@@ -34,6 +35,9 @@ from cougarnet.sys_helper.rawpkt_helper.manager import \
         RawPktHelperManager
 from cougarnet import util
 
+VTYSH_VRF_RE = re.compile(r'^vrf\s+(?P<vrf>\S+)\s+id\s+' + \
+        r'(?P<id>\d+)\s+netns\s+(?P<nspath>.*)')
+
 logger = logging.getLogger(__name__)
 
 
@@ -41,15 +45,14 @@ class SysCmdHelper:
     '''A class for executing a set of canned commands that require
     privileges.'''
 
-    def __init__(self, uid, gid, frr_gid=None):
+    def __init__(self, uid, gid):
         self._uid = uid
         self._gid = gid
-
-        self._frr_gid = frr_gid
 
         self.links = {}
         # ns_exists contains the ns that exist in /run/netns/
         self.netns_exists = set()
+        self.vrf_exists = None
         # ns_mounted contains the ns that have been mounted;
         # this is a superset of ns_exists
         self.netns_mounted = set()
@@ -57,9 +60,6 @@ class SysCmdHelper:
         self.netns_to_pid = {}
         self.pid_to_netns = {}
         self.netns_to_iproute = {}
-        self.zebra_started = set()
-        self.ripd_started = set()
-        self.ripngd_started = set()
 
         self.ns_info_cache = {}
 
@@ -73,6 +73,48 @@ class SysCmdHelper:
                 return '9,,Not within a mounted namespace'
             return func(self, pid, *args, **kwargs)
         return _func
+
+    def require_vrf(func):
+        '''A decorator for ensuring that a method is called with a VRF that is
+        associated with a namespace that has been created by this running
+        process, so we're not messing with VRFs that we haven't created.'''
+
+        def _func(self, hostname, *args, **kwargs):
+            ns = hostname
+            nspath = os.path.join(RUN_NETNS_DIR, ns)
+
+            if self.vrf_exists is None:
+                val = self._get_vrf_list()
+                if not val.startswith('0,'):
+                    return val
+            if nspath not in self.vrf_exists:
+                return f'9,,No VRF matching the namespace path {nspath}'
+            return func(self, hostname, *args, **kwargs)
+        return _func
+
+    def require_daemon(daemon):
+        '''A decorator for ensuring that a method is called with a VRF that is
+        associated with a namespace that has been created by this running
+        process, so we're not messing with VRFs that we haven't created.'''
+
+        def _require_daemon(func):
+            def _func(self, *args, **kwargs):
+                cmd = ['vtysh', '-c', f'show configuration running {daemon}']
+
+                val = self._run_cmd(cmd)
+                if not val.startswith('0,'):
+                    return val
+
+                output = util.csv_str_to_list(val)[2].strip()
+                if not output:
+                    err = 'Unable to detect a running instance of the ' + \
+                            f'{daemon} daemon.  Please make sure it is ' + \
+                            f'running by adding {daemon}=yes to ' + \
+                            '/etc/frr/daemons.'
+                    return util.list_to_csv_str(['9', '', err])
+                return func(self, *args, **kwargs)
+            return _func
+        return _require_daemon
 
     def _run_cmd(self, cmd):
         '''Run the specified command.  Return a string with the return code
@@ -213,7 +255,7 @@ class SysCmdHelper:
 
     @classmethod
     def _get_ns_info(cls, pid):
-        '''Retrive the device and inode information associated with the
+        '''Retrieve the device and inode information associated with the
         namespaces for a given process.'''
 
         ns_info = {}
@@ -229,6 +271,38 @@ class SysCmdHelper:
             return None
 
         return ns_info
+
+    def _get_vrf_list(self):
+        '''Retrieve the list of VRFs that correspond to namespaces that have
+        been created in connection with this process.'''
+
+        cmd = ['vtysh', '-c', 'show vrf']
+
+        val = self._run_cmd(cmd)
+        if not val.startswith('0,'):
+            return val
+
+        self.vrf_exists = {}
+
+        output = util.csv_str_to_list(val)[2]
+        num_netns = 0
+        for line in output.splitlines():
+            m = VTYSH_VRF_RE.search(line)
+            if m is None:
+                continue
+            num_netns += 1
+            if m.group('nspath') in self.netns_exists:
+                # Only include those nspaths that are verfied
+                self.vrf_exists[m.group('nspath')] = m.group('vrf')
+
+        if not num_netns:
+            err = 'Unable to detect VRFs derived from network ' + \
+                    'namespaces; please make sure daemons are ' + \
+                    'running with the -w option by adding it to the ' + \
+                    'frr_global_options setting in /etc/frr/daemons.'
+            return util.list_to_csv_str(['9', '', err])
+
+        return '0,'
 
     def add_link_veth(self, intf1, intf2):
         '''Add one or two interaces of type veth (virtual interfaces) with the
@@ -665,191 +739,69 @@ class SysCmdHelper:
             return '0,'
         return '9,,Helper not started'
 
-    def _create_frr_conf_file(self, conf_file_path, contents):
-        '''Create a configuration file for an FRR daemon.'''
-
-        assert self._frr_gid is not None, \
-            'A gid associated with frr must be set when frr is used'
-
-        if os.path.exists(conf_file_path):
-            return f'9,,Config file already exists: {conf_file_path}'
-
-        frr_path = os.path.split(conf_file_path)[0]
-        for path in (FRR_CONF_DIR, frr_path):
-            if os.path.exists(path):
-                continue
-
-            val = self._mkdir(path, mode=0o750)
-            if not val.startswith('0,'):
-                return val
-
-            val = self._chown(path, 0, self._frr_gid)
-            if not val.startswith('0,'):
-                self._rmdir(path)
-                return val
-
-        try:
-            with open(conf_file_path, 'w') as fh:
-                fh.write(contents)
-        except OSError as e:
-            parts = ['1', f'open({conf_file_path}, "w")', str(e)]
-            return util.list_to_csv_str(parts)
-
-        val = self._chown(conf_file_path, 0, self._frr_gid)
-        if not val.startswith('0,'):
-            return val
-
-        val = self._chmod(conf_file_path, 0o640)
-        if not val.startswith('0,'):
-            return val
-
-        return '0,'
-
-    def _frr_daemon_running(self, hostname, pid_file):
-        '''Return True if the FRR daemon corresponding to the hostname and
-        pid_file is running, False otherwise.'''
-
-        ns = hostname
-        pid_file_path = os.path.join(FRR_RUN_DIR, ns, pid_file)
-
-        try:
-            pid = int(open(pid_file_path, 'r').read().strip())
-        except (OSError, ValueError):
-            return False
-
-        cmd = ['ps', '-p', str(pid)]
-        val = self._run_cmd(cmd)
-        return val.startswith('0,')
-
-    def _start_frr_daemon(self, hostname, conf_file, pid_file,
-                          prog_path, started_set, contents):
-        '''Prepare and start an FRR daemon.'''
-
-        ns = hostname
-        nspath = os.path.join(RUN_NETNS_DIR, ns)
-        conf_file_path = os.path.join(FRR_CONF_DIR, ns, conf_file)
-
-        if ns not in self.netns_mounted:
-            return f'9,,Namespace is not mounted: {nspath}'
-        if ns not in self.netns_to_pid:
-            return '9,,No PID associated with namespace'
-        if self._frr_daemon_running(hostname, pid_file):
-            return '9,,Daemon still running'
-
-        ret = self._create_frr_conf_file(conf_file_path, contents)
-        if not ret.startswith('0,'):
-            return ret
-
-        cmd = [prog_path, '-d', '-N', ns, '-f', conf_file_path]
-        val = self._run_cmd_netns(cmd, self.netns_to_pid[ns])
-        if val.startswith('0,'):
-            started_set.add(hostname)
-        return val
-
-    def start_zebra(self, hostname):
-        '''Prepare and start the zebra FRR daemon.'''
-
-        return self._start_frr_daemon(hostname, FRR_ZEBRA_CONF_FILE,
-                                      FRR_ZEBRA_PID_FILE, FRR_ZEBRA_PROG,
-                                      self.zebra_started,
-                                      f'hostname {hostname}\n')
-
+    @require_vrf
+    @require_daemon('ripd')
     def start_ripd(self, hostname, *ints):
-        '''Prepare and start the ripd FRR daemon.'''
+        '''Add RIP configuration to the VRF..'''
 
-        contents = f'hostname {hostname}\n' + \
-            'router rip\n redistribute connected\n'
+        vrf = hostname
+        cmd = ['vtysh',
+               '-c', 'enable',
+               '-c', 'configure terminal',
+               '-c', f'router rip vrf {vrf}',
+               '-c', ' redistribute connected']
         for intf in ints:
-            contents += f' network {intf}\n'
+            cmd += ['-c', f' network {intf}']
+        cmd += ['-c', 'exit',
+                     '-c', 'end',
+                     '-c', 'end']
+        return self._run_cmd(cmd)
 
-        return self._start_frr_daemon(hostname, FRR_RIPD_CONF_FILE,
-                                      FRR_RIPD_PID_FILE, FRR_RIPD_PROG,
-                                      self.ripd_started, contents)
-
+    @require_vrf
+    @require_daemon('ripngd')
     def start_ripngd(self, hostname, *ints):
-        '''Prepare and start the ripngd FRR daemon.'''
+        '''Add RIPng configuration to the VRF..'''
 
-        contents = f'hostname {hostname}\n' + \
-            'router ripng\n redistribute connected\n'
+        vrf = hostname
+        cmd = ['vtysh',
+               '-c', 'enable',
+               '-c', 'configure terminal',
+               '-c', f'router ripng vrf {vrf}',
+               '-c', ' redistribute connected']
         for intf in ints:
-            contents += f' network {intf}\n'
+            cmd += ['-c', f' network {intf}']
+        cmd += ['-c', 'exit',
+                     '-c', 'end',
+                     '-c', 'end']
+        return self._run_cmd(cmd)
 
-        return self._start_frr_daemon(hostname, FRR_RIPNGD_CONF_FILE,
-                                      FRR_RIPNGD_PID_FILE, FRR_RIPNGD_PROG,
-                                      self.ripngd_started, contents)
-
-    def _kill_frr_daemon(self, hostname, conf_file, pid_file, vty_file,
-                         started_set):
-        '''Send SIGTERM to an FRR daemon and then remove the associated config
-        file and pid file.'''
-
-        ns = hostname
-        conf_file_path = os.path.join(FRR_CONF_DIR, ns, conf_file)
-        pid_file_path = os.path.join(FRR_RUN_DIR, ns, pid_file)
-        vty_file_path = os.path.join(FRR_RUN_DIR, ns, vty_file)
-
-        if hostname not in started_set:
-            return '9,,Daemon was not started'
-
-        try:
-            pid = int(open(pid_file_path, 'r').read().strip())
-        except OSError as e:
-            parts = ['1', f'open({pid_file_path}, "r")', str(e)]
-            return util.list_to_csv_str(parts)
-        except ValueError as e:
-            parts = ['1', f'read({pid_file_path})', str(e)]
-            return util.list_to_csv_str(parts)
-
-        val = self._kill(pid, signal.SIGTERM)
-        if not val.startswith('0,'):
-            return val
-
-        frr_run_path = os.path.split(pid_file_path)[0]
-        frr_conf_path = os.path.split(conf_file_path)[0]
-
-        self._unlink(conf_file_path)
-        self._rmdir(frr_conf_path)
-
-        self._unlink(pid_file_path)
-        self._unlink(vty_file_path)
-        self._rmdir(frr_run_path)
-
-        started_set.remove(hostname)
-
-        return '0,'
-
-    def stop_zebra(self, hostname):
-        '''Terminate and clean up after the zebra FRR daemon.'''
-
-        val = self._kill_frr_daemon(hostname, FRR_ZEBRA_CONF_FILE,
-                                    FRR_ZEBRA_PID_FILE, FRR_ZEBRA_VTY_FILE,
-                                    self.zebra_started)
-
-        if not val.startswith('0,'):
-            return val
-
-        ns = hostname
-        zserv_file_path = os.path.join(FRR_RUN_DIR, ns, FRR_ZSERV_FILE)
-        frr_run_path = os.path.split(zserv_file_path)[0]
-
-        self._unlink(zserv_file_path)
-        self._rmdir(frr_run_path)
-
-        return '0,'
-
+    @require_vrf
+    @require_daemon('ripd')
     def stop_ripd(self, hostname):
-        '''Terminate and clean up after the ripd FRR daemon.'''
+        '''Remove RIP configuration from the VRF..'''
 
-        return self._kill_frr_daemon(hostname, FRR_RIPD_CONF_FILE,
-                                     FRR_RIPD_PID_FILE, FRR_RIPD_VTY_FILE,
-                                     self.ripd_started)
+        vrf = hostname
+        cmd = ['vtysh',
+               '-c', 'enable',
+               '-c', 'configure terminal',
+               '-c', f'no router rip vrf {vrf}',
+               '-c', 'end',
+               '-c', 'end']
+        return self._run_cmd(cmd)
 
+    @require_vrf
+    @require_daemon('ripngd')
     def stop_ripngd(self, hostname):
-        '''Terminate and clean up after the ripngd FRR daemon.'''
+        '''Remove RIPng configuration from the VRF..'''
 
-        return self._kill_frr_daemon(hostname, FRR_RIPNGD_CONF_FILE,
-                                     FRR_RIPNGD_PID_FILE, FRR_RIPNGD_VTY_FILE,
-                                     self.ripngd_started)
+        vrf = hostname
+        cmd = ['vtysh',
+               '-c', 'enable',
+               '-c', 'configure terminal',
+               '-c', f'no router ripng vrf {vrf}',
+               '-c', 'end',
+               '-c', 'end']
+        return self._run_cmd(cmd)
 
     @require_netns
     def set_hostname(self, pid, hostname):

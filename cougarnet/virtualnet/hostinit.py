@@ -202,9 +202,6 @@ def main():
     env['COUGARNET_SYS_CMD_HELPER_SOCK'] = \
             json.dumps(config['sys_cmd_helper_sock'])
 
-    if config.get('vty_socket', None) is not None:
-        env['COUGARNET_VTY_SOCK'] = config['vty_socket']
-
     if not join_sys_cmd_helper(
             config['sys_cmd_helper_sock']['remote'],
             config['sys_cmd_helper_sock']['local']):
