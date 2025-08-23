@@ -516,7 +516,7 @@ class SysCmdHelper:
 
         oldpid = self._find_unshared_pid(int(pid))
         if oldpid is None:
-            return '9,No ancestor process found'
+            return '9,,No ancestor process found'
         oldpid = str(oldpid)
 
         return self._add_pid_for_netns(oldpid, pid)
@@ -696,11 +696,11 @@ class SysCmdHelper:
         newns = self._get_ns_info(int(newpid))
 
         if oldns is None:
-            return f'9,Namespace for oldpid ({oldpid}) not known.'
+            return f'9,,Namespace for oldpid ({oldpid}) not known.'
         if newns is None:
-            return f'9,Namespace for newpid ({newpid}) not known.'
+            return f'9,,Namespace for newpid ({newpid}) not known.'
         if newns != oldns:
-            return f'9,Namespaces for newpid ({newpid}) ' + \
+            return f'9,,Namespaces for newpid ({newpid}) ' + \
                     f'and oldpid ({oldpid}) differ.'
 
         self.pid_to_netns[newpid] = self.pid_to_netns[oldpid]
