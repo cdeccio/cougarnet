@@ -114,11 +114,11 @@ If you intend to use routing with Cougarnet, then you should modify the
 To install Cougarnet, run the following:
 
 ```bash
-$ python3 setup.py build
-$ sudo pip3 install --root-user-action ignore --break-system-packages .
+sudo pip3 install --root-user-action ignore --break-system-packages .
 ```
 
-Note that using `sudo pip3 install --break-system-packages` is
+Note that using the `--root-user-action` and `--break-system-packages` options
+is
 [not recommended](#https://packaging.python.org/en/latest/tutorials/installing-packages/),
 but due to the complexity of this package, it is the best option at the moment.
 In the future, a more effective installation will be found.
