@@ -25,7 +25,6 @@ import os
 import signal
 import sys
 
-LIBEXEC_DIR = os.path.join(sys.prefix, 'libexec', 'cougarnet')
 
 logger = logging.getLogger(__name__)
 
