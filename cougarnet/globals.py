@@ -1,11 +1,24 @@
 import os
+import os.path
 
 ######################
 # Paths
 ######################
 
+def _get_install_prefix():
+    path_parts = __file__.split(os.path.sep)
+    for i in range(len(path_parts) - 4, -1, -1):
+        if path_parts[i] == 'lib' and path_parts[i + 1].startswith('python'):
+            return os.path.sep.join(path_parts[:i]), False
+    return os.path.sep.join(path_parts[:-2]), True
+
 # Global paths
 TMPDIR = os.path.join(os.environ.get('HOME', '.'), 'cougarnet-tmp')
+INSTALL_PREFIX, loc = _get_install_prefix()
+if loc:
+    LIBEXEC_DIR = os.path.join(INSTALL_PREFIX, 'libexec')
+else:
+    LIBEXEC_DIR = os.path.join(INSTALL_PREFIX, 'libexec',  'cougarnet')
 
 # Per instance paths
 PID_FILE = 'pid'

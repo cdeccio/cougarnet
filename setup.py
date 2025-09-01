@@ -18,8 +18,8 @@ setup(name='cougarnet',
             'cougarnet/sys_helper/rawpkt_helper'],
         scripts=['bin/cougarnet'],
         data_files=[('share/doc/cougarnet', ['README.md']),
-            (os.path.join(sys.prefix, 'libexec', 'cougarnet'),
-                ('libexec/syscmd_helper', 'libexec/rawpkt_helper'))
+                    ('libexec/cougarnet',
+                     ('libexec/syscmd_helper', 'libexec/rawpkt_helper'))
             ],
         classifiers=[],
         cmdclass={},
