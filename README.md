@@ -93,8 +93,9 @@ password (i.e., with the `NOPASSWD` option):
 %cougarnet  ALL=(ALL:ALL) NOPASSWD: /usr/libexec/cougarnet/syscmd_helper
 ```
 
-If you intend to use routing with Cougarnet, then you should modify the
-`/etc/frr/daemons` file in the following two ways:
+If you intend to use routing with Cougarnet (see
+[this example](#using-routing-to-populate-forwarding-tables)),
+then you should modify the `/etc/frr/daemons` file in the following two ways:
 
  1. Modify the line for every routing daemon you intend to use, such that its
     value is "yes".  For example, to enable RIP, the following line should be
@@ -110,6 +111,12 @@ If you intend to use routing with Cougarnet, then you should modify the
     ```
     frr_global_options="-w"
     ```
+
+Now restart FRR, with something like the following:
+
+```
+sudo systemctl restart frr.service
+```
 
 To install Cougarnet, run the following:
 
