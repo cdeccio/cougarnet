@@ -76,11 +76,7 @@ class CommandWrapper:
         appropriate cleanup commands.'''
 
         cmd = ['add_netns', hostname]
-        cleanup_cmds = [
-                ['sudo', 'umount', os.path.join(RUN_NETNS_DIR, hostname)],
-                ['sudo', 'umount', os.path.join(RUN_NETNS_DIR, hostname)],
-                ['sudo', 'rm', '-rf', \
-                os.path.join(RUN_NETNS_DIR, hostname)]]
+        cleanup_cmds = [['sudo', 'ip', 'netns', 'del', hostname]]
         sys_cmd_with_cleanup(cmd, cleanup_cmds, check=True)
 
 def run_cmd(cmd, *args):
