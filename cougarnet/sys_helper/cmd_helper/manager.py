@@ -51,13 +51,14 @@ class SysCmdHelperManager(SysHelperManager):
     commands.'''
 
     def __init__(self, remote_sock, local_sock, verbose=False):
-        args = ['sudo', '-P', '-u', 'root',
+        pre_cmd = ['sudo', SYSCMD_HELPER_SCRIPT, '-h']
+        cmd = ['sudo', '-P', '-u', 'root',
                 '-g', f'#{os.getegid()}', SYSCMD_HELPER_SCRIPT]
 
         if verbose:
-            args.append('--verbose')
-        args.append(remote_sock)
-        super().__init__(*args)
+            cmd.append('--verbose')
+        cmd.append(remote_sock)
+        super().__init__(cmd, pre_cmd)
         self.remote_sock_path = remote_sock
         self.local_sock_path = local_sock
         self.sock = None

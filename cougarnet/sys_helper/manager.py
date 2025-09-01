@@ -23,6 +23,7 @@ things for which they need privileges.'''
 import logging
 import os
 import signal
+import subprocess
 import sys
 
 
@@ -39,11 +40,12 @@ class SysHelperManager:
     '''A class for creating and managing a process running as a privileged
     user.'''
 
-    def __init__(self, *args):
-        self._cmd = args
+    def __init__(self, cmd, pre_cmd=None):
+        self._cmd = cmd
+        self._pre_cmd = pre_cmd
         self._pipe_fd = None
 
-    def start(self):
+    def _start(self):
         '''Create the new process by calling fork.  Create two pipes, one for
         letting the helper know when it should terminate (upon termination of
         parent process) and one for communicating back to the parent that it
@@ -109,6 +111,22 @@ class SysHelperManager:
 
         self._pipe_fd = p2c_writefd
         return True
+
+    def start(self):
+        '''Run the pre-command, if any.  Then run the main command, with the
+        start() method.'''
+
+        if self._pre_cmd is not None:
+            p = subprocess.run(self._pre_cmd,
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT)
+            if p.returncode != 0:
+                #XXX This should probably raise an exception instead, so the
+                # calling function can determine how to display it.
+                sys.stderr.write(p.stdout.decode('utf-8'))
+                return False
+
+        return self._start()
 
     def close(self):
         '''Explicitly close the pipe on which the child is listening.  This

@@ -48,7 +48,7 @@ class RawPktHelperManager(SysHelperManager):
         else:
             cmd += ints
 
-        super().__init__(*cmd)
+        super().__init__(cmd)
 
     @classmethod
     def consolidate_dirs(cls, ints):

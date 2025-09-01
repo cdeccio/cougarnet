@@ -24,8 +24,6 @@ def check_requirements(args):
         sys.stderr.write('Please run this program as a non-privileged user.\n')
         sys.exit(1)
 
-    subprocess.run(['sudo', '-v'], check=True)
-
     # make sure working directories exist
     cmd = ['mkdir', '-p', TMPDIR]
     subprocess.run(cmd, check=True)
