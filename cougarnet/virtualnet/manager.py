@@ -299,6 +299,8 @@ class VirtualNetwork:
         instance composed of those hosts and links.'''
 
         cwd = os.path.split(fh.name)[0]
+        if not cwd:
+            cwd = '.'
         net = cls(terminal_hosts, cwd, tmpdir, ipv6, verbose)
         mode = None
         lineno = 0
