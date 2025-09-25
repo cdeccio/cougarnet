@@ -119,6 +119,8 @@ class VirtualNetwork:
         self.ipv6 = ipv6
         self.verbose = verbose
 
+        self.wireshark_proc = None
+
         self.bridge_interfaces = set()
         self.ghost_interfaces = set()
 
@@ -794,6 +796,9 @@ class VirtualNetwork:
         '''Shut down and clean up resources allocated for the
         VirtualNetwork, including processes, interfaces, and files.'''
 
+        if self.wireshark_proc is not None:
+            self.wireshark_proc.kill()
+
         for _, host in self.host_by_name.items():
             host.cleanup()
 
@@ -883,7 +888,7 @@ class VirtualNetwork:
         if ints:
             cmd.append('-k')
         logger.debug(' '.join(cmd))
-        subprocess.Popen(cmd)
+        self.wireshark_proc = subprocess.Popen(cmd)
 
     def message_loop(self, stop):
         '''Loop until interrupted, printing messages received over the
