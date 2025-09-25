@@ -294,8 +294,10 @@ class HostConfig:
                 if self.prog_window == 'background':
                     fh.write(f'    new-window -n "{CMD_WINDOW_NAME}" \\; \\\n')
                 prog = self.prog.replace('|', ' ').replace('"', r'\"')
+                # if there is a cwd specified and the path is relative (not
+                # absolute), then add cwd.
                 if not os.path.isabs(prog) and self.cwd:
-                    prog = os.path.join(self.cwd, prog)
+                    prog = os.path.join(self.cwd, os.path.normpath(prog))
                 fh.write(f'    send-keys "{ready_cmd}" C-m \\; \\\n')
                 fh.write(f'    send-keys "history -c ; clear" C-m \\; \\\n')
                 fh.write(f'    send-keys "{prog}" C-m \\; \\\n')
