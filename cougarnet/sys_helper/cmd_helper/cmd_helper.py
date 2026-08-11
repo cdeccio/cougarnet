@@ -779,7 +779,7 @@ class SysCmdHelper:
     @require_vrf
     @require_daemon('ripd')
     def stop_ripd(self, hostname):
-        '''Remove RIP configuration from the VRF..'''
+        '''Remove RIP configuration from the VRF.'''
 
         vrf = hostname
         cmd = ['vtysh',
@@ -793,7 +793,7 @@ class SysCmdHelper:
     @require_vrf
     @require_daemon('ripngd')
     def stop_ripngd(self, hostname):
-        '''Remove RIPng configuration from the VRF..'''
+        '''Remove RIPng configuration from the VRF.'''
 
         vrf = hostname
         cmd = ['vtysh',
