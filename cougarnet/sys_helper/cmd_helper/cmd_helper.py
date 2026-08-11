@@ -93,9 +93,9 @@ class SysCmdHelper:
         return _func
 
     def require_daemon(daemon):
-        '''A decorator for ensuring that a method is called with a VRF that is
-        associated with a namespace that has been created by this running
-        process, so we're not messing with VRFs that we haven't created.'''
+        '''A decorator for ensuring that the FRR daemon associated with a
+        given router is running, so we don't error out simply because it is
+        not running.'''
 
         def _require_daemon(func):
             def _func(self, *args, **kwargs):
