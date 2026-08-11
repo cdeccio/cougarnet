@@ -749,7 +749,8 @@ class SysCmdHelper:
                '-c', 'enable',
                '-c', 'configure terminal',
                '-c', f'router rip vrf {vrf}',
-               '-c', ' redistribute connected']
+               '-c', ' redistribute connected',
+               '-c', ' redistribute static']
         for intf in ints:
             cmd += ['-c', f' network {intf}']
         cmd += ['-c', 'exit',
