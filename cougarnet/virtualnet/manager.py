@@ -808,6 +808,8 @@ class VirtualNetwork:
 
         for intf in self.bridge_interfaces:
             sys_cmd(['del_link', intf], check=False)
+        for intf in self.ghost_interfaces:
+            sys_cmd(['del_link', intf], check=False)
 
         # This causes the privileged process to stop, but it
         # also removes the client and server socket, so the
