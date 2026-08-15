@@ -1,13 +1,33 @@
 import io
+import os.path
 import tempfile
 import unittest
 
+from cougarnet.globals import *
+from cougarnet.sys_helper.cmd_helper import start_sys_cmd_helper_fake
 from cougarnet.virtualnet.manager import ConfigurationError
 from cougarnet.virtualnet.manager import VirtualNetwork
 
+def _params(tmpdir, hostname):
+    startup_script = \
+            os.path.join(tmpdir, HOSTS_DIR, hostname, STARTUP_SCRIPT)
+    comm_client_sock = \
+            os.path.join(tmpdir, HOSTS_DIR, hostname, COMM_CLIENT_SOCK)
+    comm_srv_sock = \
+            os.path.join(tmpdir, HOSTS_DIR, COMM_SRV_SOCK)
+    sys_cmd_helper_client_sock = \
+            os.path.join(tmpdir, HOSTS_DIR, hostname,
+                         SYS_CMD_HELPER_CLIENT_MAIN_SOCK_PER_HOST)
+
+    return startup_script, comm_client_sock, \
+            comm_srv_sock, sys_cmd_helper_client_sock
+
+sys_cmd_helper_srv_sock = os.path.join('/tmp', SYS_CMD_HELPER_SRV_SOCK)
+
 class TestVirtualNetwork(VirtualNetwork):
     def _start_sys_cmd_helper(self):
-        pass
+        start_sys_cmd_helper_fake(sys_cmd_helper_srv_sock,
+                                  '/does/not/matter', False)
 
 class BadConfigTestCase(unittest.TestCase):
     def test_host_config_errors(self):
@@ -70,20 +90,37 @@ h1 s1
 
     def test_host_attrs(self):
         with tempfile.TemporaryDirectory() as tmpdir:
+            startup_script, comm_client_sock, \
+                comm_srv_sock, sys_cmd_helper_client_sock = \
+                _params(tmpdir, 'h1')
 
             # Node with default attributes
             cfg = io.StringIO('NODES\nh1')
             net = TestVirtualNetwork.from_file(
                     cfg, [], {}, tmpdir, True, True)
-            self.assertEqual(net.host_by_name['h1']._host_config(),
-                    {'hostname': 'h1',
+            self.assertEqual(net.host_by_name['h1']._host_config(comm_srv_sock),
+                    {
+                        'comm_sock': {
+                            'local': comm_client_sock,
+                            'remote': comm_srv_sock,
+                        },
+                        'hostname': 'h1',
+                        'hosts_file': None,
                         'int_to_sock': {},
                         'interfaces': {},
                         'ip_forwarding': False,
                         'ipv6': True,
+                        'mount_sys': True,
                         'native_apps': True,
                         'routes': [],
-                        'type': 'host'})
+                        'startup_script': startup_script,
+                        'sys_cmd_helper_sock': {
+                            'local': sys_cmd_helper_client_sock,
+                            'remote': sys_cmd_helper_srv_sock
+                        },
+                        'type': 'host'
+                     })
+
 
             self.assertEqual(net.host_by_name['h1'].hostname, 'h1')
             self.assertEqual(net.host_by_name['h1'].terminal, True)
@@ -92,20 +129,36 @@ h1 s1
 
 
         with tempfile.TemporaryDirectory() as tmpdir:
+            startup_script, comm_client_sock, \
+                comm_srv_sock, sys_cmd_helper_client_sock = \
+                _params(tmpdir, 'h1')
 
             # Node with host attributes that override default attributes
             cfg = io.StringIO('NODES\nh1')
             net = TestVirtualNetwork.from_file(
                     cfg, ['none'], {}, tmpdir, False, True)
-            self.assertEqual(net.host_by_name['h1']._host_config(),
-                    {'hostname': 'h1',
+            self.assertEqual(net.host_by_name['h1']._host_config(comm_srv_sock),
+                    {
+                        'comm_sock': {
+                            'local': comm_client_sock,
+                            'remote': comm_srv_sock,
+                        },
+                        'hostname': 'h1',
+                        'hosts_file': None,
                         'int_to_sock': {},
                         'interfaces': {},
                         'ip_forwarding': False,
                         'ipv6': False,
+                        'mount_sys': True,
                         'native_apps': True,
                         'routes': [],
-                        'type': 'host'})
+                        'startup_script': startup_script,
+                        'sys_cmd_helper_sock': {
+                            'local': sys_cmd_helper_client_sock,
+                            'remote': sys_cmd_helper_srv_sock
+                        },
+                        'type': 'host'
+                    })
 
             self.assertEqual(net.host_by_name['h1'].hostname, 'h1')
             self.assertEqual(net.host_by_name['h1'].terminal, False)
@@ -114,6 +167,9 @@ h1 s1
 
 
         with tempfile.TemporaryDirectory() as tmpdir:
+            startup_script, comm_client_sock, \
+                comm_srv_sock, sys_cmd_helper_client_sock = \
+                _params(tmpdir, 'h1')
 
             # Node that overrides default attributes
             cfg = io.StringIO('NODES\nh1 type=switch,' + \
@@ -121,15 +177,28 @@ h1 s1
                     'prog=echo|foo,prog_window=split,ipv6=false')
             net = TestVirtualNetwork.from_file(
                     cfg, [], {}, tmpdir, True, True)
-            self.assertEqual(net.host_by_name['h1']._host_config(),
-                    {'hostname': 'h1',
+            self.assertEqual(net.host_by_name['h1']._host_config(comm_srv_sock),
+                    {
+                        'comm_sock': {
+                            'local': comm_client_sock,
+                            'remote': comm_srv_sock,
+                        },
+                        'hostname': 'h1',
+                        'hosts_file': None,
                         'int_to_sock': {},
                         'interfaces': {},
                         'ip_forwarding': False,
                         'ipv6': False,
+                        'mount_sys': True,
                         'native_apps': False,
                         'routes': [],
-                        'type': 'switch'})
+                        'startup_script': startup_script,
+                        'sys_cmd_helper_sock': {
+                            'local': sys_cmd_helper_client_sock,
+                            'remote': sys_cmd_helper_srv_sock
+                        },
+                        'type': 'switch'
+                    })
 
             self.assertEqual(net.host_by_name['h1'].hostname, 'h1')
             self.assertEqual(net.host_by_name['h1'].terminal, False)
@@ -138,21 +207,36 @@ h1 s1
 
 
         with tempfile.TemporaryDirectory() as tmpdir:
+            startup_script, comm_client_sock, \
+                comm_srv_sock, sys_cmd_helper_client_sock = \
+                _params(tmpdir, 'h1')
 
             # Default attributes for switch
             cfg = io.StringIO('NODES\nh1 type=switch')
             net = TestVirtualNetwork.from_file(
                     cfg, [], {}, tmpdir, True, True)
-            self.assertEqual(net.host_by_name['h1']._host_config(),
-                    {'hostname': 'h1',
+            self.assertEqual(net.host_by_name['h1']._host_config(comm_srv_sock),
+                    {
+                        'comm_sock': {
+                            'local': comm_client_sock,
+                            'remote': comm_srv_sock,
+                        },
+                        'hostname': 'h1',
+                        'hosts_file': None,
                         'int_to_sock': {},
                         'interfaces': {},
                         'ip_forwarding': False,
                         'ipv6': False,
+                        'mount_sys': False,
                         'native_apps': True,
                         'routes': [],
-                        'type': 'switch'})
-
+                        'startup_script': startup_script,
+                        'sys_cmd_helper_sock': {
+                            'local': sys_cmd_helper_client_sock,
+                            'remote': sys_cmd_helper_srv_sock
+                        },
+                        'type': 'switch'
+                    })
 
     def test_host_routes(self):
 

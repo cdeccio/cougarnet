@@ -28,7 +28,8 @@ import sys
 from cougarnet.errors import SysCmdError, CommandPrereqError, CommandExecError
 from cougarnet.util import csv_str_to_list
 
-from .manager import SysCmdHelperManager, SysCmdHelperManagerStarted
+from .manager import SysCmdHelperManager, SysCmdHelperManagerFake, \
+        SysCmdHelperManagerStarted
 
 sys_cmd_helper = None
 
@@ -51,6 +52,20 @@ def start_sys_cmd_helper(remote_sock_path, local_sock_path, verbose):
             verbose=verbose)
 
     return sys_cmd_helper.start()
+
+
+def start_sys_cmd_helper_fake(remote_sock_path, local_sock_path, verbose):
+    '''Instantiate a SysCmdHelperManagerFake, which will serve as a placeholder
+    for a SysCmdHelperManager, which will things to work in a testing
+    environment where we don't actually need to run privileged commands.'''
+
+    global sys_cmd_helper
+
+    sys_cmd_helper = SysCmdHelperManagerFake(
+            remote_sock_path, local_sock_path,
+            verbose=verbose)
+
+    return True
 
 
 def join_sys_cmd_helper(remote_sock_path, local_sock_path,

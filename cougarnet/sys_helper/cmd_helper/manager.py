@@ -103,6 +103,16 @@ class SysCmdHelperManager(SysHelperManager):
         return self.sock.recv(1024).decode('utf-8')
 
 
+class SysCmdHelperManagerFake:
+    '''A class that acts as a placeholder for the SysCmdHelperManager to use
+    for testing only.'''
+
+    def __init__(self, remote_sock, local_sock, verbose=False):
+        self.remote_sock_path = remote_sock
+        self.local_sock_path = local_sock
+        self.sock = None
+
+
 class SysCmdHelperManagerStarted(SysCmdHelperManager):
     '''A subclass of SysCmdHelperManager that is used when the privileged
     process is already running and we simply want to connect to it to issue

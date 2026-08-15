@@ -300,9 +300,13 @@ class VirtualNetwork:
         virtual hosts and links, and return the resulting VirtualNetwork
         instance composed of those hosts and links.'''
 
-        cwd = os.path.split(fh.name)[0]
-        if not cwd:
+        if hasattr(fh, 'name'):
+            cwd = os.path.split(fh.name)[0]
+            if not cwd:
+                cwd = '.'
+        else:
             cwd = '.'
+
         net = cls(terminal_hosts, cwd, tmpdir, ipv6, verbose)
         mode = None
         lineno = 0
