@@ -51,6 +51,7 @@ class HostConfig:
             'routes': None,
             'routers': None,
             'loopback_addrs': None,
+            'asn': None,
             }
 
     def __init__(self, hostname, hostdir, cwd, bash_history, vtysh_history,
@@ -101,6 +102,15 @@ class HostConfig:
                 raise ConfigurationError(
                         f'{router} is not an allowed router.')
 
+        self.asn_pre_processed = self.asn
+        self.asn = None
+
+        if self.asn_pre_processed is not None:
+            try:
+                self.asn_pre_processed = int(self.asn_pre_processed)
+            except ValueError:
+                raise ConfigurationError(f'Invalid ASN: {self.asn_pre_processed}')
+
         loopback_addrs = []
         if self.loopback_addrs is not None:
             for loopback_addr in self.loopback_addrs.split(';'):
@@ -111,6 +121,18 @@ class HostConfig:
                             f'Invalid IP Address: {loopback_addr}')
                 loopback_addrs.append(loopback_addr)
         self.loopback_addrs = loopback_addrs
+
+        if self.routers:
+            if self.type != 'router':
+                raise ConfigurationError('If routers are specified, then ' + \
+                        'type must be router.')
+            if 'bgp' in self.routers:
+                if self.asn_pre_processed is None:
+                    raise ConfigurationError('If BGP is used, then an ASN ' + \
+                            'must be specified.')
+                if not self.loopback_addrs:
+                    raise ConfigurationError('If BGP is used, then at ' + \
+                            'least one loopback address be specified.')
 
         if not self.native_apps or \
                 str(self.native_apps).lower() in FALSE_STRINGS:
@@ -211,6 +233,25 @@ class HostConfig:
                         f'is not directly connected to {self.hostname}.') \
                         from None
             self.routes.append((prefix, intf.name, next_hop))
+
+    def apply_asn(self, asn_by_num):
+        '''...'''
+
+        if self.asn_pre_processed is None:
+            return
+
+        try:
+            self.asn = asn_by_num[self.asn_pre_processed]
+        except KeyError:
+            #XXX At the moment, this results in the ConfigurationError()
+            # instance being set with the line number corresponding to the last
+            # line in the config file, which doesn't make any sense in this
+            # case.  We need to find a better way to report this error.
+            raise ConfigurationError(f'ASN {self.asn_pre_processed}, ' + \
+                    f'corresponding to {self.hostname}, is not defined') \
+                    from None
+        else:
+            self.asn.add_router(self)
 
     def _helper_sock_pair_for_user(self):
         int_to_sock = {}
@@ -353,16 +394,85 @@ class HostConfig:
                 for i, s in self.helper_sock_pair_by_int.items()]
         run_cmd('start_rawpkt_helper', self.hostname, *ints)
 
+    def get_ints_in_same_asn(self):
+        '''Return the names associated with the interfaces whose neighbors are
+        in the same AS as the current AS.'''
+
+        ints = []
+        for name, intf in self.int_by_name.items():
+            neighbor = self.neighbor_by_int[intf]
+            if neighbor.asn == self.asn:
+                ints.append(name)
+        return ints
+
+    def get_highest_loopback(self, version=4):
+        #XXX This is inefficient.  It could be learned and saved elsewhere.
+        loopback_addrs = [addr for addr in self.loopback_addrs \
+                if ipaddress.ip_address(addr).version == version]
+        if loopback_addrs:
+            return sorted(loopback_addrs, \
+                    key=ipaddress.ip_address, reverse=True)[0]
+        else:
+            return None
+
+    def _get_bgp_peers_internal(self, flatten=False):
+        peers = []
+        for peer in self.asn.routers:
+            if peer is self:
+                continue
+            if 'bgp' not in peer.routers:
+                continue
+            #XXX IPv4 is hard-coded here.  Find out how to
+            # make it more IPv6-friendly.
+            local_ip = self.get_highest_loopback(4)
+            peer_ip = peer.get_highest_loopback(4)
+            peers.append((peer_ip, local_ip, peer.asn.asn))
+        if flatten:
+            peers = [p for ps in peers for p in ps]
+        return peers
+
+    def _get_bgp_peers_external(self, flatten=False):
+        peers = []
+        for peer, intf in self.int_by_neighbor.items():
+            if 'bgp' not in peer.routers:
+                continue
+            if peer.asn == self.asn:
+                continue
+            #XXX IPv4 is hard-coded here.  Find out how to
+            # make it more IPv6-friendly.
+            local_ip = intf.ipv4_addrs[0].split('/')[0]
+            peer_int = peer.int_by_neighbor[self]
+            peer_ip = peer_int.ipv4_addrs[0].split('/')[0]
+            peers.append((peer_ip, local_ip, peer.asn.asn))
+        if flatten:
+            peers = [p for ps in peers for p in ps]
+        return peers
+
+    def get_bgp_peers(self, flatten=False):
+        '''Return tuples containing the IP address and AS of each BGP neighbor
+        in a different AS from the current AS.'''
+
+        return self._get_bgp_peers_external(flatten) + \
+                self._get_bgp_peers_internal(flatten)
+
     def start_router(self):
         '''Start the zebra and rip routing processes that will manage routing
         on the device.'''
 
         if self.type == 'router' and self.native_apps:
-            ints = [i for i, s in self.int_by_name.items()]
+            ints_in_same_asn = self.get_ints_in_same_asn()
             if 'rip' in self.routers:
-                run_cmd('start_ripd', self.hostname, *ints)
+                run_cmd('start_ripd', self.hostname, *ints_in_same_asn)
             if 'ripng' in self.routers:
-                run_cmd('start_ripngd', self.hostname, *ints)
+                run_cmd('start_ripngd', self.hostname, *ints_in_same_asn)
+            if 'bgp' in self.routers:
+                neighbors = self.get_bgp_peers(True)
+                #XXX IPv4 is hard-coded here.  Find out how to
+                # make it more IPv6-friendly.
+                run_cmd('start_bgpd', self.hostname, str(self.asn.asn),
+                        self.get_highest_loopback(4), str(len(self.asn.prefixes)),
+                        *[str(p) for p in self.asn.prefixes],
+                        *[str(n) for n in neighbors])
 
     def start(self):
         '''Start this virtual host.  Call unshare to create the new namespace,
@@ -465,6 +575,9 @@ class HostConfig:
                 sys_cmd(['stop_ripd', self.hostname], check=False)
             if 'ripng' in self.routers:
                 sys_cmd(['stop_ripngd', self.hostname], check=False)
+            if 'bgp' in self.routers:
+                sys_cmd(['stop_bgpd', self.hostname, str(self.asn.asn)],
+                        check=False)
 
         self.kill()
 

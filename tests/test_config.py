@@ -1033,5 +1033,96 @@ VLANS
                     })
 
 
+    def test_asn_config_errors(self):
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+
+            # Invalid ASN (non-numeric)
+            cfg = io.StringIO('''ASNS\nfoo''')
+            self.assertRaises(ConfigurationError,
+                    TestVirtualNetwork.from_file,
+                    cfg, [], {}, tmpdir, True, True)
+
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+
+            # Invalid host attribute format (should be foo=bar)
+            cfg = io.StringIO('ASNS\n10 foo')
+            self.assertRaises(ConfigurationError,
+                    TestVirtualNetwork.from_file,
+                    cfg, [], {}, tmpdir, True, True)
+
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+
+            # Invalid host attribute (foo)
+            cfg = io.StringIO('NODES\n10 foo=bar')
+            self.assertRaises(ConfigurationError,
+                    TestVirtualNetwork.from_file,
+                    cfg, [], {}, tmpdir, True, True)
+
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+
+            # ASN 20 not specified for r1
+            cfg = io.StringIO('''NODES
+r1 type=router,asn=20
+ASNS
+10
+''')
+            self.assertRaises(ConfigurationError,
+                    TestVirtualNetwork.from_file,
+                    cfg, [], {}, tmpdir, True, True)
+
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+
+            # No ASN specified for router with bgp routing engine
+            cfg = io.StringIO('''NODES
+r1 type=router,routers=bgp,loopback_addrs=10.0.0.1
+ASNS
+10
+''')
+            self.assertRaises(ConfigurationError,
+                    TestVirtualNetwork.from_file,
+                    cfg, [], {}, tmpdir, True, True)
+
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+
+            # No loopback addresses specified for router with bgp routing
+            # engine
+            cfg = io.StringIO('''NODES
+r1 type=router,routers=bgp,asn=10
+ASNS
+10
+''')
+            self.assertRaises(ConfigurationError,
+                    TestVirtualNetwork.from_file,
+                    cfg, [], {}, tmpdir, True, True)
+
+
+    def test_asn_attrs(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+
+            # No loopback addresses specified for router with bgp routing
+            # engine
+            cfg = io.StringIO('''NODES
+r1 type=router,routers=bgp,asn=10,loopback_addrs=10.0.0.1
+ASNS
+10 prefixes=192.0.2.0/24;2001:db8::/64
+''')
+
+            net = TestVirtualNetwork.from_file(
+                    cfg, [], {}, tmpdir, True, True)
+
+            self.assertEqual(net.asn_by_num[10].asn, 10)
+            self.assertEqual(
+                    [h.hostname for h in net.asn_by_num[10].routers], ['r1'])
+            self.assertEqual(
+                    [str(ip) for ip in net.asn_by_num[10].prefixes],
+                    ['192.0.2.0/24', '2001:db8::/64'])
+
+
 if __name__ == '__main__':
     unittest.main()

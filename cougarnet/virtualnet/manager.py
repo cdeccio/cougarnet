@@ -41,6 +41,7 @@ from cougarnet.sys_helper.cmd_helper import \
         start_sys_cmd_helper, stop_sys_cmd_helper, sys_cmd
 from cougarnet import util
 
+from .asn import ASNConfig
 from .cmd import run_cmd
 from .host import HostConfig
 from .interface import PhysicalInterfaceConfig
@@ -111,6 +112,7 @@ class VirtualNetwork:
 
     def __init__(self, terminal_hosts, cwd, tmpdir, ipv6, verbose):
         self.host_by_name = {}
+        self.asn_by_num = {}
         self.hostname_by_sock = {}
         self.hosts_common_file = None
         self.terminal_hosts = terminal_hosts
@@ -287,12 +289,50 @@ class VirtualNetwork:
         intf = host.add_vlan(phys_int, vlan)
         intf.update(mac_addr=mac, ipv4_addrs=addrs4, ipv6_addrs=addrs6)
 
+    def import_asn(self, line):
+        '''Parse a string containing information for an ASN.'''
+
+        parts = line.split()
+        if len(parts) != 2:
+            raise ConfigurationError('Invalid ASN format.')
+
+        asn, asn_info = parts
+        try:
+            asn = int(asn)
+        except ValueError:
+            raise ConfigurationError('ASN value must be an integer.') \
+                    from None
+
+        s = io.StringIO(asn_info)
+        csv_reader = csv.reader(s)
+        try:
+            attrs = dict([p.split('=', maxsplit=1) \
+                    for p in next(csv_reader)])
+        except ValueError:
+            raise ConfigurationError('Invalid ASN format.') from None
+
+        self.asn_by_num[asn] = ASNConfig(asn, **attrs)
+
+        # check for invalid attributes
+        unknown_asn_attrs = list(set(attrs).
+                difference(set(ASNConfig.attrs)))
+        if unknown_asn_attrs:
+            raise ConfigurationError('Invalid ASN attribute: ' + \
+                    f'{unknown_asn_attrs[0]}')
+
     def process_routes(self):
         '''For every virtual host, parse and store the routes designated by the
         config.'''
 
         for _, host in self.host_by_name.items():
             host.process_routes()
+
+    def apply_asns(self):
+        '''For every virtual host, parse and store the routes designated by the
+        config.'''
+
+        for _, host in self.host_by_name.items():
+            host.apply_asn(self.asn_by_num)
 
     @classmethod
     def from_file(cls, fh, terminal_hosts, config_vars, tmpdir, ipv6, verbose):
@@ -328,6 +368,9 @@ class VirtualNetwork:
                 if line == 'VLANS':
                     mode = 'vlan'
                     continue
+                if line == 'ASNS':
+                    mode = 'asn'
+                    continue
                 if not line:
                     continue
                 if line.startswith('#'):
@@ -339,10 +382,13 @@ class VirtualNetwork:
                     net.import_link(line)
                 elif mode == 'vlan':
                     net.import_vlan(line)
+                elif mode == 'asn':
+                    net.import_asn(line)
                 else:
                     pass
 
             net.process_routes()
+            net.apply_asns()
         except ConfigurationError as e:
             e.lineno = lineno
             raise

@@ -63,4 +63,4 @@ RAWPKT_HELPER_MODULE = "cougarnet.sim.rawpkt_helper"
 
 MAIN_WINDOW_NAME = "main"
 CMD_WINDOW_NAME = "prog"
-ALLOWED_ROUTERS = set(['rip', 'ripng'])
+ALLOWED_ROUTERS = set(['rip', 'ripng', 'bgp'])
