@@ -608,7 +608,7 @@ class VirtualNetwork:
     def set_interfaces_up_netns(self):
         '''For each virtual interface, either bring it up (switches in
         native_apps mode) or set the namespace, in which case it will be
-        brought up later..'''
+        brought up later.'''
 
         for _, host in self.host_by_name.items():
             for intf in list(host.neighbor_by_int) + \
