@@ -26,6 +26,7 @@ import signal
 import subprocess
 import struct
 import sys
+import time
 
 from pyroute2 import NetNS
 from pyroute2.netlink.exceptions import NetlinkError
@@ -84,7 +85,13 @@ class SysCmdHelper:
             nspath = os.path.join(RUN_NETNS_DIR, ns)
 
             if self.vrf_exists is None:
-                val = self._get_vrf_list()
+                # Try up to 10 times to get VRF list, with a
+                # half-second sleep in between.
+                for i in range(10):
+                    val = self._get_vrf_list()
+                    if val.startswith('0,'):
+                        break
+                    time.sleep(0.5)
                 if not val.startswith('0,'):
                     return val
             if nspath not in self.vrf_exists:
