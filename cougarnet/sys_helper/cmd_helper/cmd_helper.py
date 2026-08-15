@@ -784,6 +784,45 @@ class SysCmdHelper:
         return self._run_cmd(cmd)
 
     @require_vrf
+    @require_daemon('bgpd')
+    def start_bgpd(self, hostname, asn, bgp_id, *args):
+        '''Add BGP configuration to the VRF.'''
+
+        num_prefixes = int(args[0])
+        prefixes = args[1:num_prefixes + 1]
+
+        neighbor_info = args[num_prefixes + 1:]
+
+        vrf = hostname
+        cmd = ['vtysh',
+               '-c', 'enable',
+               '-c', 'configure terminal',
+               '-c', f'router bgp {asn} vrf {vrf}',
+               '-c', f' bgp router-id {bgp_id}',
+               '-c', ' no bgp ebgp-requires-policy',
+               '-c', ' no bgp network import-check']
+
+        for i in range(0, len(neighbor_info), 3):
+            cmd += ['-c', f' neighbor {neighbor_info[i]} ' + \
+                    f'remote-as {neighbor_info[i + 2]}',
+                    '-c', f' neighbor {neighbor_info[i]} ' + \
+                    f'update-source {neighbor_info[i + 1]}',
+                    '-c', f' neighbor {neighbor_info[i]} activate']
+
+        cmd += ['-c', ' address-family ipv4 unicast']
+        for prefix in [p for p in prefixes if ':' not in p]:
+            cmd += ['-c', f'  network {prefix}']
+        cmd += ['-c', ' exit-address-family',
+                '-c', ' address-family ipv6 unicast']
+        for prefix in [p for p in prefixes if ':' in p]:
+            cmd += ['-c', f'  network {prefix}']
+        cmd += ['-c', ' exit-address-family']
+        cmd += ['-c', 'exit',
+                '-c', 'end',
+                '-c', 'end']
+        return self._run_cmd(cmd)
+
+    @require_vrf
     @require_daemon('ripd')
     def stop_ripd(self, hostname):
         '''Remove RIP configuration from the VRF.'''
@@ -807,6 +846,20 @@ class SysCmdHelper:
                '-c', 'enable',
                '-c', 'configure terminal',
                '-c', f'no router ripng vrf {vrf}',
+               '-c', 'end',
+               '-c', 'end']
+        return self._run_cmd(cmd)
+
+    @require_vrf
+    @require_daemon('bgpd')
+    def stop_bgpd(self, hostname, asn):
+        '''Remove BGP configuration from the VRF.'''
+
+        vrf = hostname
+        cmd = ['vtysh',
+               '-c', 'enable',
+               '-c', 'configure terminal',
+               '-c', f'no router bgp {asn} vrf {vrf}',
                '-c', 'end',
                '-c', 'end']
         return self._run_cmd(cmd)
