@@ -46,6 +46,7 @@ from .cmd import run_cmd
 from .host import HostConfig
 from .interface import PhysicalInterfaceConfig
 
+ASN_PLUS_LETTER_RE = re.compile(r'^(?P<asn>\d+)(?P<instance>[a-z]*)$')
 MAC_RE = re.compile(r'^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$')
 
 logger = logging.getLogger(__name__)
@@ -297,11 +298,14 @@ class VirtualNetwork:
             raise ConfigurationError('Invalid ASN format.')
 
         asn, asn_info = parts
-        try:
-            asn = int(asn)
-        except ValueError:
-            raise ConfigurationError('ASN value must be an integer.') \
+        m = ASN_PLUS_LETTER_RE.search(asn)
+        if m is None:
+            raise ConfigurationError('ASN value must be an integer, ' + \
+                    'followed by zero or more lower-case letters.') \
                     from None
+
+        instance = asn
+        asn = int(m.group('asn'))
 
         s = io.StringIO(asn_info)
         csv_reader = csv.reader(s)
@@ -311,7 +315,7 @@ class VirtualNetwork:
         except ValueError:
             raise ConfigurationError('Invalid ASN format.') from None
 
-        self.asn_by_num[asn] = ASNConfig(asn, **attrs)
+        self.asn_by_num[instance] = ASNConfig(asn, instance, **attrs)
 
         # check for invalid attributes
         unknown_asn_attrs = list(set(attrs).

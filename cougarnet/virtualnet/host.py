@@ -23,6 +23,7 @@ import ipaddress
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 import time
@@ -104,12 +105,6 @@ class HostConfig:
 
         self.asn_pre_processed = self.asn
         self.asn = None
-
-        if self.asn_pre_processed is not None:
-            try:
-                self.asn_pre_processed = int(self.asn_pre_processed)
-            except ValueError:
-                raise ConfigurationError(f'Invalid ASN: {self.asn_pre_processed}')
 
         loopback_addrs = []
         if self.loopback_addrs is not None:
@@ -235,7 +230,10 @@ class HostConfig:
             self.routes.append((prefix, intf.name, next_hop))
 
     def apply_asn(self, asn_by_num):
-        '''...'''
+        '''Look up the ASNConfig instance associated with the asn instance
+        string stored in self.asn_pre_processed and assign it to self.asn.
+        Also, add this router to the list of routers associated with the ASN
+        instance.'''
 
         if self.asn_pre_processed is None:
             return
