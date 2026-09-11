@@ -497,7 +497,7 @@ class HostConfig:
         if self.type == 'switch' and self.native_apps:
             run_cmd('ovs_flush_bridge', self.hostname)
 
-    def attach_terminal(self):
+    def attach_terminal(self, tmux_file=None):
         '''If terminal mode is enabled for this host, launch the terminal and
         run tmux to attach it with the tmux session already created for the
         virtual host.'''
@@ -507,10 +507,16 @@ class HostConfig:
             while not os.path.exists(self.tmux_file):
                 time.sleep(0.1)
 
-            cmd = [TERM, '-t',
-                f'{self.type.capitalize()}: {self.hostname}',
-                '-e', f'tmux -S {self.tmux_file} attach \\; ' + \
-                        'set exit-unattached on \\;']
+            if tmux_file is None:
+                cmd = [TERM, '-t',
+                    f'{self.type.capitalize()}: {self.hostname}',
+                    '-e', f'tmux -S {self.tmux_file} attach \\; ' + \
+                            'set exit-unattached on \\;']
+            else:
+                cmd = ['tmux', '-S', tmux_file,
+                       'new-window', '-n', self.hostname, '-d',
+                       f'tmux -S {self.tmux_file} attach \\; ' + \
+                            'set exit-unattached on \\;']
             logger.debug(' '.join(cmd))
             return subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

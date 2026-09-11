@@ -837,7 +837,8 @@ class VirtualNetwork:
             self.comm_sock.sendto(b'\x00', host.comm_sock_file)
             # Attach terminal
             if host.terminal:
-                p = host.attach_terminal()
+                tmux_file = util.get_tmux_sock()
+                p = host.attach_terminal(tmux_file)
                 if p is not None:
                     processes.append(p)
 

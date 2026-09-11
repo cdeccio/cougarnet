@@ -1,6 +1,7 @@
 import argparse
 import logging
 import os
+import shlex
 import signal
 import subprocess
 import sys
@@ -71,6 +72,11 @@ def warn_on_sigttin(sig, frame):
 
     sys.stderr.write('Warning: SIGTTIN received\n')
 
+def launch_without_use_tmux(args):
+    cmd_line = shlex.join([arg for arg in sys.argv if arg != '--use-tmux'])
+    args = ['tmux', 'new-session', cmd_line]
+    os.execvp(args[0], args)
+
 def main():
     '''Process command-line arguments, instantiate a VirtualNetwork instance
     from a file, and run and clean-up the virtual network.'''
@@ -99,6 +105,10 @@ def main():
             action='store', type=int, default=None,
             help='Specify a number of seconds after which the scenario ' + \
                     'should be halted.')
+    parser.add_argument('--use-tmux',
+            action='store_const', const=True, default=False,
+            help='Use tmux windows for hosts instead of launching ' + \
+                    'lxterminal instances.')
     parser.add_argument('--terminal',
             action='store', type=str, default=None,
             metavar='HOSTNAMES',
@@ -115,6 +125,10 @@ def main():
             type=argparse.FileType('r'), action='store',
             help='File containing the network configuration')
     args = parser.parse_args(sys.argv[1:])
+
+    if args.use_tmux:
+        launch_without_use_tmux(sys.argv)
+        sys.exit(1)
 
     # configure logging
     root_logger = logging.getLogger()

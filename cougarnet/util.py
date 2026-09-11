@@ -24,6 +24,7 @@ import binascii
 import ctypes
 import csv
 import io
+import os
 import re
 import socket
 import subprocess
@@ -42,6 +43,7 @@ PACKET_AUXDATA = 8
 TP_STATUS_VLAN_VALID = 1 << 4  # auxdata has valid tp_vlan_tci
 
 HOST_RE = re.compile(r'^[a-z]([a-z0-9-]*[a-z0-9])?$')
+TMUX_SOCK_RE = re.compile(r',\d+,\d+$')
 
 
 class TpacketAuxdata(ctypes.Structure):
@@ -109,6 +111,13 @@ def pid_is_running(pid):
     p = subprocess.run(cmd, check=False,
                        stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     return p.returncode == 0
+
+
+def get_tmux_sock():
+    tmux_file = os.environ.get('TMUX', '')
+    if not tmux_file:
+        return None
+    return TMUX_SOCK_RE.sub('', tmux_file)
 
 
 def is_valid_hostname(hostname):
