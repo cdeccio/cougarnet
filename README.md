@@ -1086,7 +1086,7 @@ is received on an interface of the virtual host running the script, the
 `_handle_frame()` method is called with the following arguments:
 
  - `frame` (type `bytes`) - the frame received; and
- - `intf` (type `str`) - the name of the interface out which it should be sent.
+ - `intf` (type `str`) - the name of the interface on which it was received.
 
 
 ### Frame Printer Example
