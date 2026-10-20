@@ -424,7 +424,10 @@ class HostConfig:
             # make it more IPv6-friendly.
             local_ip = self.get_highest_loopback(4)
             peer_ip = peer.get_highest_loopback(4)
-            peers.append((peer_ip, local_ip, peer.asn.asn))
+            out_prefixes = ''
+            in_prefixes = ''
+            peers.append((peer_ip, local_ip, peer.asn.asn,
+                          out_prefixes, in_prefixes))
         if flatten:
             peers = [p for ps in peers for p in ps]
         return peers
@@ -441,7 +444,15 @@ class HostConfig:
             local_ip = intf.ipv4_addrs[0].split('/')[0]
             peer_int = peer.int_by_neighbor[self]
             peer_ip = peer_int.ipv4_addrs[0].split('/')[0]
-            peers.append((peer_ip, local_ip, peer.asn.asn))
+            if self.asn.type == 'stub':
+                out_prefixes = ','.join([str(p) for p in self.asn.prefixes])
+            else:
+                out_prefixes = ''
+            if peer.asn.type == 'stub':
+                in_prefixes = ','.join([str(p) for p in peer.asn.prefixes])
+            else:
+                in_prefixes = ''
+            peers.append((peer_ip, local_ip, peer.asn.asn, out_prefixes, in_prefixes))
         if flatten:
             peers = [p for ps in peers for p in ps]
         return peers

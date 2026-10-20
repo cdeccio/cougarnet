@@ -61,6 +61,7 @@ class SysCmdHelper:
         self.netns_to_pid = {}
         self.pid_to_netns = {}
         self.netns_to_iproute = {}
+        self.prefix_filter_list = {}
 
         self.ns_info_cache = {}
 
@@ -789,11 +790,28 @@ class SysCmdHelper:
         '''Add BGP configuration to the VRF.'''
 
         num_prefixes = int(args[0])
-        prefixes = args[1:num_prefixes + 1]
+        prefix_announce_list = args[1:num_prefixes + 1]
+        prefix_filter_list = []
 
         neighbor_info = args[num_prefixes + 1:]
 
         vrf = hostname
+        if vrf not in self.prefix_filter_list:
+            self.prefix_filter_list[vrf] = []
+
+        filter_in_out_cmds = []
+        for i in range(0, len(neighbor_info), 5):
+            for (index, my_asn, in_out) in \
+                    ((3, asn, 'out'), (4, neighbor_info[i + 2], 'in')):
+                if neighbor_info[i + index]:
+                    filter_in_out_cmds += \
+                            ['-c', f'  neighbor {neighbor_info[i]} ' + \
+                            f'prefix-list as{my_asn}-filter {in_out}']
+                    prefix_filter_list.append(
+                            (f'as{my_asn}-filter',
+                             neighbor_info[i + index].split(',')))
+                    self.prefix_filter_list[vrf].append(f'as{my_asn}-filter')
+
         cmd = ['vtysh',
                '-c', 'enable',
                '-c', 'configure terminal',
@@ -802,7 +820,7 @@ class SysCmdHelper:
                '-c', ' no bgp ebgp-requires-policy',
                '-c', ' no bgp network import-check']
 
-        for i in range(0, len(neighbor_info), 3):
+        for i in range(0, len(neighbor_info), 5):
             cmd += ['-c', f' neighbor {neighbor_info[i]} ' + \
                     f'remote-as {neighbor_info[i + 2]}',
                     '-c', f' neighbor {neighbor_info[i]} ' + \
@@ -810,15 +828,23 @@ class SysCmdHelper:
                     '-c', f' neighbor {neighbor_info[i]} activate']
 
         cmd += ['-c', ' address-family ipv4 unicast']
-        for prefix in [p for p in prefixes if ':' not in p]:
+        for prefix in [p for p in prefix_announce_list if ':' not in p]:
             cmd += ['-c', f'  network {prefix}']
+            cmd += filter_in_out_cmds
+
         cmd += ['-c', ' exit-address-family',
                 '-c', ' address-family ipv6 unicast']
-        for prefix in [p for p in prefixes if ':' in p]:
+        for prefix in [p for p in prefix_announce_list if ':' in p]:
             cmd += ['-c', f'  network {prefix}']
+            cmd += filter_in_out_cmds
+
         cmd += ['-c', ' exit-address-family']
-        cmd += ['-c', 'exit',
-                '-c', 'end',
+        cmd += ['-c', 'exit']
+        for list_name, prefix_list in prefix_filter_list:
+            for prefix in prefix_list:
+                cmd += ['-c', 'ip prefix-list ' + \
+                        f'{list_name} permit {prefix}']
+        cmd += ['-c', 'end',
                 '-c', 'end']
         return self._run_cmd(cmd)
 
@@ -859,9 +885,13 @@ class SysCmdHelper:
         cmd = ['vtysh',
                '-c', 'enable',
                '-c', 'configure terminal',
-               '-c', f'no router bgp {asn} vrf {vrf}',
-               '-c', 'end',
-               '-c', 'end']
+               '-c', f'no router bgp {asn} vrf {vrf}']
+        if vrf in self.prefix_filter_list:
+            for list_name in self.prefix_filter_list[vrf]:
+                cmd += ['-c', f'no ip prefix-list {list_name}']
+            del self.prefix_filter_list[vrf]
+        cmd += ['-c', 'end',
+                '-c', 'end']
         return self._run_cmd(cmd)
 
     @require_netns
