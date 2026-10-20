@@ -370,6 +370,9 @@ class HostConfig:
         '''Create the hosts file entries associated with the hostname-interface
         mappings for this virtual host.'''
 
+        for addr in self.loopback_addrs:
+            fh.write(f'{addr} {self.hostname}\n')
+
         for intf in list(self.neighbor_by_int) + \
                 [i for v, i in self.int_by_vlan.items()]:
             for addr in intf.ipv4_addrs:
